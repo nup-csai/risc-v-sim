@@ -4,9 +4,7 @@
 
 It is assumed that an average computer architecture course covers
 the following topics:
-* Basic instructions
-* Registers
-* Jumping
+* Basic instructions (more or less rv64i)
 * Working with memory
 * ecalls (system calls)
 * Interrupts
