@@ -20,5 +20,15 @@ has the following tough challenges for newcomers:
 This repository provides a RiscV intepreter aimed to assist newcomers
 at learning assembly coding.
 
-The intepreter is written in Rust to ensure comparatively high performance,
-while maintaining a good degree of safety.
+### Why Rust
+
+Such project as this would highly benefit from a language with following
+properties:
+* Memory safety
+* Speed comparable to C
+* Strong type system
+* High performance
+* Statically linked all-included binaries
+* Simple-to-use & easily reproducible build system
+
+Rust fits all these criterias
