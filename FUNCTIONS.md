@@ -13,6 +13,10 @@ the following topics:
 * The behaviour of the intepreter should closely match the
   behaviour of QEMU with the same program
     - This can be ensured with a comptent CI
+* Make the program embdeddable into automation stuff like CI
+    - This can be done implementing the flag, that lets the
+      intepreter output its results in JSON format instead
+      of something human readable
 
 Therefore project goals are
 * Provide an easy-to-use tool to run RiscV programs
@@ -63,6 +67,8 @@ Therefore project goals are
       possible. Some of program segments are NOT initialised. Therefore
       they shouldn't be zeroed
 * Program tracing
+* Memory dumping
+* Alternative machine-readable result format
 
 ## Could-Haves
 
