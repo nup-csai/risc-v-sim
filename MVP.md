@@ -15,7 +15,7 @@
 * Locating an entry point and running the
   program from there until the intepreter
   runs out of range
-* When the intepreter exists -- print machine state (all registers)
+* When the intepreter exits -- print machine state (all registers)
 
 ## Usage example
 
