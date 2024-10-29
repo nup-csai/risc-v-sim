@@ -1,4 +1,5 @@
 /// The `Processor` struct represents a simple risc-v 64i CPU
+#[derive(Debug, Clone, Copy)]
 pub struct Processor {
     registers: [u64; 31],
     pc: u64,
