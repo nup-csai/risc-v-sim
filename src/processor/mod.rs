@@ -44,4 +44,16 @@ impl Processor {
         self.registers[(reg - 1) as usize] = value;
         Ok(())
     }
+
+    /// Get the value of the program counter and return old value
+    pub fn set_pc(&mut self, pc: u64) -> u64 {
+        let old_pc: u64 = self.pc;
+        self.pc = pc;
+        old_pc
+    }
+
+    /// Get the value of the program counter
+    pub fn get_pc(&mut self) -> u64 {
+        self.pc
+    }
 }
