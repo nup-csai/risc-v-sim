@@ -26,7 +26,7 @@ impl Processor {
     }
 
     /// Get the value of a register, private function because is to be used only in the module
-    fn get_register(&self, reg: u64) -> Result<u64, ProcessorError> {
+    pub fn get_register(&self, reg: u64) -> Result<u64, ProcessorError> {
         if reg == 0 {
             return Ok(0);
         }
@@ -37,7 +37,7 @@ impl Processor {
     }
 
     /// Set the value of a register, private function because is to be used only in the module
-    fn set_register(&mut self, reg: u64, value: u64) -> Result<(), ProcessorError> {
+    pub fn set_register(&mut self, reg: u64, value: u64) -> Result<(), ProcessorError> {
         if reg == 0 {
             return Err(ProcessorError::CannotSetRegisterZero);
         }
