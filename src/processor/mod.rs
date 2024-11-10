@@ -4,9 +4,6 @@ use thiserror::Error;
 pub enum ProcessorError {
     #[error("Invalid register number {0}, expected a number between 0 and 31")]
     InvalidRegister(u64),
-
-    #[error("Cannot set register 0")]
-    CannotSetRegisterZero,
 }
 
 /// The `Processor` struct represents a simple risc-v 64i CPU
@@ -39,7 +36,7 @@ impl Processor {
     /// Set the value of a register, private function because is to be used only in the module
     pub fn set_register(&mut self, reg: u64, value: u64) -> Result<(), ProcessorError> {
         if reg == 0 {
-            return Err(ProcessorError::CannotSetRegisterZero);
+            return Ok(());
         }
         if reg > 31 {
             return Err(ProcessorError::InvalidRegister(reg));
