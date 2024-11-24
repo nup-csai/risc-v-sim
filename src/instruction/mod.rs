@@ -73,9 +73,9 @@ impl Instruction {
             }
             Instruction::Jal { rd, offset } => {
                 let old_pc = state.get_pc() + 4;
-                let (new_pc, overflow) = state.get_pc().overflowing_add(offset);
+                let (new_pc, overflow) = rd.overflowing_add(offset);
                 if overflow {
-                    return Err(InstructionError::OverflowPC);
+                    // does nothing yet, will have some functional to handle this later
                 }
                 state.set_register(rd, old_pc + 4)?;
                 state.set_pc(new_pc);
@@ -86,7 +86,7 @@ impl Instruction {
                 let rs1 = state.get_register(rs1)?;
                 let (new_pc, overflow) = rs1.overflowing_add(offset);
                 if overflow {
-                    return Err(InstructionError::OverflowPC);
+                    // does nothing yet, will have some functional to handle this later
                 }
                 state.set_register(rd, old_pc + 4)?;
                 state.set_pc(new_pc);
