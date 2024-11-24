@@ -47,9 +47,7 @@ impl Processor {
 
     /// Get the value of the program counter and return old value
     pub fn set_pc(&mut self, pc: u64) -> u64 {
-        let old_pc: u64 = self.pc;
-        self.pc = pc;
-        old_pc
+        std::mem::replace(&mut self.pc, pc)
     }
 
     /// Get the value of the program counter
