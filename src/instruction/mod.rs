@@ -25,6 +25,16 @@ pub enum Instruction {
     Auipc { rd: u64, imm: u64 },
 }
 
+fn sext(imm: u64) -> u64 {
+    let sign_bit = 1 << 11;
+    let mask = !0 << 12;
+    if imm & sign_bit != 0 {
+        imm | mask
+    } else {
+        imm
+    }
+}
+
 impl From<ProcessorError> for InstructionError {
     fn from(error: ProcessorError) -> Self {
         InstructionError::ProcessorError(error)
@@ -48,16 +58,16 @@ impl Instruction {
             }
             Instruction::Addi { rd, rs1, imm } => {
                 let rs1 = state.get_register(rs1)?;
-                state.set_register(rd, rs1.wrapping_add(imm))?;
+                state.set_register(rd, rs1.wrapping_add(sext(imm)))?;
                 Ok(())
             }
             Instruction::Subi { rd, rs1, imm } => {
                 let rs1 = state.get_register(rs1)?;
-                state.set_register(rd, rs1.wrapping_sub(imm))?;
+                state.set_register(rd, rs1.wrapping_sub(sext(imm)))?;
                 Ok(())
             }
             Instruction::Lui { rd, imm } => {
-                state.set_register(rd, imm)?;
+                state.set_register(rd, sext(imm))?;
                 Ok(())
             }
             Instruction::Xor { rd, rs1, rs2 } => {
@@ -68,7 +78,7 @@ impl Instruction {
             }
             Instruction::Xori { rd, rs1, imm } => {
                 let rs1 = state.get_register(rs1)?;
-                state.set_register(rd, rs1 ^ imm)?;
+                state.set_register(rd, rs1 ^ sext(imm))?;
                 Ok(())
             }
             Instruction::Jal { rd, offset } => {
@@ -94,7 +104,7 @@ impl Instruction {
             }
             Instruction::Auipc { rd, imm } => {
                 let cur_pc = state.get_pc();
-                state.set_register(rd, cur_pc + imm << 12)?;
+                state.set_register(rd, cur_pc + sext(imm) << 12)?;
                 Ok(())
             }
         }
