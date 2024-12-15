@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use crate::processor::{Processor, ProcessorError};
+use crate::processor::{Processor, ProcessorError, Register};
 
 #[derive(Error, Debug)]
 pub enum InstructionError {
@@ -13,16 +13,53 @@ pub enum InstructionError {
 
 #[derive(Clone, Copy, Debug)]
 pub enum Instruction {
-    Add { rd: u64, rs1: u64, rs2: u64 },
-    Sub { rd: u64, rs1: u64, rs2: u64 },
-    Addi { rd: u64, rs1: u64, imm: u64 },
-    Subi { rd: u64, rs1: u64, imm: u64 },
-    Lui { rd: u64, imm: u64 },
-    Xor { rd: u64, rs1: u64, rs2: u64 },
-    Xori { rd: u64, rs1: u64, imm: u64 },
-    Jal { rd: u64, offset: u64 },
-    Jalr { rd: u64, rs1: u64, offset: u64 },
-    Auipc { rd: u64, imm: u64 },
+    Add {
+        rd: Register,
+        rs1: Register,
+        rs2: Register,
+    },
+    Sub {
+        rd: Register,
+        rs1: Register,
+        rs2: Register,
+    },
+    Addi {
+        rd: Register,
+        rs1: Register,
+        imm: u64,
+    },
+    Subi {
+        rd: Register,
+        rs1: Register,
+        imm: u64,
+    },
+    Lui {
+        rd: Register,
+        imm: u64,
+    },
+    Xor {
+        rd: Register,
+        rs1: Register,
+        rs2: Register,
+    },
+    Xori {
+        rd: Register,
+        rs1: Register,
+        imm: u64,
+    },
+    Jal {
+        rd: Register,
+        offset: u64,
+    },
+    Jalr {
+        rd: Register,
+        rs1: Register,
+        offset: u64,
+    },
+    Auipc {
+        rd: Register,
+        imm: u64,
+    },
 }
 
 fn sext(imm: u64) -> u64 {
@@ -82,29 +119,28 @@ impl Instruction {
                 Ok(())
             }
             Instruction::Jal { rd, offset } => {
-                let old_pc = state.get_pc() + 4;
+                let old_pc = state.pc + 4;
                 let (new_pc, overflow) = rd.overflowing_add(offset);
                 if overflow {
                     // does nothing yet, will have some functional to handle this later
                 }
                 state.set_register(rd, old_pc + 4)?;
-                state.set_pc(new_pc);
+                state.pc = new_pc;
                 Ok(())
             }
             Instruction::Jalr { rd, rs1, offset } => {
-                let old_pc = state.get_pc() + 4;
+                let old_pc = state.pc + 4;
                 let rs1 = state.get_register(rs1)?;
                 let (new_pc, overflow) = rs1.overflowing_add(offset);
                 if overflow {
                     // does nothing yet, will have some functional to handle this later
                 }
                 state.set_register(rd, old_pc + 4)?;
-                state.set_pc(new_pc);
+                state.pc = new_pc;
                 Ok(())
             }
             Instruction::Auipc { rd, imm } => {
-                let cur_pc = state.get_pc();
-                state.set_register(rd, cur_pc + sext(imm) << 12)?;
+                state.set_register(rd, state.pc + sext(imm) << 12)?;
                 Ok(())
             }
         }
