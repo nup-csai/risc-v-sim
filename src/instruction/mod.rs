@@ -110,8 +110,8 @@ impl Instruction {
             }
             Instruction::Jal { rd, offset } => {
                 let old_pc = state.pc + 4;
-                let rd = state.get_register(rd)?;
-                let (new_pc, overflow) = rd.overflowing_add(offset);
+                let rd_value = state.get_register(rd)?;
+                let (new_pc, overflow) = rd_value.overflowing_add(offset);
                 if overflow {
                     // does nothing yet, will have some functional to handle this later
                 }
