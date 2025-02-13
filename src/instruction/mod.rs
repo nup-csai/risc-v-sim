@@ -28,11 +28,6 @@ pub enum Instruction {
         rs1: Register,
         imm: u64,
     },
-    Subi {
-        rd: Register,
-        rs1: Register,
-        imm: u64,
-    },
     Lui {
         rd: Register,
         imm: u64,
@@ -98,11 +93,6 @@ impl Instruction {
                 state.set_register(rd, rs1.wrapping_add(sext(imm)))?;
                 Ok(())
             }
-            Instruction::Subi { rd, rs1, imm } => {
-                let rs1 = state.get_register(rs1)?;
-                state.set_register(rd, rs1.wrapping_sub(sext(imm)))?;
-                Ok(())
-            }
             Instruction::Lui { rd, imm } => {
                 state.set_register(rd, sext(imm))?;
                 Ok(())
@@ -120,6 +110,7 @@ impl Instruction {
             }
             Instruction::Jal { rd, offset } => {
                 let old_pc = state.pc + 4;
+                let rd = state.get_register(rd)?;
                 let (new_pc, overflow) = rd.overflowing_add(offset);
                 if overflow {
                     // does nothing yet, will have some functional to handle this later
