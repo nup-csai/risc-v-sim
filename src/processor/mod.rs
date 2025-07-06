@@ -34,9 +34,7 @@ impl Register {
         if value > 31 {
             panic!("Invalid register number {}", value);
         }
-        Register {
-            value,
-        }
+        Register { value }
     }
 }
 
