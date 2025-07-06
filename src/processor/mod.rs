@@ -29,6 +29,13 @@ impl Register {
         }
         self.value = value;
     }
+
+    pub fn from(value: u64) -> Register {
+        if value > 31 {
+            panic!("Invalid register number {}", value);
+        }
+        Register { value }
+    }
 }
 
 impl Processor {
