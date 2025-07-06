@@ -28,11 +28,6 @@ pub enum Instruction {
         rs1: Register,
         imm: u64,
     },
-    Subi {
-        rd: Register,
-        rs1: Register,
-        imm: u64,
-    },
     Lui {
         rd: Register,
         imm: u64,
@@ -96,11 +91,6 @@ impl Instruction {
             Instruction::Addi { rd, rs1, imm } => {
                 let rs1 = state.get_register(rs1)?;
                 state.set_register(rd, rs1.wrapping_add(sext(imm)))?;
-                Ok(())
-            }
-            Instruction::Subi { rd, rs1, imm } => {
-                let rs1 = state.get_register(rs1)?;
-                state.set_register(rd, rs1.wrapping_sub(sext(imm)))?;
                 Ok(())
             }
             Instruction::Lui { rd, imm } => {
