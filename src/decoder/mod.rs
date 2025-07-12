@@ -24,10 +24,10 @@ pub mod r_alu_op {
 
     /* Codes for SUB */
     pub const FUNCT3_SUB: u32 = 0b000;
-    pub const FUNCT7_SUB: u32 = 0b0000010;
+    pub const FUNCT7_SUB: u32 = 0b0100000;
 
     /* Codes for XOR */
-    pub const FUNCT3_XOR: u32 = 0b001;
+    pub const FUNCT3_XOR: u32 = 0b100;
     pub const FUNCT7_XOR: u32 = 0b0000000;
 }
 
