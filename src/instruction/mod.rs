@@ -109,13 +109,12 @@ impl Instruction {
                 Ok(())
             }
             Instruction::Jal { rd, offset } => {
-                let old_pc = state.pc + 4;
-                let rd_value = state.get_register(rd)?;
-                let (new_pc, overflow) = rd_value.overflowing_add(offset);
+                state.set_register(rd, state.pc + 4)?;
+
+                let (new_pc, overflow) = state.pc.overflowing_add(sext(offset));
                 if overflow {
                     // does nothing yet, will have some functional to handle this later
                 }
-                state.set_register(rd, old_pc + 4)?;
                 state.pc = new_pc;
                 Ok(())
             }
