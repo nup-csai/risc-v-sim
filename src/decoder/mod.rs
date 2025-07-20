@@ -1,5 +1,5 @@
 use crate::instruction::Instruction;
-use crate::processor::Register;
+use crate::processor::GeneralRegister;
 
 pub mod opcodes {
     /* J-type instructions */
@@ -42,25 +42,25 @@ pub fn decode_instruction(instruction: u32) -> Option<Instruction> {
     let instruction = match get_opcode(instruction) {
         /* J-type instructions */
         opcodes::JAL => Instruction::Jal {
-            rd: Register::from(get_rd(instruction) as u64),
+            rd: GeneralRegister::new(get_rd(instruction))?,
             offset: get_j_type_imm(instruction) as u64,
         },
         /* R-type instructions */
         opcodes::R_ALU_OP => decode_r_alu_op(instruction)?,
         /* U-type instructions */
         opcodes::LUI => Instruction::Lui {
-            rd: Register::from(get_rd(instruction) as u64),
+            rd: GeneralRegister::new(get_rd(instruction))?,
             imm: get_u_type_imm(instruction) as u64,
         },
         opcodes::AUIPC => Instruction::Auipc {
-            rd: Register::from(get_rd(instruction) as u64),
+            rd: GeneralRegister::new(get_rd(instruction))?,
             imm: get_u_type_imm(instruction) as u64,
         },
         /* I-type instructions */
         opcodes::I_ALU_OP => decode_i_alu_op(instruction)?,
         opcodes::JALR => Instruction::Jalr {
-            rd: Register::from(get_rd(instruction) as u64),
-            rs1: Register::from(get_rs1(instruction) as u64),
+            rd: GeneralRegister::new(get_rd(instruction))?,
+            rs1: GeneralRegister::new(get_rs1(instruction))?,
             offset: get_i_type_imm(instruction) as u64,
         },
         _ => return None,
@@ -71,8 +71,8 @@ pub fn decode_instruction(instruction: u32) -> Option<Instruction> {
 
 fn decode_i_alu_op(instruction: u32) -> Option<Instruction> {
     let funct3 = get_funct3(instruction);
-    let rd = Register::from(get_rd(instruction) as u64);
-    let rs1 = Register::from(get_rs1(instruction) as u64);
+    let rd = GeneralRegister::new(get_rd(instruction))?;
+    let rs1 = GeneralRegister::new(get_rs1(instruction))?;
     let imm = get_i_type_imm(instruction) as u64;
 
     let instruction = match funct3 {
@@ -86,9 +86,9 @@ fn decode_i_alu_op(instruction: u32) -> Option<Instruction> {
 
 fn decode_r_alu_op(instruction: u32) -> Option<Instruction> {
     let funct3_7 = (get_funct3(instruction), get_funct7(instruction));
-    let rd = Register::from(get_rd(instruction) as u64);
-    let rs1 = Register::from(get_rs1(instruction) as u64);
-    let rs2 = Register::from(get_rs2(instruction) as u64);
+    let rd = GeneralRegister::new(get_rd(instruction))?;
+    let rs1 = GeneralRegister::new(get_rs1(instruction))?;
+    let rs2 = GeneralRegister::new(get_rs2(instruction))?;
 
     let instruction = match funct3_7 {
         (r_alu_op::FUNCT3_ADD, r_alu_op::FUNCT7_ADD) => Instruction::Add { rd, rs1, rs2 },
