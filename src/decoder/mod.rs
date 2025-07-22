@@ -162,7 +162,10 @@ fn get_j_type_imm(instruction: u32) -> u32 {
 
 #[cfg(test)]
 mod tests {
+    use super::{i_alu_op, opcodes, r_alu_op};
     use crate::{instruction::Instruction, processor::GeneralRegister};
+
+    const SAMPLE_COUNT: usize = 1000;
 
     #[derive(Debug, Clone, Copy)]
     struct ParseTest {
@@ -174,6 +177,42 @@ mod tests {
     fn test_simple_positive_parse() {
         for t in test_data_good() {
             assert_eq!(super::decode_instruction(t.input), t.expected);
+        }
+    }
+
+    #[test]
+    fn test_simple_negative_parse_i_op() {
+        for t in test_data_bad_i_alu_instr() {
+            assert_eq!(
+                super::decode_instruction(t.input),
+                t.expected,
+                "Input {:#x}",
+                t.input
+            );
+        }
+    }
+
+    #[test]
+    fn test_simple_negative_parse_r_op() {
+        for t in test_data_bad_r_alu_instr() {
+            assert_eq!(
+                super::decode_instruction(t.input),
+                t.expected,
+                "Input {:#x}",
+                t.input
+            );
+        }
+    }
+
+    #[test]
+    fn test_simple_negative_parse_opcode() {
+        for t in test_data_bad_opcode() {
+            assert_eq!(
+                super::decode_instruction(t.input),
+                t.expected,
+                "Input {:#x}",
+                t.input
+            );
         }
     }
 
@@ -271,5 +310,114 @@ mod tests {
     /// Shortcut function that panics if `v` is not a valid reg index.
     fn reg_x(v: u32) -> GeneralRegister {
         GeneralRegister::new(v).unwrap()
+    }
+
+    /// This testdata is a bunch of negative test cases, where the decoder
+    /// should fail.
+    fn test_data_bad_i_alu_instr() -> impl IntoIterator<Item = ParseTest> {
+        // TODO: seed the RNG
+        (0..SAMPLE_COUNT)
+            .map(|_| get_bad_i_alu_instr())
+            .map(|bad_instr| ParseTest {
+                input: bad_instr,
+                expected: None,
+            })
+    }
+
+    fn get_bad_i_alu_instr() -> u32 {
+        let funct3 = get_bad_funct3();
+        let rest = rand::random::<u32>() & 0xffff_8f80;
+
+        opcodes::I_ALU_OP | rest | funct3
+    }
+
+    fn get_bad_funct3() -> u32 {
+        let good_functs = [i_alu_op::FUNCT3_ADDI, i_alu_op::FUNCT3_XORI];
+
+        // FIXME: this sampling might be suboptimal, because
+        // we are actually trying to randomize only the funct3 bits
+        loop {
+            let funct3 = rand::random::<u32>();
+            if !good_functs.contains(&super::get_funct3(funct3)) {
+                return funct3 & 0x0000_7000;
+            }
+        }
+    }
+
+    /// This testdata is a bunch of negative test cases, where the decoder
+    /// should fail.
+    fn test_data_bad_r_alu_instr() -> impl IntoIterator<Item = ParseTest> {
+        // TODO: seed the RNG
+        (0..SAMPLE_COUNT)
+            .map(|_| get_bad_r_alu_instr())
+            .map(|bad_instr| ParseTest {
+                input: bad_instr,
+                expected: None,
+            })
+    }
+
+    fn get_bad_r_alu_instr() -> u32 {
+        let funct37 = get_bad_funct37();
+        let rest = rand::random::<u32>() & 0x01ff_8f80;
+
+        opcodes::R_ALU_OP | rest | funct37
+    }
+
+    fn get_bad_funct37() -> u32 {
+        let good_functs = [
+            (r_alu_op::FUNCT3_ADD, r_alu_op::FUNCT7_ADD),
+            (r_alu_op::FUNCT3_SUB, r_alu_op::FUNCT7_SUB),
+            (r_alu_op::FUNCT3_XOR, r_alu_op::FUNCT7_XOR),
+        ];
+
+        // FIXME: this sampling might be suboptimal, because
+        // we are actually trying to randomize only the funct37 bits
+        loop {
+            let funct37 = rand::random::<u32>();
+            let funct3 = super::get_funct3(funct37);
+            let funct7 = super::get_funct7(funct37);
+            if !good_functs.contains(&(funct3, funct7)) {
+                return funct37 & 0xfe00_7000;
+            }
+        }
+    }
+
+    /// This testdata is a bunch of negative test cases, where the decoder
+    /// should fail.
+    fn test_data_bad_opcode() -> impl IntoIterator<Item = ParseTest> {
+        // TODO: seed the RNG
+        (0..SAMPLE_COUNT)
+            .map(|_| get_bad_opcode_instr())
+            .map(|bad_instr| ParseTest {
+                input: bad_instr,
+                expected: None,
+            })
+    }
+
+    fn get_bad_opcode_instr() -> u32 {
+        let opcode = get_bad_opcode();
+        let other = rand::random::<u32>() & !0b1111111;
+
+        opcode | other
+    }
+
+    fn get_bad_opcode() -> u32 {
+        let good_opcodes = [
+            opcodes::JAL,
+            opcodes::R_ALU_OP,
+            opcodes::LUI,
+            opcodes::AUIPC,
+            opcodes::I_ALU_OP,
+            opcodes::JALR,
+        ];
+
+        // FIXME: this sampling might be suboptimal, because
+        // we are actually trying to randomize only the lower 7 bits
+        loop {
+            let opcode = super::get_opcode(rand::random::<u32>());
+            if !good_opcodes.contains(&opcode) {
+                return opcode;
+            }
+        }
     }
 }
