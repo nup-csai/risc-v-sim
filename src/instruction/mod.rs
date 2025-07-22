@@ -131,3 +131,24 @@ impl Instruction {
         }
     }
 }
+
+#[cfg(test)]
+mod tsets {
+    use crate::instruction::sext;
+
+    #[test]
+    fn test_sext_positive() {
+        for x in 0..0x400 {
+            assert_eq!(x, sext(x));
+        }
+    }
+
+    #[test]
+    fn test_sext_negative() {
+        for x in 0..0x400 {
+            let imm = x | 0x800;
+            let target = x | 0xffff_ffff_ffff_f800;
+            assert_eq!(target, sext(imm), "Imm value: {imm}");
+        }
+    }
+}
