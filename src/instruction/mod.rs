@@ -104,22 +104,16 @@ impl Instruction {
                 Ok(())
             }
             Instruction::Jal { rd, offset } => {
-                state.set_register(rd, state.pc + 4);
-
-                let (new_pc, overflow) = state.pc.overflowing_add(sext(offset));
-                if overflow {
-                    // does nothing yet, will have some functional to handle this later
-                }
+                let old_pc = state.pc;
+                let new_pc = state.pc.wrapping_add(sext(offset));
+                state.set_register(rd, old_pc + 4);
                 state.pc = new_pc;
                 Ok(())
             }
             Instruction::Jalr { rd, rs1, offset } => {
-                let old_pc = state.pc + 4;
+                let old_pc = state.pc;
                 let rs1 = state.get_register(rs1);
-                let (new_pc, overflow) = rs1.overflowing_add(offset);
-                if overflow {
-                    // does nothing yet, will have some functional to handle this later
-                }
+                let new_pc = rs1.wrapping_add(offset);
                 state.set_register(rd, old_pc + 4);
                 state.pc = new_pc;
                 Ok(())
