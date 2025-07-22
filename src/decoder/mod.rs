@@ -159,3 +159,117 @@ fn get_j_type_imm(instruction: u32) -> u32 {
 
     (imm_1_10 << 1) | (imm_11 << 11) | (imm_12_19 << 12) | (imm_20 << 20)
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::{instruction::Instruction, processor::GeneralRegister};
+
+    #[derive(Debug, Clone, Copy)]
+    struct ParseTest {
+        input: u32,
+        expected: Option<Instruction>,
+    }
+
+    #[test]
+    fn test_simple_positive_parse() {
+        for t in test_data_good() {
+            assert_eq!(super::decode_instruction(t.input), t.expected);
+        }
+    }
+
+    /// This testdata is a bunch of positive cases where the decoder should return a
+    /// successful result.
+    /// This test data should include samples of all instructions supported by the simulator.
+    /// Use this tool to debug failing tests: https://luplab.gitlab.io/rvcodecjs.
+    fn test_data_good() -> impl IntoIterator<Item = ParseTest> {
+        // NOTE: please keep the type ordering the same as in
+        // the parser implementation.
+        vec![
+            /* J-Type instructions */
+            ParseTest {
+                input: 0x1440_006f,
+                expected: Some(Instruction::Jal {
+                    rd: reg_x(0),
+                    offset: 324,
+                }),
+            },
+            ParseTest {
+                input: 0x144_002ef,
+                expected: Some(Instruction::Jal {
+                    rd: reg_x(5),
+                    offset: 324,
+                }),
+            },
+            /* R-Type instructions */
+            ParseTest {
+                input: 0x0013_0233,
+                expected: Some(Instruction::Add {
+                    rd: reg_x(4),
+                    rs1: reg_x(6),
+                    rs2: reg_x(1),
+                }),
+            },
+            ParseTest {
+                input: 0x41c0_02b3,
+                expected: Some(Instruction::Sub {
+                    rd: reg_x(5),
+                    rs1: reg_x(0),
+                    rs2: reg_x(28),
+                }),
+            },
+            ParseTest {
+                input: 0x0094_41b3,
+                expected: Some(Instruction::Xor {
+                    rd: reg_x(3),
+                    rs1: reg_x(8),
+                    rs2: reg_x(9),
+                }),
+            },
+            /* U-Type instructions */
+            ParseTest {
+                input: 0x011e_b337,
+                expected: Some(Instruction::Lui {
+                    rd: reg_x(6),
+                    imm: 4587,
+                }),
+            },
+            ParseTest {
+                input: 0x0131_7617,
+                expected: Some(Instruction::Auipc {
+                    rd: reg_x(12),
+                    imm: 4887,
+                }),
+            },
+            /* I-Type instructions */
+            ParseTest {
+                input: 0x0146_0593,
+                expected: Some(Instruction::Addi {
+                    rd: reg_x(11),
+                    rs1: reg_x(12),
+                    imm: 20,
+                }),
+            },
+            ParseTest {
+                input: 0x0d80_ec293,
+                expected: Some(Instruction::Xori {
+                    rd: reg_x(5),
+                    rs1: reg_x(29),
+                    imm: 3456,
+                }),
+            },
+            ParseTest {
+                input: 0x0ff2_8567,
+                expected: Some(Instruction::Jalr {
+                    rd: reg_x(10),
+                    rs1: reg_x(5),
+                    offset: 255,
+                }),
+            },
+        ]
+    }
+
+    /// Shortcut function that panics if `v` is not a valid reg index.
+    fn reg_x(v: u32) -> GeneralRegister {
+        GeneralRegister::new(v).unwrap()
+    }
+}
