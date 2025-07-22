@@ -1,0 +1,44 @@
+name: CI
+
+on: [push, pull_request]
+
+env:
+  RUSTFLAGS: "-D warnings"
+  RUSTVERSION: "1.88"
+
+jobs:
+  ci-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ env.RUSTVERSION }} 
+          override: true
+      - uses: actions/cache@v4
+        continue-on-error: false
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ci-${{ runner.os }}-${{ env.RUSTVERSION }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ci-${{ runner.os }}-${{ env.RUSTVERSION }}-cargo-
+      - name: Check everything
+        run: cargo check --locked --all-targets
+      - name: Run tests
+        run: cargo test --locked
+  cargo-fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ env.RUSTVERSION }}
+          override: true
+          components: rustfmt
+      - run: cargo fmt --all -- --check

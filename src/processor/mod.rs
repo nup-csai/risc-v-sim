@@ -1,40 +1,28 @@
-use thiserror::Error;
+/// The type of the values the CPU works with.
+pub type RegisterVal = u64;
 
-#[derive(Error, Debug)]
-pub enum ProcessorError {
-    #[error("Invalid register number {0}, expected a number between 0 and 31")]
-    InvalidRegister(u64),
-}
+pub const GENERAL_REGISTER_COUNT: usize = 32;
 
 /// The `Processor` struct represents a simple risc-v 64i CPU
 #[derive(Debug, Clone, Copy)]
 pub struct Processor {
-    registers: [u64; 31],
-    pub pc: u64,
+    registers: [RegisterVal; 31],
+    pub pc: RegisterVal,
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct Register {
-    value: u64,
-}
+/// [GeneralRegister] represents a validated general purpose register index.
+/// In baseline RiscV (rv64i), there are 32 general purpose registers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(transparent)]
+pub struct GeneralRegister(u32);
 
-impl Register {
-    pub fn get(&self) -> u64 {
-        self.value
+impl GeneralRegister {
+    pub fn new(value: u32) -> Option<Self> {
+        (value < GENERAL_REGISTER_COUNT as u32).then_some(Self(value))
     }
 
-    pub fn set(&mut self, value: u64) {
-        if value > 31 {
-            panic!("Invalid register number {}", value);
-        }
-        self.value = value;
-    }
-
-    pub fn from(value: u64) -> Register {
-        if value > 31 {
-            panic!("Invalid register number {}", value);
-        }
-        Register { value }
+    pub fn get(&self) -> u32 {
+        self.0
     }
 }
 
@@ -42,33 +30,31 @@ impl Processor {
     /// Create a new `Processor` instance
     pub fn new() -> Processor {
         Processor {
-            registers: [0; 31],
+            registers: [0; GENERAL_REGISTER_COUNT - 1],
             pc: 0,
         }
     }
 
-    /// Get the value of a register, private function because is to be used only in the module
-    pub fn get_register(&self, reg: Register) -> Result<u64, ProcessorError> {
-        let reg_num = reg.get();
-        if reg_num == 0 {
-            return Ok(0);
+    /// Get the value of a register.
+    pub fn get_register(&self, reg: GeneralRegister) -> RegisterVal {
+        let reg = reg.get() as usize;
+        if reg == 0 {
+            return 0;
         }
-        if reg_num > 31 {
-            return Err(ProcessorError::InvalidRegister(reg_num));
-        }
-        Ok(self.registers[(reg_num - 1) as usize])
+
+        // GeneralRegister can't represent out of range indicies.
+        // If it manages to do that -- that's a bug
+        self.registers[reg - 1]
     }
 
-    /// Set the value of a register, private function because is to be used only in the module
-    pub fn set_register(&mut self, reg: Register, value: u64) -> Result<(), ProcessorError> {
-        let reg_num = reg.get();
-        if reg_num == 0 {
-            return Ok(());
+    pub fn set_register(&mut self, reg: GeneralRegister, value: RegisterVal) {
+        let reg = reg.get() as usize;
+        if reg == 0 {
+            return;
         }
-        if reg_num > 31 {
-            return Err(ProcessorError::InvalidRegister(reg_num));
-        }
-        self.registers[(reg_num - 1) as usize] = value;
-        Ok(())
+
+        // GeneralRegister can't represent out of range indicies.
+        // If it manages to do that -- that's a bug
+        self.registers[reg - 1] = value;
     }
 }
