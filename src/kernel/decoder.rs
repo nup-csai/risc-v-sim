@@ -1,5 +1,5 @@
-use crate::instruction::Instruction;
-use crate::processor::GeneralRegister;
+use super::GeneralRegister;
+use super::Instruction;
 
 pub mod opcodes {
     /* J-type instructions */
@@ -163,7 +163,7 @@ fn get_j_type_imm(instruction: u32) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::{i_alu_op, opcodes, r_alu_op};
-    use crate::{instruction::Instruction, processor::GeneralRegister};
+    use super::{GeneralRegister, Instruction};
 
     const SAMPLE_COUNT: usize = 1000;
 

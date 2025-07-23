@@ -1,13 +1,11 @@
-mod decoder;
-mod instruction;
-mod processor;
+mod kernel;
 
 use clap::Parser;
-use decoder::decode_instruction;
 use elf::endian::AnyEndian;
 use elf::ElfBytes;
-use instruction::{Instruction, InstructionError};
-use processor::Processor;
+use kernel::decode_instruction;
+use kernel::Processor;
+use kernel::{Instruction, InstructionError};
 use thiserror::Error;
 
 /// MVP of RVsim!

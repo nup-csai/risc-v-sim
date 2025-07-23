@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use crate::processor::{GeneralRegister, Processor, RegisterVal};
+use super::{GeneralRegister, Processor, RegisterVal};
 
 #[derive(Error, Debug)]
 pub enum InstructionError {}
@@ -128,7 +128,7 @@ impl Instruction {
 
 #[cfg(test)]
 mod tsets {
-    use crate::instruction::sext;
+    use super::sext;
 
     #[test]
     fn test_sext_positive() {
