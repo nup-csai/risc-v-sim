@@ -1,24 +1,107 @@
+//! This module contains the decoder of the RiscV instructions.
+//! It does not support the compressed instructions. For a list
+//! of the supported instructions, please consult the [Instruction]
+//! type.
+//!
+//! # RiscV instructions
+//!
+//! This section lists instruction types and their bit representation.
+//! This bits are going from highest to lowest from left to right.
+//!
+//! ## J-Type
+//!
+//! J-Type instructions have the following bit represenation
+//!
+//! ```
+//! 00010100010000000000 00000 1101111
+//! |                    |     | opcode
+//! |                    | source register
+//! | immediate value
+//! ```
+//!
+//! ## R-Type
+//!
+//! R-Type instructions have the following bit representation
+//!
+//! ```
+//! 0000000 00001 00110 000 00100 0110011
+//! |       |     |     |   |     | opcode
+//! |       |     |     |   | destination register
+//! |       |     |     | funct 3
+//! |       |     | source register 1
+//! |       | source register 2
+//! | funct 7
+//! ```
+//!
+//! ## U-Type
+//!
+//! U-Type instructions have the following bit representation
+//!
+//! ```
+//! 00000001000111101011 00110 0110111
+//! |                    |     | opcode
+//! |                    | destination register
+//! | immediate value
+//! ```
+//!
+//! ## I-Type
+//!
+//! I-Type instructions have the following bit representation
+//!
+//! ```
+//! 000000010100 01100 000 01011 0010011
+//! |            |     |   |     | opcode
+//! |            |     |   | destination register
+//! |            |     | funct 3
+//! |            | source register
+//! | immediate value
+//! ```
+
 use thiserror::Error;
 
 use super::GeneralRegister;
 use super::Instruction;
 
+/// [opcodes] module contains constants of opcodes for [Instruction].
 pub mod opcodes {
+    #[allow(unused_imports)]
+    use super::Instruction;
+
     /* J-type instructions */
+    /// Opcode of [Instruction::Jal]
     pub const JAL: u32 = 0b1101111;
 
     /* R-type instructions */
+    /// Opcode of the following instructions:
+    /// * [Instruction::Add]
+    /// * [Instruction::Sub]
+    /// * [Instruction::Xor]
+    ///
+    /// To figure our what instruction it is,
+    /// you need to look at funct3 and funct7.
     pub const R_ALU_OP: u32 = 0b0110011;
 
     /* U-type instructions */
+    /// Opcode of [Instruction::Lui]
     pub const LUI: u32 = 0b0110111;
+    /// Opcode of [Instruction::Auipc]
     pub const AUIPC: u32 = 0b0010111;
 
     /* I-type instructions */
+    /// Opcode of the following instructions:
+    /// * [Instruction::Addi]
+    /// * [Instruction::Xori]
+    ///
+    /// To figure our what instruction it is,
+    /// you need to look at funct3.
     pub const I_ALU_OP: u32 = 0b0010011;
+    /// Opcode of [Instruction::Jalr]
     pub const JALR: u32 = 0b1100111;
 }
 
+/// [r_alu_op] contains `funct3` and `funct7` values
+/// for instructions with opcode [opcodes::R_ALU_OP].
+/// For more information, see the comment above that constant.
 pub mod r_alu_op {
     /* Codes for ADD */
     pub const FUNCT3_ADD: u32 = 0b000;
@@ -33,6 +116,9 @@ pub mod r_alu_op {
     pub const FUNCT7_XOR: u32 = 0b0000000;
 }
 
+/// [i_alu_op] contains `funct3` values
+/// for instructions with opcode [opcodes::I_ALU_OP].
+/// For more information, see the comment above that constant.
 pub mod i_alu_op {
     pub const FUNCT3_ADDI: u32 = 0b000;
     pub const FUNCT3_XORI: u32 = 0b100;
@@ -40,6 +126,7 @@ pub mod i_alu_op {
 
 const REGISTER_MASK: u32 = 0b11111;
 
+/// Decode a RiscV instruction.
 pub fn decode_instruction(instruction: u32) -> Result<Instruction, DecodeError> {
     let instruction = match get_opcode(instruction) {
         /* J-type instructions */
@@ -71,6 +158,7 @@ pub fn decode_instruction(instruction: u32) -> Result<Instruction, DecodeError> 
     Ok(instruction)
 }
 
+/// Decode an instruction with opcode [opcodes::I_ALU_OP].
 fn decode_i_alu_op(instruction: u32) -> Result<Instruction, DecodeError> {
     let funct3 = get_funct3(instruction);
     let rd = get_rd(instruction);
@@ -86,6 +174,7 @@ fn decode_i_alu_op(instruction: u32) -> Result<Instruction, DecodeError> {
     Ok(instruction)
 }
 
+/// Decode an instruction with opcode [opcodes::R_ALU_OP].
 fn decode_r_alu_op(instruction: u32) -> Result<Instruction, DecodeError> {
     let funct3_7 = (get_funct3(instruction), get_funct7(instruction));
     let rd = get_rd(instruction);
@@ -112,6 +201,8 @@ pub enum DecodeError {
     UnknownIAluOp { funct3: u32 },
 }
 
+/// Get the opcode field.
+/// This field is present in all instruction types.
 fn get_opcode(instruction: u32) -> u32 {
     instruction & 0b1111111
 }
