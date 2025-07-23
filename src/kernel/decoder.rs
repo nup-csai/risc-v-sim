@@ -235,14 +235,14 @@ mod tests {
         vec![
             /* J-Type instructions */
             ParseTest {
-                input: 0x1440_006f,
+                input: 0b00010100010000000000_00000_1101111,
                 expected: Some(Instruction::Jal {
                     rd: reg_x(0),
                     offset: 324,
                 }),
             },
             ParseTest {
-                input: 0x144_002ef,
+                input: 0b00010100010000000000_001011_101111,
                 expected: Some(Instruction::Jal {
                     rd: reg_x(5),
                     offset: 324,
@@ -250,7 +250,7 @@ mod tests {
             },
             /* R-Type instructions */
             ParseTest {
-                input: 0x0013_0233,
+                input: 0b0000000_00001_00110_000_00100_0110011,
                 expected: Some(Instruction::Add {
                     rd: reg_x(4),
                     rs1: reg_x(6),
@@ -258,7 +258,7 @@ mod tests {
                 }),
             },
             ParseTest {
-                input: 0x41c0_02b3,
+                input: 0b0100000_11100_00000_000_00101_0110011,
                 expected: Some(Instruction::Sub {
                     rd: reg_x(5),
                     rs1: reg_x(0),
@@ -266,7 +266,7 @@ mod tests {
                 }),
             },
             ParseTest {
-                input: 0x0094_41b3,
+                input: 0b0000000_01001_01000_100_00011_0110011,
                 expected: Some(Instruction::Xor {
                     rd: reg_x(3),
                     rs1: reg_x(8),
@@ -275,14 +275,14 @@ mod tests {
             },
             /* U-Type instructions */
             ParseTest {
-                input: 0x011e_b337,
+                input: 0b00000001000111101011_00110_0110111,
                 expected: Some(Instruction::Lui {
                     rd: reg_x(6),
                     imm: 4587,
                 }),
             },
             ParseTest {
-                input: 0x0131_7617,
+                input: 0b00000001001100010111_01100_0010111,
                 expected: Some(Instruction::Auipc {
                     rd: reg_x(12),
                     imm: 4887,
@@ -290,7 +290,7 @@ mod tests {
             },
             /* I-Type instructions */
             ParseTest {
-                input: 0x0146_0593,
+                input: 0b000000010100_01100_000_01011_0010011,
                 expected: Some(Instruction::Addi {
                     rd: reg_x(11),
                     rs1: reg_x(12),
@@ -298,7 +298,7 @@ mod tests {
                 }),
             },
             ParseTest {
-                input: 0x0d80_ec293,
+                input: 0b110110000000_11101_100_00101_0010011,
                 expected: Some(Instruction::Xori {
                     rd: reg_x(5),
                     rs1: reg_x(29),
@@ -306,7 +306,7 @@ mod tests {
                 }),
             },
             ParseTest {
-                input: 0x0ff2_8567,
+                input: 0b000011111111_00101_000_01010_1100111,
                 expected: Some(Instruction::Jalr {
                     rd: reg_x(10),
                     rs1: reg_x(5),
