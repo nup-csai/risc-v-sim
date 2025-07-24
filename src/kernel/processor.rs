@@ -4,7 +4,7 @@ pub type RegisterVal = u64;
 pub const GENERAL_REGISTER_COUNT: usize = 32;
 
 /// The `Processor` struct represents a simple risc-v 64i CPU
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Processor {
     registers: [RegisterVal; 31],
     pub pc: RegisterVal,

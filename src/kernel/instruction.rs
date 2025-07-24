@@ -2,7 +2,7 @@ use thiserror::Error;
 
 use super::{GeneralRegister, Processor, RegisterVal};
 
-#[derive(Error, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Error, Debug)]
 pub enum InstructionError {}
 
 /// [Instruction] is a type-safe representation of a CPU
