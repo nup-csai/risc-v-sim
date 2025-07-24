@@ -42,25 +42,25 @@ pub fn decode_instruction(instruction: u32) -> Option<Instruction> {
     let instruction = match get_opcode(instruction) {
         /* J-type instructions */
         opcodes::JAL => Instruction::Jal {
-            rd: GeneralRegister::new(get_rd(instruction))?,
+            rd: get_rd(instruction),
             offset: get_j_type_imm(instruction) as u64,
         },
         /* R-type instructions */
         opcodes::R_ALU_OP => decode_r_alu_op(instruction)?,
         /* U-type instructions */
         opcodes::LUI => Instruction::Lui {
-            rd: GeneralRegister::new(get_rd(instruction))?,
+            rd: get_rd(instruction),
             imm: get_u_type_imm(instruction) as u64,
         },
         opcodes::AUIPC => Instruction::Auipc {
-            rd: GeneralRegister::new(get_rd(instruction))?,
+            rd: get_rd(instruction),
             imm: get_u_type_imm(instruction) as u64,
         },
         /* I-type instructions */
         opcodes::I_ALU_OP => decode_i_alu_op(instruction)?,
         opcodes::JALR => Instruction::Jalr {
-            rd: GeneralRegister::new(get_rd(instruction))?,
-            rs1: GeneralRegister::new(get_rs1(instruction))?,
+            rd: get_rd(instruction),
+            rs1: get_rs1(instruction),
             offset: get_i_type_imm(instruction) as u64,
         },
         _ => return None,
@@ -71,8 +71,8 @@ pub fn decode_instruction(instruction: u32) -> Option<Instruction> {
 
 fn decode_i_alu_op(instruction: u32) -> Option<Instruction> {
     let funct3 = get_funct3(instruction);
-    let rd = GeneralRegister::new(get_rd(instruction))?;
-    let rs1 = GeneralRegister::new(get_rs1(instruction))?;
+    let rd = get_rd(instruction);
+    let rs1 = get_rs1(instruction);
     let imm = get_i_type_imm(instruction) as u64;
 
     let instruction = match funct3 {
@@ -86,9 +86,9 @@ fn decode_i_alu_op(instruction: u32) -> Option<Instruction> {
 
 fn decode_r_alu_op(instruction: u32) -> Option<Instruction> {
     let funct3_7 = (get_funct3(instruction), get_funct7(instruction));
-    let rd = GeneralRegister::new(get_rd(instruction))?;
-    let rs1 = GeneralRegister::new(get_rs1(instruction))?;
-    let rs2 = GeneralRegister::new(get_rs2(instruction))?;
+    let rd = get_rd(instruction);
+    let rs1 = get_rs1(instruction);
+    let rs2 = get_rs2(instruction);
 
     let instruction = match funct3_7 {
         (r_alu_op::FUNCT3_ADD, r_alu_op::FUNCT7_ADD) => Instruction::Add { rd, rs1, rs2 },
@@ -118,20 +118,29 @@ fn get_funct7(instruction: u32) -> u32 {
 
 /// Get the rd field. Applicable to R, I, U, J instructions.
 /// The value is placed into the lowest bits of u32.
-fn get_rd(instruction: u32) -> u32 {
-    (instruction >> 7) & REGISTER_MASK
+/// The result is immediately wrapped with [GeneralRegister] for
+/// convenience.
+fn get_rd(instruction: u32) -> GeneralRegister {
+    let raw = (instruction >> 7) & REGISTER_MASK;
+    GeneralRegister::new(raw).unwrap()
 }
 
 /// Get the rs1 field. Applicable to R, I, S, B instructions.
 /// The value is placed into the lowest bits of u32.
-fn get_rs1(instruction: u32) -> u32 {
-    (instruction >> 15) & REGISTER_MASK
+/// The result is immediately wrapped with [GeneralRegister] for
+/// convenience.
+fn get_rs1(instruction: u32) -> GeneralRegister {
+    let raw = (instruction >> 15) & REGISTER_MASK;
+    GeneralRegister::new(raw).unwrap()
 }
 
 /// Get the rs2 field. Applicable to R, S, B instructions.
 /// The value is placed into the lowest bits of u32.
-fn get_rs2(instruction: u32) -> u32 {
-    (instruction >> 20) & REGISTER_MASK
+/// The result is immediately wrapped with [GeneralRegister] for
+/// convenience.
+fn get_rs2(instruction: u32) -> GeneralRegister {
+    let raw = (instruction >> 20) & REGISTER_MASK;
+    GeneralRegister::new(raw).unwrap()
 }
 
 /// Get the immediate value. Applicable to I instructions ONLY.
