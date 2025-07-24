@@ -4,6 +4,7 @@ use clap::Parser;
 use elf::endian::AnyEndian;
 use elf::ElfBytes;
 use kernel::decode_instruction;
+use kernel::DecodeError;
 use kernel::Processor;
 use kernel::{Instruction, InstructionError};
 use thiserror::Error;
@@ -42,6 +43,8 @@ enum RunError {
     BadInstruction {
         instruction_n: usize,
         instruction_val: u32,
+        #[source]
+        reason: DecodeError,
     },
     #[error("Tried to fetch an instruction out of range: {0}")]
     FetchOutOfRange(usize),
@@ -116,7 +119,8 @@ fn parse_text_chunk((instruction_n, chunk): (usize, &[u8])) -> Result<Instructio
     let instruction_bytes: [u8; 4] = chunk.try_into().map_err(|_| RunError::UnalignedText)?;
     let instruction_val = u32::from_le_bytes(instruction_bytes);
 
-    decode_instruction(instruction_val).ok_or(RunError::BadInstruction {
+    decode_instruction(instruction_val).map_err(|reason| RunError::BadInstruction {
+        reason,
         instruction_n,
         instruction_val,
     })

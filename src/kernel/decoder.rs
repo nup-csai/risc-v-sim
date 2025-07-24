@@ -1,3 +1,5 @@
+use thiserror::Error;
+
 use super::GeneralRegister;
 use super::Instruction;
 
@@ -38,7 +40,7 @@ pub mod i_alu_op {
 
 const REGISTER_MASK: u32 = 0b11111;
 
-pub fn decode_instruction(instruction: u32) -> Option<Instruction> {
+pub fn decode_instruction(instruction: u32) -> Result<Instruction, DecodeError> {
     let instruction = match get_opcode(instruction) {
         /* J-type instructions */
         opcodes::JAL => Instruction::Jal {
@@ -63,13 +65,13 @@ pub fn decode_instruction(instruction: u32) -> Option<Instruction> {
             rs1: get_rs1(instruction),
             offset: get_i_type_imm(instruction) as u64,
         },
-        _ => return None,
+        opcode => return Err(DecodeError::UnknownOpcode(opcode)),
     };
 
-    Some(instruction)
+    Ok(instruction)
 }
 
-fn decode_i_alu_op(instruction: u32) -> Option<Instruction> {
+fn decode_i_alu_op(instruction: u32) -> Result<Instruction, DecodeError> {
     let funct3 = get_funct3(instruction);
     let rd = get_rd(instruction);
     let rs1 = get_rs1(instruction);
@@ -78,13 +80,13 @@ fn decode_i_alu_op(instruction: u32) -> Option<Instruction> {
     let instruction = match funct3 {
         i_alu_op::FUNCT3_ADDI => Instruction::Addi { rd, rs1, imm },
         i_alu_op::FUNCT3_XORI => Instruction::Xori { rd, rs1, imm },
-        _ => return None,
+        funct3 => return Err(DecodeError::UnknownIAluOp { funct3 }),
     };
 
-    Some(instruction)
+    Ok(instruction)
 }
 
-fn decode_r_alu_op(instruction: u32) -> Option<Instruction> {
+fn decode_r_alu_op(instruction: u32) -> Result<Instruction, DecodeError> {
     let funct3_7 = (get_funct3(instruction), get_funct7(instruction));
     let rd = get_rd(instruction);
     let rs1 = get_rs1(instruction);
@@ -94,10 +96,20 @@ fn decode_r_alu_op(instruction: u32) -> Option<Instruction> {
         (r_alu_op::FUNCT3_ADD, r_alu_op::FUNCT7_ADD) => Instruction::Add { rd, rs1, rs2 },
         (r_alu_op::FUNCT3_SUB, r_alu_op::FUNCT7_SUB) => Instruction::Sub { rd, rs1, rs2 },
         (r_alu_op::FUNCT3_XOR, r_alu_op::FUNCT7_XOR) => Instruction::Xor { rd, rs1, rs2 },
-        _ => return None,
+        (funct3, funct7) => return Err(DecodeError::UnknownRAluOp { funct3, funct7 }),
     };
 
-    Some(instruction)
+    Ok(instruction)
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Error)]
+pub enum DecodeError {
+    #[error("Unkown instruction opcode: {0:#x}")]
+    UnknownOpcode(u32),
+    #[error("Unkown r ALU op funct values: {funct3:#x} and {funct7:#x}")]
+    UnknownRAluOp { funct3: u32, funct7: u32 },
+    #[error("Unkown i ALU op funct3 value: {funct3:#x}")]
+    UnknownIAluOp { funct3: u32 },
 }
 
 fn get_opcode(instruction: u32) -> u32 {
@@ -171,7 +183,7 @@ fn get_j_type_imm(instruction: u32) -> u32 {
 
 #[cfg(test)]
 mod tests {
-    use super::{i_alu_op, opcodes, r_alu_op};
+    use super::{get_funct3, get_funct7, get_opcode, i_alu_op, opcodes, r_alu_op, DecodeError};
     use super::{GeneralRegister, Instruction};
 
     const SAMPLE_COUNT: usize = 1000;
@@ -179,7 +191,7 @@ mod tests {
     #[derive(Debug, Clone, Copy)]
     struct ParseTest {
         input: u32,
-        expected: Option<Instruction>,
+        expected: Result<Instruction, DecodeError>,
     }
 
     #[test]
@@ -236,14 +248,14 @@ mod tests {
             /* J-Type instructions */
             ParseTest {
                 input: 0b00010100010000000000_00000_1101111,
-                expected: Some(Instruction::Jal {
+                expected: Ok(Instruction::Jal {
                     rd: reg_x(0),
                     offset: 324,
                 }),
             },
             ParseTest {
                 input: 0b00010100010000000000_001011_101111,
-                expected: Some(Instruction::Jal {
+                expected: Ok(Instruction::Jal {
                     rd: reg_x(5),
                     offset: 324,
                 }),
@@ -251,7 +263,7 @@ mod tests {
             /* R-Type instructions */
             ParseTest {
                 input: 0b0000000_00001_00110_000_00100_0110011,
-                expected: Some(Instruction::Add {
+                expected: Ok(Instruction::Add {
                     rd: reg_x(4),
                     rs1: reg_x(6),
                     rs2: reg_x(1),
@@ -259,7 +271,7 @@ mod tests {
             },
             ParseTest {
                 input: 0b0100000_11100_00000_000_00101_0110011,
-                expected: Some(Instruction::Sub {
+                expected: Ok(Instruction::Sub {
                     rd: reg_x(5),
                     rs1: reg_x(0),
                     rs2: reg_x(28),
@@ -267,7 +279,7 @@ mod tests {
             },
             ParseTest {
                 input: 0b0000000_01001_01000_100_00011_0110011,
-                expected: Some(Instruction::Xor {
+                expected: Ok(Instruction::Xor {
                     rd: reg_x(3),
                     rs1: reg_x(8),
                     rs2: reg_x(9),
@@ -276,14 +288,14 @@ mod tests {
             /* U-Type instructions */
             ParseTest {
                 input: 0b00000001000111101011_00110_0110111,
-                expected: Some(Instruction::Lui {
+                expected: Ok(Instruction::Lui {
                     rd: reg_x(6),
                     imm: 4587,
                 }),
             },
             ParseTest {
                 input: 0b00000001001100010111_01100_0010111,
-                expected: Some(Instruction::Auipc {
+                expected: Ok(Instruction::Auipc {
                     rd: reg_x(12),
                     imm: 4887,
                 }),
@@ -291,7 +303,7 @@ mod tests {
             /* I-Type instructions */
             ParseTest {
                 input: 0b000000010100_01100_000_01011_0010011,
-                expected: Some(Instruction::Addi {
+                expected: Ok(Instruction::Addi {
                     rd: reg_x(11),
                     rs1: reg_x(12),
                     imm: 20,
@@ -299,7 +311,7 @@ mod tests {
             },
             ParseTest {
                 input: 0b110110000000_11101_100_00101_0010011,
-                expected: Some(Instruction::Xori {
+                expected: Ok(Instruction::Xori {
                     rd: reg_x(5),
                     rs1: reg_x(29),
                     imm: 3456,
@@ -307,7 +319,7 @@ mod tests {
             },
             ParseTest {
                 input: 0b000011111111_00101_000_01010_1100111,
-                expected: Some(Instruction::Jalr {
+                expected: Ok(Instruction::Jalr {
                     rd: reg_x(10),
                     rs1: reg_x(5),
                     offset: 255,
@@ -329,7 +341,9 @@ mod tests {
             .map(|_| get_bad_i_alu_instr())
             .map(|bad_instr| ParseTest {
                 input: bad_instr,
-                expected: None,
+                expected: Err(DecodeError::UnknownIAluOp {
+                    funct3: get_funct3(bad_instr),
+                }),
             })
     }
 
@@ -361,7 +375,10 @@ mod tests {
             .map(|_| get_bad_r_alu_instr())
             .map(|bad_instr| ParseTest {
                 input: bad_instr,
-                expected: None,
+                expected: Err(DecodeError::UnknownRAluOp {
+                    funct3: get_funct3(bad_instr),
+                    funct7: get_funct7(bad_instr),
+                }),
             })
     }
 
@@ -399,7 +416,7 @@ mod tests {
             .map(|_| get_bad_opcode_instr())
             .map(|bad_instr| ParseTest {
                 input: bad_instr,
-                expected: None,
+                expected: Err(DecodeError::UnknownOpcode(get_opcode(bad_instr))),
             })
     }
 
