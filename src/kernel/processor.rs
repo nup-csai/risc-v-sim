@@ -4,7 +4,7 @@ pub type RegisterVal = u64;
 pub const GENERAL_REGISTER_COUNT: usize = 32;
 
 /// The `Processor` struct represents a simple risc-v 64i CPU
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 pub struct Processor {
     registers: [RegisterVal; 31],
     pub pc: RegisterVal,
@@ -12,7 +12,7 @@ pub struct Processor {
 
 /// [GeneralRegister] represents a validated general purpose register index.
 /// In baseline RiscV (rv64i), there are 32 general purpose registers.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[repr(transparent)]
 pub struct GeneralRegister(u32);
 

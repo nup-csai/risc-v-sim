@@ -8,7 +8,7 @@ pub enum InstructionError {}
 /// [Instruction] is a type-safe representation of a CPU
 /// instruction. That means, all valid values of this type
 /// are valid RiscV instructions.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum Instruction {
     /* J-Type instructions */
     Jal {

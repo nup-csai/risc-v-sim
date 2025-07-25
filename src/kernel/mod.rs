@@ -103,7 +103,7 @@ pub struct InstructionDecodeError {
     pub error: DecodeError,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, serde::Serialize)]
 pub struct KernelStep {
     pub old_processor: Processor,
     pub new_processor: Processor,

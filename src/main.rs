@@ -1,5 +1,7 @@
 mod kernel;
 
+use std::io::Write;
+
 use clap::Parser;
 use elf::endian::AnyEndian;
 use elf::ElfBytes;
@@ -78,7 +80,11 @@ fn main() -> Result<(), ShellError> {
     for _ in 0..MAX_STEPS {
         match kernel.step() {
             Err(e) => return Err(ShellError::KernelError(e)),
-            Ok(s) => println!("{s:?}"),
+            Ok(s) => {
+                let mut stdout = std::io::stdout().lock();
+                serde_json::ser::to_writer(&mut stdout, &s).unwrap();
+                stdout.write(std::slice::from_ref(&b'\n')).unwrap();
+            }
         }
     }
 
