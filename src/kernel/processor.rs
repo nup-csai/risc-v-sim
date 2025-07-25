@@ -1,10 +1,12 @@
 /// The type of the values the CPU works with.
 pub type RegisterVal = u64;
+/// The type used to store CPU instructions.
+pub type InstructionVal = u32;
 
 pub const GENERAL_REGISTER_COUNT: usize = 32;
 
 /// The `Processor` struct represents a simple risc-v 64i CPU
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 pub struct Processor {
     registers: [RegisterVal; 31],
     pub pc: RegisterVal,
@@ -12,16 +14,16 @@ pub struct Processor {
 
 /// [GeneralRegister] represents a validated general purpose register index.
 /// In baseline RiscV (rv64i), there are 32 general purpose registers.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[repr(transparent)]
-pub struct GeneralRegister(u32);
+pub struct GeneralRegister(InstructionVal);
 
 impl GeneralRegister {
-    pub fn new(value: u32) -> Option<Self> {
-        (value < GENERAL_REGISTER_COUNT as u32).then_some(Self(value))
+    pub fn new(value: InstructionVal) -> Option<Self> {
+        (value < GENERAL_REGISTER_COUNT as InstructionVal).then_some(Self(value))
     }
 
-    pub fn get(&self) -> u32 {
+    pub fn get(&self) -> InstructionVal {
         self.0
     }
 }
