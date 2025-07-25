@@ -60,7 +60,9 @@
 use thiserror::Error;
 
 use super::GeneralRegister;
+use super::Imm;
 use super::Instruction;
+use super::RegisterVal;
 
 /// [opcodes] module contains constants of opcodes for [Instruction].
 pub mod opcodes {
@@ -132,25 +134,25 @@ pub fn decode_instruction(instruction: u32) -> Result<Instruction, DecodeError> 
         /* J-type instructions */
         opcodes::JAL => Instruction::Jal {
             rd: get_rd(instruction),
-            offset: get_j_type_imm(instruction) as u64,
+            offset: get_j_type_imm(instruction),
         },
         /* R-type instructions */
         opcodes::R_ALU_OP => decode_r_alu_op(instruction)?,
         /* U-type instructions */
         opcodes::LUI => Instruction::Lui {
             rd: get_rd(instruction),
-            imm: get_u_type_imm(instruction) as u64,
+            imm: get_u_type_imm(instruction),
         },
         opcodes::AUIPC => Instruction::Auipc {
             rd: get_rd(instruction),
-            imm: get_u_type_imm(instruction) as u64,
+            imm: get_u_type_imm(instruction),
         },
         /* I-type instructions */
         opcodes::I_ALU_OP => decode_i_alu_op(instruction)?,
         opcodes::JALR => Instruction::Jalr {
             rd: get_rd(instruction),
             rs1: get_rs1(instruction),
-            offset: get_i_type_imm(instruction) as u64,
+            offset: get_i_type_imm(instruction),
         },
         opcode => return Err(DecodeError::UnknownOpcode(opcode)),
     };
@@ -163,7 +165,7 @@ fn decode_i_alu_op(instruction: u32) -> Result<Instruction, DecodeError> {
     let funct3 = get_funct3(instruction);
     let rd = get_rd(instruction);
     let rs1 = get_rs1(instruction);
-    let imm = get_i_type_imm(instruction) as u64;
+    let imm = get_i_type_imm(instruction);
 
     let instruction = match funct3 {
         i_alu_op::FUNCT3_ADDI => Instruction::Addi { rd, rs1, imm },
@@ -249,31 +251,36 @@ fn get_rs2(instruction: u32) -> GeneralRegister {
 /// Get the immediate value. Applicable to I instructions ONLY.
 /// The value is placed into the lowest bits of u32.
 /// The value is not sign-extended.
-fn get_i_type_imm(instruction: u32) -> u32 {
-    (instruction >> 20) as u32
+/// The result is immediately wrapped with [Imm] for convenience.
+fn get_i_type_imm(instruction: u32) -> Imm<12> {
+    Imm::new((instruction >> 20) as RegisterVal).unwrap()
 }
 
 /// Get the immediate value. Applicable to U instructions ONLY.
 /// The value is placed into the lowest bits of u32.
 /// The value is not sign-extended.
-fn get_u_type_imm(instruction: u32) -> u32 {
-    (instruction >> 12) as u32
+/// The result is immediately wrapped with [Imm] for convenience.
+fn get_u_type_imm(instruction: u32) -> Imm<20> {
+    Imm::new((instruction >> 12) as RegisterVal).unwrap()
 }
 
 /// Get the immediate value. Applicable to J instructions ONLY.
 /// The value is placed into the lowest bits of u32.
 /// The value is not sign-extended.
-fn get_j_type_imm(instruction: u32) -> u32 {
+/// The result is immediately wrapped with [Imm] for convenience.
+fn get_j_type_imm(instruction: u32) -> Imm<20> {
     let imm_1_10 = (instruction & 0x7FC0_0000) >> 21;
     let imm_11 = (instruction & 0x0010_0000) >> 20;
     let imm_12_19 = (instruction & 0x000F_F000) >> 12;
     let imm_20 = (instruction & 0x8000_0000) >> 30;
-
-    (imm_1_10 << 1) | (imm_11 << 11) | (imm_12_19 << 12) | (imm_20 << 20)
+    let raw = (imm_1_10 << 1) | (imm_11 << 11) | (imm_12_19 << 12) | (imm_20 << 20);
+    Imm::new(raw as RegisterVal).unwrap()
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::kernel::{Imm, RegisterVal};
+
     use super::{get_funct3, get_funct7, get_opcode, i_alu_op, opcodes, r_alu_op, DecodeError};
     use super::{GeneralRegister, Instruction};
 
@@ -341,14 +348,14 @@ mod tests {
                 input: 0b00010100010000000000_00000_1101111,
                 expected: Ok(Instruction::Jal {
                     rd: reg_x(0),
-                    offset: 324,
+                    offset: imm(324),
                 }),
             },
             ParseTest {
                 input: 0b00010100010000000000_001011_101111,
                 expected: Ok(Instruction::Jal {
                     rd: reg_x(5),
-                    offset: 324,
+                    offset: imm(324),
                 }),
             },
             /* R-Type instructions */
@@ -381,14 +388,14 @@ mod tests {
                 input: 0b00000001000111101011_00110_0110111,
                 expected: Ok(Instruction::Lui {
                     rd: reg_x(6),
-                    imm: 4587,
+                    imm: imm(4587),
                 }),
             },
             ParseTest {
                 input: 0b00000001001100010111_01100_0010111,
                 expected: Ok(Instruction::Auipc {
                     rd: reg_x(12),
-                    imm: 4887,
+                    imm: imm(4887),
                 }),
             },
             /* I-Type instructions */
@@ -397,7 +404,7 @@ mod tests {
                 expected: Ok(Instruction::Addi {
                     rd: reg_x(11),
                     rs1: reg_x(12),
-                    imm: 20,
+                    imm: imm(20),
                 }),
             },
             ParseTest {
@@ -405,7 +412,7 @@ mod tests {
                 expected: Ok(Instruction::Xori {
                     rd: reg_x(5),
                     rs1: reg_x(29),
-                    imm: 3456,
+                    imm: imm(3456),
                 }),
             },
             ParseTest {
@@ -413,10 +420,15 @@ mod tests {
                 expected: Ok(Instruction::Jalr {
                     rd: reg_x(10),
                     rs1: reg_x(5),
-                    offset: 255,
+                    offset: imm(255),
                 }),
             },
         ]
+    }
+
+    /// Shortcut function that panics if `v` is not a valid imm value.
+    fn imm<const WIDTH: usize>(v: RegisterVal) -> Imm<{ WIDTH }> {
+        Imm::new(v).unwrap()
     }
 
     /// Shortcut function that panics if `v` is not a valid reg index.
