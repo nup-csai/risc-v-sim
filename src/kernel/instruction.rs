@@ -127,7 +127,7 @@ impl Instruction {
 }
 
 #[cfg(test)]
-mod tsets {
+mod tests {
     use super::sext;
 
     #[test]
