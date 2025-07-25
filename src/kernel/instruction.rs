@@ -61,6 +61,13 @@ pub enum Instruction {
 impl Instruction {
     pub fn execute(self, state: &mut Processor) -> Result<(), InstructionError> {
         match self {
+            Instruction::Jal { rd, offset } => {
+                let old_pc = state.pc;
+                let new_pc = state.pc.wrapping_add(offset.get_sext());
+                state.set_register(rd, old_pc + 4);
+                state.pc = new_pc;
+                Ok(())
+            }
             Instruction::Add { rd, rs1, rs2 } => {
                 let rs1 = state.get_register(rs1);
                 let rs2 = state.get_register(rs2);
@@ -73,31 +80,28 @@ impl Instruction {
                 state.set_register(rd, rs1.wrapping_sub(rs2));
                 Ok(())
             }
-            Instruction::Addi { rd, rs1, imm } => {
-                let rs1 = state.get_register(rs1);
-                state.set_register(rd, rs1.wrapping_add(imm.get_sext()));
-                Ok(())
-            }
-            Instruction::Lui { rd, imm } => {
-                state.set_register(rd, imm.get_sext());
-                Ok(())
-            }
             Instruction::Xor { rd, rs1, rs2 } => {
                 let rs1 = state.get_register(rs1);
                 let rs2 = state.get_register(rs2);
                 state.set_register(rd, rs1 ^ rs2);
                 Ok(())
             }
+            Instruction::Lui { rd, imm } => {
+                state.set_register(rd, imm.get_sext());
+                Ok(())
+            }
+            Instruction::Auipc { rd, imm } => {
+                state.set_register(rd, state.pc + imm.get_sext() << 12);
+                Ok(())
+            }
+            Instruction::Addi { rd, rs1, imm } => {
+                let rs1 = state.get_register(rs1);
+                state.set_register(rd, rs1.wrapping_add(imm.get_sext()));
+                Ok(())
+            }
             Instruction::Xori { rd, rs1, imm } => {
                 let rs1 = state.get_register(rs1);
                 state.set_register(rd, rs1 ^ imm.get_sext());
-                Ok(())
-            }
-            Instruction::Jal { rd, offset } => {
-                let old_pc = state.pc;
-                let new_pc = state.pc.wrapping_add(offset.get_sext());
-                state.set_register(rd, old_pc + 4);
-                state.pc = new_pc;
                 Ok(())
             }
             Instruction::Jalr { rd, rs1, offset } => {
@@ -106,10 +110,6 @@ impl Instruction {
                 let new_pc = rs1.wrapping_add(offset.get_sext());
                 state.set_register(rd, old_pc + 4);
                 state.pc = new_pc;
-                Ok(())
-            }
-            Instruction::Auipc { rd, imm } => {
-                state.set_register(rd, state.pc + imm.get_sext() << 12);
                 Ok(())
             }
         }
