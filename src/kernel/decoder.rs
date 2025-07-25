@@ -62,16 +62,18 @@ use thiserror::Error;
 use super::GeneralRegister;
 use super::Imm;
 use super::Instruction;
+use super::InstructionVal;
 use super::RegisterVal;
 
 /// [opcodes] module contains constants of opcodes for [Instruction].
 pub mod opcodes {
     #[allow(unused_imports)]
     use super::Instruction;
+    use super::InstructionVal;
 
     /* J-type instructions */
     /// Opcode of [Instruction::Jal]
-    pub const JAL: u32 = 0b1101111;
+    pub const JAL: InstructionVal = 0b1101111;
 
     /* R-type instructions */
     /// Opcode of the following instructions:
@@ -81,13 +83,13 @@ pub mod opcodes {
     ///
     /// To figure our what instruction it is,
     /// you need to look at funct3 and funct7.
-    pub const R_ALU_OP: u32 = 0b0110011;
+    pub const R_ALU_OP: InstructionVal = 0b0110011;
 
     /* U-type instructions */
     /// Opcode of [Instruction::Lui]
-    pub const LUI: u32 = 0b0110111;
+    pub const LUI: InstructionVal = 0b0110111;
     /// Opcode of [Instruction::Auipc]
-    pub const AUIPC: u32 = 0b0010111;
+    pub const AUIPC: InstructionVal = 0b0010111;
 
     /* I-type instructions */
     /// Opcode of the following instructions:
@@ -96,40 +98,44 @@ pub mod opcodes {
     ///
     /// To figure our what instruction it is,
     /// you need to look at funct3.
-    pub const I_ALU_OP: u32 = 0b0010011;
+    pub const I_ALU_OP: InstructionVal = 0b0010011;
     /// Opcode of [Instruction::Jalr]
-    pub const JALR: u32 = 0b1100111;
+    pub const JALR: InstructionVal = 0b1100111;
 }
 
 /// [r_alu_op] contains `funct3` and `funct7` values
 /// for instructions with opcode [opcodes::R_ALU_OP].
 /// For more information, see the comment above that constant.
 pub mod r_alu_op {
+    use super::InstructionVal;
+
     /* Codes for ADD */
-    pub const FUNCT3_ADD: u32 = 0b000;
-    pub const FUNCT7_ADD: u32 = 0b0000000;
+    pub const FUNCT3_ADD: InstructionVal = 0b000;
+    pub const FUNCT7_ADD: InstructionVal = 0b0000000;
 
     /* Codes for SUB */
-    pub const FUNCT3_SUB: u32 = 0b000;
-    pub const FUNCT7_SUB: u32 = 0b0100000;
+    pub const FUNCT3_SUB: InstructionVal = 0b000;
+    pub const FUNCT7_SUB: InstructionVal = 0b0100000;
 
     /* Codes for XOR */
-    pub const FUNCT3_XOR: u32 = 0b100;
-    pub const FUNCT7_XOR: u32 = 0b0000000;
+    pub const FUNCT3_XOR: InstructionVal = 0b100;
+    pub const FUNCT7_XOR: InstructionVal = 0b0000000;
 }
 
 /// [i_alu_op] contains `funct3` values
 /// for instructions with opcode [opcodes::I_ALU_OP].
 /// For more information, see the comment above that constant.
 pub mod i_alu_op {
-    pub const FUNCT3_ADDI: u32 = 0b000;
-    pub const FUNCT3_XORI: u32 = 0b100;
+    use super::InstructionVal;
+
+    pub const FUNCT3_ADDI: InstructionVal = 0b000;
+    pub const FUNCT3_XORI: InstructionVal = 0b100;
 }
 
-const REGISTER_MASK: u32 = 0b11111;
+const REGISTER_MASK: InstructionVal = 0b11111;
 
 /// Decode a RiscV instruction.
-pub fn decode_instruction(instruction: u32) -> Result<Instruction, DecodeError> {
+pub fn decode_instruction(instruction: InstructionVal) -> Result<Instruction, DecodeError> {
     let instruction = match get_opcode(instruction) {
         /* J-type instructions */
         opcodes::JAL => Instruction::Jal {
@@ -161,7 +167,7 @@ pub fn decode_instruction(instruction: u32) -> Result<Instruction, DecodeError> 
 }
 
 /// Decode an instruction with opcode [opcodes::I_ALU_OP].
-fn decode_i_alu_op(instruction: u32) -> Result<Instruction, DecodeError> {
+fn decode_i_alu_op(instruction: InstructionVal) -> Result<Instruction, DecodeError> {
     let funct3 = get_funct3(instruction);
     let rd = get_rd(instruction);
     let rs1 = get_rs1(instruction);
@@ -177,7 +183,7 @@ fn decode_i_alu_op(instruction: u32) -> Result<Instruction, DecodeError> {
 }
 
 /// Decode an instruction with opcode [opcodes::R_ALU_OP].
-fn decode_r_alu_op(instruction: u32) -> Result<Instruction, DecodeError> {
+fn decode_r_alu_op(instruction: InstructionVal) -> Result<Instruction, DecodeError> {
     let funct3_7 = (get_funct3(instruction), get_funct7(instruction));
     let rd = get_rd(instruction);
     let rs1 = get_rs1(instruction);
@@ -205,70 +211,70 @@ pub enum DecodeError {
 
 /// Get the opcode field.
 /// This field is present in all instruction types.
-fn get_opcode(instruction: u32) -> u32 {
+fn get_opcode(instruction: InstructionVal) -> InstructionVal {
     instruction & 0b1111111
 }
 
 /// Get the func3 field. Applicable to R, I, S, B instructions.
-/// The value is placed into the lowest bits of u32.
-fn get_funct3(instruction: u32) -> u32 {
+/// The value is placed into the lowest bits of [InstructionVal].
+fn get_funct3(instruction: InstructionVal) -> InstructionVal {
     (instruction >> 12) & 0b111
 }
 
 /// Get the func7 field. Applicable to R instructions.
-/// The value is placed into the lowest bits of u32.
-fn get_funct7(instruction: u32) -> u32 {
+/// The value is placed into the lowest bits of [InstructionVal].
+fn get_funct7(instruction: InstructionVal) -> InstructionVal {
     (instruction >> 25) & 0b1111111
 }
 
 /// Get the rd field. Applicable to R, I, U, J instructions.
-/// The value is placed into the lowest bits of u32.
+/// The value is placed into the lowest bits of [InstructionVal].
 /// The result is immediately wrapped with [GeneralRegister] for
 /// convenience.
-fn get_rd(instruction: u32) -> GeneralRegister {
+fn get_rd(instruction: InstructionVal) -> GeneralRegister {
     let raw = (instruction >> 7) & REGISTER_MASK;
     GeneralRegister::new(raw).unwrap()
 }
 
 /// Get the rs1 field. Applicable to R, I, S, B instructions.
-/// The value is placed into the lowest bits of u32.
+/// The value is placed into the lowest bits of [InstructionVal].
 /// The result is immediately wrapped with [GeneralRegister] for
 /// convenience.
-fn get_rs1(instruction: u32) -> GeneralRegister {
+fn get_rs1(instruction: InstructionVal) -> GeneralRegister {
     let raw = (instruction >> 15) & REGISTER_MASK;
     GeneralRegister::new(raw).unwrap()
 }
 
 /// Get the rs2 field. Applicable to R, S, B instructions.
-/// The value is placed into the lowest bits of u32.
+/// The value is placed into the lowest bits of [InstructionVal].
 /// The result is immediately wrapped with [GeneralRegister] for
 /// convenience.
-fn get_rs2(instruction: u32) -> GeneralRegister {
+fn get_rs2(instruction: InstructionVal) -> GeneralRegister {
     let raw = (instruction >> 20) & REGISTER_MASK;
     GeneralRegister::new(raw).unwrap()
 }
 
 /// Get the immediate value. Applicable to I instructions ONLY.
-/// The value is placed into the lowest bits of u32.
+/// The value is placed into the lowest bits of [InstructionVal].
 /// The value is not sign-extended.
 /// The result is immediately wrapped with [Imm] for convenience.
-fn get_i_type_imm(instruction: u32) -> Imm<12> {
+fn get_i_type_imm(instruction: InstructionVal) -> Imm<12> {
     Imm::new((instruction >> 20) as RegisterVal).unwrap()
 }
 
 /// Get the immediate value. Applicable to U instructions ONLY.
-/// The value is placed into the lowest bits of u32.
+/// The value is placed into the lowest bits of [InstructionVal].
 /// The value is not sign-extended.
 /// The result is immediately wrapped with [Imm] for convenience.
-fn get_u_type_imm(instruction: u32) -> Imm<20> {
+fn get_u_type_imm(instruction: InstructionVal) -> Imm<20> {
     Imm::new((instruction >> 12) as RegisterVal).unwrap()
 }
 
 /// Get the immediate value. Applicable to J instructions ONLY.
-/// The value is placed into the lowest bits of u32.
+/// The value is placed into the lowest bits of [InstructionVal].
 /// The value is not sign-extended.
 /// The result is immediately wrapped with [Imm] for convenience.
-fn get_j_type_imm(instruction: u32) -> Imm<20> {
+fn get_j_type_imm(instruction: InstructionVal) -> Imm<20> {
     let imm_1_10 = (instruction & 0x7FC0_0000) >> 21;
     let imm_11 = (instruction & 0x0010_0000) >> 20;
     let imm_12_19 = (instruction & 0x000F_F000) >> 12;
@@ -279,7 +285,7 @@ fn get_j_type_imm(instruction: u32) -> Imm<20> {
 
 #[cfg(test)]
 mod tests {
-    use crate::kernel::{Imm, RegisterVal};
+    use crate::kernel::{Imm, InstructionVal, RegisterVal};
 
     use super::{get_funct3, get_funct7, get_opcode, i_alu_op, opcodes, r_alu_op, DecodeError};
     use super::{GeneralRegister, Instruction};
@@ -288,7 +294,7 @@ mod tests {
 
     #[derive(Debug, Clone, Copy)]
     struct ParseTest {
-        input: u32,
+        input: InstructionVal,
         expected: Result<Instruction, DecodeError>,
     }
 
@@ -432,7 +438,7 @@ mod tests {
     }
 
     /// Shortcut function that panics if `v` is not a valid reg index.
-    fn reg_x(v: u32) -> GeneralRegister {
+    fn reg_x(v: InstructionVal) -> GeneralRegister {
         GeneralRegister::new(v).unwrap()
     }
 
@@ -450,20 +456,20 @@ mod tests {
             })
     }
 
-    fn get_bad_i_alu_instr() -> u32 {
+    fn get_bad_i_alu_instr() -> InstructionVal {
         let funct3 = get_bad_funct3();
-        let rest = rand::random::<u32>() & 0xffff_8f80;
+        let rest = rand::random::<InstructionVal>() & 0xffff_8f80;
 
         opcodes::I_ALU_OP | rest | funct3
     }
 
-    fn get_bad_funct3() -> u32 {
+    fn get_bad_funct3() -> InstructionVal {
         let good_functs = [i_alu_op::FUNCT3_ADDI, i_alu_op::FUNCT3_XORI];
 
         // FIXME: this sampling might be suboptimal, because
         // we are actually trying to randomize only the funct3 bits
         loop {
-            let funct3 = rand::random::<u32>();
+            let funct3 = rand::random::<InstructionVal>();
             if !good_functs.contains(&super::get_funct3(funct3)) {
                 return funct3 & 0x0000_7000;
             }
@@ -485,14 +491,14 @@ mod tests {
             })
     }
 
-    fn get_bad_r_alu_instr() -> u32 {
+    fn get_bad_r_alu_instr() -> InstructionVal {
         let funct37 = get_bad_funct37();
-        let rest = rand::random::<u32>() & 0x01ff_8f80;
+        let rest = rand::random::<InstructionVal>() & 0x01ff_8f80;
 
         opcodes::R_ALU_OP | rest | funct37
     }
 
-    fn get_bad_funct37() -> u32 {
+    fn get_bad_funct37() -> InstructionVal {
         let good_functs = [
             (r_alu_op::FUNCT3_ADD, r_alu_op::FUNCT7_ADD),
             (r_alu_op::FUNCT3_SUB, r_alu_op::FUNCT7_SUB),
@@ -502,7 +508,7 @@ mod tests {
         // FIXME: this sampling might be suboptimal, because
         // we are actually trying to randomize only the funct37 bits
         loop {
-            let funct37 = rand::random::<u32>();
+            let funct37 = rand::random::<InstructionVal>();
             let funct3 = super::get_funct3(funct37);
             let funct7 = super::get_funct7(funct37);
             if !good_functs.contains(&(funct3, funct7)) {
@@ -523,14 +529,14 @@ mod tests {
             })
     }
 
-    fn get_bad_opcode_instr() -> u32 {
+    fn get_bad_opcode_instr() -> InstructionVal {
         let opcode = get_bad_opcode();
-        let other = rand::random::<u32>() & !0b1111111;
+        let other = rand::random::<InstructionVal>() & !0b1111111;
 
         opcode | other
     }
 
-    fn get_bad_opcode() -> u32 {
+    fn get_bad_opcode() -> InstructionVal {
         let good_opcodes = [
             opcodes::JAL,
             opcodes::R_ALU_OP,
@@ -543,7 +549,7 @@ mod tests {
         // FIXME: this sampling might be suboptimal, because
         // we are actually trying to randomize only the lower 7 bits
         loop {
-            let opcode = super::get_opcode(rand::random::<u32>());
+            let opcode = super::get_opcode(rand::random::<InstructionVal>());
             if !good_opcodes.contains(&opcode) {
                 return opcode;
             }

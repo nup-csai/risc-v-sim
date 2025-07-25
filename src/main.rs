@@ -5,7 +5,7 @@ use std::io::Write;
 use clap::Parser;
 use elf::endian::AnyEndian;
 use elf::ElfBytes;
-use kernel::{InstructionDecodeError, Kernel, KernelError, Program};
+use kernel::{InstructionDecodeError, InstructionVal, Kernel, KernelError, Program};
 use thiserror::Error;
 
 /// MVP of RVsim!
@@ -72,7 +72,7 @@ fn main() -> Result<(), ShellError> {
     let raw_stream = text
         .chunks(4)
         .map(|x| <[u8; 4]>::try_from(x).unwrap())
-        .map(u32::from_le_bytes);
+        .map(InstructionVal::from_le_bytes);
     let program =
         Program::from_raw_instructions(raw_stream).map_err(ShellError::InstructionDecoderError)?;
 

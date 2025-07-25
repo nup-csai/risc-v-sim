@@ -69,7 +69,7 @@ impl Program {
     }
 
     pub fn from_raw_instructions(
-        instructions: impl IntoIterator<Item = u32>,
+        instructions: impl IntoIterator<Item = InstructionVal>,
     ) -> Result<Self, InstructionDecodeError> {
         let instructions = instructions
             .into_iter()
@@ -81,7 +81,7 @@ impl Program {
     }
 
     fn decode_instruction(
-        (idx, code): (usize, u32),
+        (idx, code): (usize, InstructionVal),
     ) -> Result<Instruction, InstructionDecodeError> {
         match decode_instruction(code) {
             Ok(instruction) => Ok(instruction),
@@ -98,7 +98,7 @@ impl Program {
 #[error("Failed to encode instruction {instruction_idx}: {instruction_code:#x} is not a valid instruction")]
 pub struct InstructionDecodeError {
     pub instruction_idx: usize,
-    pub instruction_code: u32,
+    pub instruction_code: InstructionVal,
     #[source]
     pub error: DecodeError,
 }
