@@ -1,56 +1,106 @@
+//! This module contains the type-safe internal representation
+//! of a RiscV instruction and other related types related to it.
+
 use thiserror::Error;
 
 use super::{GeneralRegister, Processor, RegisterVal};
 
+/// Error returned by [Instruction::execute].
 #[derive(Clone, Copy, PartialEq, Eq, Error, Debug)]
 pub enum InstructionError {}
 
 /// [Instruction] is a type-safe representation of a CPU
 /// instruction. That means, all valid values of this type
-/// are valid RiscV instructions.
+/// are valid RiscV instructions. Each instruction behavior is documented.
+///
+/// The pseudo-code slightly differs from the documentation. This
+/// is because we assume that the immediate value is always placed
+/// in the lowest bits of [RegisterVal]. Because of that, e.g.
+/// `lui` is documented to be offsetting `imm` by 12 bits.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum Instruction {
     /* J-Type instructions */
+    /// Jal instruction. Has the following the following
+    /// semantics
+    /// ```
+    /// rd = PC + 4 // Overflow
+    /// PC += sext(imm) // Overflow
+    /// ```
     Jal {
         rd: GeneralRegister,
         offset: Imm<20>,
     },
     /* R-Type instructions */
+    /// Add instruction. Has the following the following
+    /// semantics
+    /// ```
+    /// rd = rs1 + rs2 // Overflow
+    /// ```
     Add {
         rd: GeneralRegister,
         rs1: GeneralRegister,
         rs2: GeneralRegister,
     },
+    /// Sub instruction. Has the following the following
+    /// semantics
+    /// ```
+    /// rd = rs1 - rs2 // Overflow
+    /// ```
     Sub {
         rd: GeneralRegister,
         rs1: GeneralRegister,
         rs2: GeneralRegister,
     },
+    /// Xor instruction. Has the following the following
+    /// semantics
+    /// ```
+    /// rd = rs1 ^ rs2
+    /// ```
     Xor {
         rd: GeneralRegister,
         rs1: GeneralRegister,
         rs2: GeneralRegister,
     },
     /* U-Type instructions */
-    Lui {
-        rd: GeneralRegister,
-        imm: Imm<20>,
-    },
-    Auipc {
-        rd: GeneralRegister,
-        imm: Imm<20>,
-    },
+    /// Lui instruction. Has the following the following
+    /// semantics
+    /// ```
+    /// rd = sext(imm << 12)
+    /// ```
+    Lui { rd: GeneralRegister, imm: Imm<20> },
+    /// Auipc instruction. Has the following the following
+    /// semantics
+    /// ```
+    /// rd = PC + sext(imm << 12) // Overflow
+    /// ```
+    Auipc { rd: GeneralRegister, imm: Imm<20> },
     /* I-Type instructions */
+    /// Addi instruction. Has the following the following
+    /// semantics
+    /// ```
+    /// rd = rs1 + sext(imm) // Overflow
+    /// ```
     Addi {
         rd: GeneralRegister,
         rs1: GeneralRegister,
         imm: Imm<12>,
     },
+    /// Xori instruction. Has the following the following
+    /// semantics
+    /// ```
+    /// rd = rs1 ^ sext(rs2)
+    /// ```
     Xori {
         rd: GeneralRegister,
         rs1: GeneralRegister,
         imm: Imm<12>,
     },
+    /// Jalr instruction. Has the following the following
+    /// semantics
+    /// ```
+    /// rd = PC + 4 // Overflow
+    /// PC = rs1 + sext(imm) // Overflow
+    /// ```
     Jalr {
         rd: GeneralRegister,
         rs1: GeneralRegister,
@@ -59,6 +109,9 @@ pub enum Instruction {
 }
 
 impl Instruction {
+    /// Executes the instruction on a processor. The processor is
+    /// modified in-place. In case of an error, an error is returned.
+    /// The processor state will not be reliable if `execute` fails.
     pub fn execute(self, state: &mut Processor) -> Result<(), InstructionError> {
         match self {
             Instruction::Jal { rd, offset } => {
@@ -71,7 +124,7 @@ impl Instruction {
             Instruction::Add { rd, rs1, rs2 } => {
                 let rs1 = state.get_register(rs1);
                 let rs2 = state.get_register(rs2);
-                state.set_register(rd, rs1.wrapping_add(rs2));
+                state.set_register(rd, rs1.overflowing_add(rs2).0);
                 Ok(())
             }
             Instruction::Sub { rd, rs1, rs2 } => {
