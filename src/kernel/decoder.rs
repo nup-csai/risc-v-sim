@@ -275,11 +275,11 @@ fn get_u_type_imm(instruction: InstructionVal) -> Imm<20> {
 /// The value is not sign-extended.
 /// The result is immediately wrapped with [Imm] for convenience.
 fn get_j_type_imm(instruction: InstructionVal) -> Imm<20> {
-    let imm_1_10 = (instruction & 0x7FC0_0000) >> 21;
+    let imm_1_10 = (instruction & 0x7FE0_0000) >> 21;
     let imm_11 = (instruction & 0x0010_0000) >> 20;
     let imm_12_19 = (instruction & 0x000F_F000) >> 12;
-    let imm_20 = (instruction & 0x8000_0000) >> 30;
-    let raw = (imm_1_10 << 1) | (imm_11 << 11) | (imm_12_19 << 12) | (imm_20 << 20);
+    let imm_20 = (instruction & 0x8000_0000) >> 31;
+    let raw = (imm_1_10 << 0) | (imm_11 << 10) | (imm_12_19 << 11) | (imm_20 << 19);
     Imm::new(raw as RegisterVal).unwrap()
 }
 
@@ -354,14 +354,14 @@ mod tests {
                 input: 0b00010100010000000000_00000_1101111,
                 expected: Ok(Instruction::Jal {
                     rd: reg_x(0),
-                    offset: imm(324),
+                    offset: imm(162),
                 }),
             },
             ParseTest {
                 input: 0b00010100010000000000_00101_1101111,
                 expected: Ok(Instruction::Jal {
                     rd: reg_x(5),
-                    offset: imm(324),
+                    offset: imm(162),
                 }),
             },
             ParseTest {
