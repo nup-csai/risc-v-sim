@@ -358,10 +358,17 @@ mod tests {
                 }),
             },
             ParseTest {
-                input: 0b00010100010000000000_001011_101111,
+                input: 0b00010100010000000000_00101_1101111,
                 expected: Ok(Instruction::Jal {
                     rd: reg_x(5),
                     offset: imm(324),
+                }),
+            },
+            ParseTest {
+                input: 0b11111111000111111111_00000_1101111,
+                expected: Ok(Instruction::Jal {
+                    rd: reg_x(0),
+                    offset: imm(0xf_fff8),
                 }),
             },
             /* R-Type instructions */
