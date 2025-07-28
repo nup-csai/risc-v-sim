@@ -24,7 +24,7 @@ pub enum Instruction {
     /// semantics
     /// ```
     /// rd = PC + 4 // Overflow
-    /// PC += sext(imm) // Overflow
+    /// PC += sext(imm << 1) // Overflow
     /// ```
     Jal {
         rd: GeneralRegister,
@@ -116,7 +116,7 @@ impl Instruction {
         match self {
             Instruction::Jal { rd, offset } => {
                 let old_pc = state.pc;
-                let new_pc = state.pc.wrapping_add(offset.get_sext());
+                let new_pc = state.pc.wrapping_add(offset.get_sext() << 1);
                 state.set_register(rd, old_pc + 4);
                 state.pc = new_pc;
                 Ok(())
