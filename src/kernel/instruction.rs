@@ -112,11 +112,14 @@ impl Instruction {
     /// Executes the instruction on a processor. The processor is
     /// modified in-place. In case of an error, an error is returned.
     /// The processor state will not be reliable if `execute` fails.
-    pub fn execute(self, state: &mut Processor) -> Result<(), InstructionError> {
+    pub fn execute(
+        self,
+        state: &mut Processor,
+        old_pc: RegisterVal,
+    ) -> Result<(), InstructionError> {
         match self {
             Instruction::Jal { rd, offset } => {
-                let old_pc = state.pc;
-                let new_pc = state.pc.wrapping_add(offset.get_sext() << 1);
+                let new_pc = old_pc.wrapping_add(offset.get_sext() << 1);
                 state.set_register(rd, old_pc + 4);
                 state.pc = new_pc;
                 Ok(())
@@ -158,7 +161,6 @@ impl Instruction {
                 Ok(())
             }
             Instruction::Jalr { rd, rs1, offset } => {
-                let old_pc = state.pc;
                 let rs1 = state.get_register(rs1);
                 let new_pc = rs1.wrapping_add(offset.get_sext());
                 state.set_register(rd, old_pc + 4);

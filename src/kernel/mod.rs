@@ -28,15 +28,16 @@ impl Kernel {
 
     pub fn step(&mut self) -> Result<KernelStep, KernelError> {
         let old_processor = self.processor;
+        let old_pc = old_processor.pc;
         let instruction = self.fetch_instruction()?;
 
+        self.processor.pc += 4;
         instruction
-            .execute(&mut self.processor)
+            .execute(&mut self.processor, old_pc)
             .map_err(|instruction_error| KernelError::InstructionError {
                 instruction_address: self.processor.pc,
                 instruction_error,
             })?;
-        self.processor.pc += 4;
 
         Ok(KernelStep {
             old_processor,
@@ -119,4 +120,167 @@ pub enum KernelError {
     },
     #[error("Tried to fetch an instruction out of range: {0}")]
     FetchOutOfRange(usize),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{GeneralRegister, Imm, Instruction, InstructionVal, Kernel, Program, RegisterVal};
+
+    #[test]
+    fn basic_test() {
+        run_test(
+            0,
+            0,
+            vec![
+                Instruction::Xor {
+                    rd: reg_x(1),
+                    rs1: reg_x(2),
+                    rs2: reg_x(5),
+                },
+                Instruction::Add {
+                    rd: reg_x(1),
+                    rs1: reg_x(2),
+                    rs2: reg_x(5),
+                },
+                Instruction::Sub {
+                    rd: reg_x(1),
+                    rs1: reg_x(2),
+                    rs2: reg_x(5),
+                },
+                Instruction::Addi {
+                    rd: reg_x(1),
+                    rs1: reg_x(2),
+                    imm: imm(234),
+                },
+            ],
+            vec![0, 1, 2],
+        );
+    }
+
+    #[test]
+    fn basic_offset_test() {
+        run_test(
+            32,
+            32,
+            vec![
+                Instruction::Xor {
+                    rd: reg_x(1),
+                    rs1: reg_x(2),
+                    rs2: reg_x(5),
+                },
+                Instruction::Add {
+                    rd: reg_x(1),
+                    rs1: reg_x(2),
+                    rs2: reg_x(5),
+                },
+                Instruction::Sub {
+                    rd: reg_x(1),
+                    rs1: reg_x(2),
+                    rs2: reg_x(5),
+                },
+                Instruction::Addi {
+                    rd: reg_x(1),
+                    rs1: reg_x(2),
+                    imm: imm(234),
+                },
+            ],
+            vec![0, 1, 2],
+        );
+    }
+
+    #[test]
+    fn tricky_offset_test() {
+        run_test(
+            36,
+            32,
+            vec![
+                Instruction::Xor {
+                    rd: reg_x(1),
+                    rs1: reg_x(2),
+                    rs2: reg_x(5),
+                },
+                Instruction::Add {
+                    rd: reg_x(1),
+                    rs1: reg_x(2),
+                    rs2: reg_x(5),
+                },
+                Instruction::Sub {
+                    rd: reg_x(1),
+                    rs1: reg_x(2),
+                    rs2: reg_x(5),
+                },
+                Instruction::Addi {
+                    rd: reg_x(1),
+                    rs1: reg_x(2),
+                    imm: imm(234),
+                },
+            ],
+            vec![1, 2, 3],
+        );
+    }
+
+    #[test]
+    fn basic_loop() {
+        #[rustfmt::skip]
+        let expected_trace = vec![
+            0, 1, 2, 3,
+            0, 1, 2, 3,
+            0, 1, 2, 3,
+        ];
+        run_test(
+            0,
+            0,
+            vec![
+                Instruction::Xor {
+                    rd: reg_x(1),
+                    rs1: reg_x(2),
+                    rs2: reg_x(5),
+                },
+                Instruction::Add {
+                    rd: reg_x(1),
+                    rs1: reg_x(2),
+                    rs2: reg_x(5),
+                },
+                Instruction::Sub {
+                    rd: reg_x(1),
+                    rs1: reg_x(2),
+                    rs2: reg_x(5),
+                },
+                Instruction::Jal {
+                    rd: reg_x(0),
+                    offset: imm(0xF_FFFA),
+                },
+            ],
+            expected_trace,
+        );
+    }
+
+    fn run_test(
+        entry_point: u64,
+        program_offset: u64,
+        program: Vec<Instruction>,
+        expected_trace: Vec<usize>,
+    ) {
+        let program = Program::from_instructions(program);
+        let mut kernel = Kernel::new(program, entry_point, program_offset);
+        let actual_trace = (0..expected_trace.len())
+            .map(|_| kernel.step().unwrap())
+            .map(|step| {
+                (step.old_processor.pc - program_offset) as usize
+                    / std::mem::size_of::<InstructionVal>()
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(expected_trace, actual_trace)
+    }
+
+    /// Shortcut function that panics if `v` is not a valid reg index.
+    fn reg_x(x: InstructionVal) -> GeneralRegister {
+        GeneralRegister::new(x).unwrap()
+    }
+
+    /// Shortcut function that panics if `v` is not a valid imm value.
+    fn imm<const WIDTH: usize>(v: RegisterVal) -> Imm<{ WIDTH }> {
+        Imm::new(v).unwrap()
+    }
 }
