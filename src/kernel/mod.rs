@@ -28,15 +28,16 @@ impl Kernel {
 
     pub fn step(&mut self) -> Result<KernelStep, KernelError> {
         let old_processor = self.processor;
+        let old_pc = old_processor.pc;
         let instruction = self.fetch_instruction()?;
 
+        self.processor.pc += 4;
         instruction
-            .execute(&mut self.processor)
+            .execute(&mut self.processor, old_pc)
             .map_err(|instruction_error| KernelError::InstructionError {
                 instruction_address: self.processor.pc,
                 instruction_error,
             })?;
-        self.processor.pc += 4;
 
         Ok(KernelStep {
             old_processor,
