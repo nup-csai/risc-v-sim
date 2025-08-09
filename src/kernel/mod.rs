@@ -47,15 +47,17 @@ impl Kernel {
     }
 
     fn fetch_instruction(&self) -> Result<Instruction, KernelError> {
-        // TODO: handle underflow
-        let local_offset = self.processor.pc - self.program_offset;
+        let local_offset = match (self.processor.pc).checked_sub(self.program_offset) {
+            Some(x) => x,
+            None => return Err(KernelError::FetchOutOfRange(self.processor.pc)),
+        };
         let instruction_index = (local_offset / 4) as usize;
 
         self.program
             .instructions
             .get(instruction_index)
             .map(|x| *x)
-            .ok_or(KernelError::FetchOutOfRange(instruction_index))
+            .ok_or(KernelError::FetchOutOfRange(self.processor.pc))
     }
 }
 
@@ -119,7 +121,7 @@ pub enum KernelError {
         instruction_error: InstructionError,
     },
     #[error("Tried to fetch an instruction out of range: {0}")]
-    FetchOutOfRange(usize),
+    FetchOutOfRange(RegisterVal),
 }
 
 #[cfg(test)]
