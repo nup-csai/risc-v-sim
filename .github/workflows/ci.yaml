@@ -30,7 +30,7 @@ jobs:
       - name: Check everything
         run: cargo check --locked --all-targets
       - name: Run tests
-        run: cargo test --locked
+        run: cargo test --package "*" --locked
   cargo-fmt:
     runs-on: ubuntu-latest
     steps:
