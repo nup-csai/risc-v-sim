@@ -183,21 +183,25 @@ impl<const WIDTH: usize> Imm<WIDTH> {
     const SIGN_BIT: RegisterVal = (1 as RegisterVal) << WIDTH - 1;
     const EXTENSION: RegisterVal = RegisterVal::MAX ^ Self::MAX;
 
-    pub fn new(val: RegisterVal) -> Option<Self> {
-        (val <= Self::MAX).then_some(Self(val))
+    pub const fn new(val: RegisterVal) -> Option<Self> {
+        if val <= Self::MAX {
+            Some(Self(val))
+        } else {
+            None
+        }
     }
 
     /// Get the value as [RegisterVal].
     /// The value is zero-extended.
     // NOTE: unused, but may be useful later.
     #[allow(dead_code)]
-    pub fn get_zext(self) -> RegisterVal {
+    pub const fn get_zext(self) -> RegisterVal {
         self.0
     }
 
     /// Get the value as [RegisterVal].
     /// The value is sign-extended.
-    pub fn get_sext(self) -> RegisterVal {
+    pub const fn get_sext(self) -> RegisterVal {
         let mut result = self.0;
         if (result & Self::SIGN_BIT) == Self::SIGN_BIT {
             result |= Self::EXTENSION;
