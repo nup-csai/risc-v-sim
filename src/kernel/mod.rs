@@ -15,7 +15,7 @@ pub struct Kernel {
 }
 
 impl Kernel {
-    pub fn new(program: Program, entry_point: u64, program_offset: u64) -> Self {
+    pub const fn new(program: Program, entry_point: u64, program_offset: u64) -> Self {
         let mut processor = Processor::new();
         processor.pc = entry_point;
 
@@ -67,7 +67,7 @@ pub struct Program {
 }
 
 impl Program {
-    pub fn from_instructions(instructions: Vec<Instruction>) -> Self {
+    pub const fn from_instructions(instructions: Vec<Instruction>) -> Self {
         Self { instructions }
     }
 

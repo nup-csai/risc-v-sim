@@ -12,7 +12,7 @@
 //!
 //! J-Type instructions have the following bit represenation
 //!
-//! ```
+//! ```pic
 //! 00010100010000000000 00000 1101111
 //! |                    |     | opcode
 //! |                    | source register
@@ -23,7 +23,7 @@
 //!
 //! R-Type instructions have the following bit representation
 //!
-//! ```
+//! ```pic
 //! 0000000 00001 00110 000 00100 0110011
 //! |       |     |     |   |     | opcode
 //! |       |     |     |   | destination register
@@ -37,7 +37,7 @@
 //!
 //! U-Type instructions have the following bit representation
 //!
-//! ```
+//! ```pic
 //! 00000001000111101011 00110 0110111
 //! |                    |     | opcode
 //! |                    | destination register
@@ -48,7 +48,7 @@
 //!
 //! I-Type instructions have the following bit representation
 //!
-//! ```
+//! ```pic
 //! 000000010100 01100 000 01011 0010011
 //! |            |     |   |     | opcode
 //! |            |     |   | destination register
@@ -135,7 +135,7 @@ pub mod i_alu_op {
 const REGISTER_MASK: InstructionVal = 0b11111;
 
 /// Decode a RiscV instruction.
-pub fn decode_instruction(instruction: InstructionVal) -> Result<Instruction, DecodeError> {
+pub const fn decode_instruction(instruction: InstructionVal) -> Result<Instruction, DecodeError> {
     let instruction = match get_opcode(instruction) {
         /* J-type instructions */
         opcodes::JAL => Instruction::Jal {
@@ -143,7 +143,10 @@ pub fn decode_instruction(instruction: InstructionVal) -> Result<Instruction, De
             offset: get_j_type_imm(instruction),
         },
         /* R-type instructions */
-        opcodes::R_ALU_OP => decode_r_alu_op(instruction)?,
+        opcodes::R_ALU_OP => match decode_r_alu_op(instruction) {
+            Ok(x) => x,
+            Err(e) => return Err(e),
+        },
         /* U-type instructions */
         opcodes::LUI => Instruction::Lui {
             rd: get_rd(instruction),
@@ -154,7 +157,10 @@ pub fn decode_instruction(instruction: InstructionVal) -> Result<Instruction, De
             imm: get_u_type_imm(instruction),
         },
         /* I-type instructions */
-        opcodes::I_ALU_OP => decode_i_alu_op(instruction)?,
+        opcodes::I_ALU_OP => match decode_i_alu_op(instruction) {
+            Ok(x) => x,
+            Err(e) => return Err(e),
+        },
         opcodes::JALR => Instruction::Jalr {
             rd: get_rd(instruction),
             rs1: get_rs1(instruction),
@@ -167,7 +173,7 @@ pub fn decode_instruction(instruction: InstructionVal) -> Result<Instruction, De
 }
 
 /// Decode an instruction with opcode [opcodes::I_ALU_OP].
-fn decode_i_alu_op(instruction: InstructionVal) -> Result<Instruction, DecodeError> {
+const fn decode_i_alu_op(instruction: InstructionVal) -> Result<Instruction, DecodeError> {
     let funct3 = get_funct3(instruction);
     let rd = get_rd(instruction);
     let rs1 = get_rs1(instruction);
@@ -183,7 +189,7 @@ fn decode_i_alu_op(instruction: InstructionVal) -> Result<Instruction, DecodeErr
 }
 
 /// Decode an instruction with opcode [opcodes::R_ALU_OP].
-fn decode_r_alu_op(instruction: InstructionVal) -> Result<Instruction, DecodeError> {
+const fn decode_r_alu_op(instruction: InstructionVal) -> Result<Instruction, DecodeError> {
     let funct3_7 = (get_funct3(instruction), get_funct7(instruction));
     let rd = get_rd(instruction);
     let rs1 = get_rs1(instruction);
@@ -211,19 +217,19 @@ pub enum DecodeError {
 
 /// Get the opcode field.
 /// This field is present in all instruction types.
-fn get_opcode(instruction: InstructionVal) -> InstructionVal {
+const fn get_opcode(instruction: InstructionVal) -> InstructionVal {
     instruction & 0b1111111
 }
 
 /// Get the func3 field. Applicable to R, I, S, B instructions.
 /// The value is placed into the lowest bits of [InstructionVal].
-fn get_funct3(instruction: InstructionVal) -> InstructionVal {
+const fn get_funct3(instruction: InstructionVal) -> InstructionVal {
     (instruction >> 12) & 0b111
 }
 
 /// Get the func7 field. Applicable to R instructions.
 /// The value is placed into the lowest bits of [InstructionVal].
-fn get_funct7(instruction: InstructionVal) -> InstructionVal {
+const fn get_funct7(instruction: InstructionVal) -> InstructionVal {
     (instruction >> 25) & 0b1111111
 }
 
@@ -231,7 +237,7 @@ fn get_funct7(instruction: InstructionVal) -> InstructionVal {
 /// The value is placed into the lowest bits of [InstructionVal].
 /// The result is immediately wrapped with [GeneralRegister] for
 /// convenience.
-fn get_rd(instruction: InstructionVal) -> GeneralRegister {
+const fn get_rd(instruction: InstructionVal) -> GeneralRegister {
     let raw = (instruction >> 7) & REGISTER_MASK;
     GeneralRegister::new(raw).unwrap()
 }
@@ -240,7 +246,7 @@ fn get_rd(instruction: InstructionVal) -> GeneralRegister {
 /// The value is placed into the lowest bits of [InstructionVal].
 /// The result is immediately wrapped with [GeneralRegister] for
 /// convenience.
-fn get_rs1(instruction: InstructionVal) -> GeneralRegister {
+const fn get_rs1(instruction: InstructionVal) -> GeneralRegister {
     let raw = (instruction >> 15) & REGISTER_MASK;
     GeneralRegister::new(raw).unwrap()
 }
@@ -249,7 +255,7 @@ fn get_rs1(instruction: InstructionVal) -> GeneralRegister {
 /// The value is placed into the lowest bits of [InstructionVal].
 /// The result is immediately wrapped with [GeneralRegister] for
 /// convenience.
-fn get_rs2(instruction: InstructionVal) -> GeneralRegister {
+const fn get_rs2(instruction: InstructionVal) -> GeneralRegister {
     let raw = (instruction >> 20) & REGISTER_MASK;
     GeneralRegister::new(raw).unwrap()
 }
@@ -258,7 +264,7 @@ fn get_rs2(instruction: InstructionVal) -> GeneralRegister {
 /// The value is placed into the lowest bits of [InstructionVal].
 /// The value is not sign-extended.
 /// The result is immediately wrapped with [Imm] for convenience.
-fn get_i_type_imm(instruction: InstructionVal) -> Imm<12> {
+const fn get_i_type_imm(instruction: InstructionVal) -> Imm<12> {
     Imm::new((instruction >> 20) as RegisterVal).unwrap()
 }
 
@@ -266,7 +272,7 @@ fn get_i_type_imm(instruction: InstructionVal) -> Imm<12> {
 /// The value is placed into the lowest bits of [InstructionVal].
 /// The value is not sign-extended.
 /// The result is immediately wrapped with [Imm] for convenience.
-fn get_u_type_imm(instruction: InstructionVal) -> Imm<20> {
+const fn get_u_type_imm(instruction: InstructionVal) -> Imm<20> {
     Imm::new((instruction >> 12) as RegisterVal).unwrap()
 }
 
@@ -274,7 +280,7 @@ fn get_u_type_imm(instruction: InstructionVal) -> Imm<20> {
 /// The value is placed into the lowest bits of [InstructionVal].
 /// The value is not sign-extended.
 /// The result is immediately wrapped with [Imm] for convenience.
-fn get_j_type_imm(instruction: InstructionVal) -> Imm<20> {
+const fn get_j_type_imm(instruction: InstructionVal) -> Imm<20> {
     let imm_1_10 = (instruction & 0x7FE0_0000) >> 21;
     let imm_11 = (instruction & 0x0010_0000) >> 20;
     let imm_12_19 = (instruction & 0x000F_F000) >> 12;

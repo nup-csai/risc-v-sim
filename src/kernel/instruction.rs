@@ -22,7 +22,7 @@ pub enum Instruction {
     /* J-Type instructions */
     /// Jal instruction. Has the following the following
     /// semantics
-    /// ```
+    /// ```pic
     /// rd = PC + 4 // Overflow
     /// PC += sext(imm << 1) // Overflow
     /// ```
@@ -33,7 +33,7 @@ pub enum Instruction {
     /* R-Type instructions */
     /// Add instruction. Has the following the following
     /// semantics
-    /// ```
+    /// ```pic
     /// rd = rs1 + rs2 // Overflow
     /// ```
     Add {
@@ -43,7 +43,7 @@ pub enum Instruction {
     },
     /// Sub instruction. Has the following the following
     /// semantics
-    /// ```
+    /// ```pic
     /// rd = rs1 - rs2 // Overflow
     /// ```
     Sub {
@@ -53,7 +53,7 @@ pub enum Instruction {
     },
     /// Xor instruction. Has the following the following
     /// semantics
-    /// ```
+    /// ```pic
     /// rd = rs1 ^ rs2
     /// ```
     Xor {
@@ -64,20 +64,20 @@ pub enum Instruction {
     /* U-Type instructions */
     /// Lui instruction. Has the following the following
     /// semantics
-    /// ```
+    /// ```pic
     /// rd = sext(imm << 12)
     /// ```
     Lui { rd: GeneralRegister, imm: Imm<20> },
     /// Auipc instruction. Has the following the following
     /// semantics
-    /// ```
+    /// ```pic
     /// rd = PC + sext(imm << 12) // Overflow
     /// ```
     Auipc { rd: GeneralRegister, imm: Imm<20> },
     /* I-Type instructions */
     /// Addi instruction. Has the following the following
     /// semantics
-    /// ```
+    /// ```pic
     /// rd = rs1 + sext(imm) // Overflow
     /// ```
     Addi {
@@ -87,7 +87,7 @@ pub enum Instruction {
     },
     /// Xori instruction. Has the following the following
     /// semantics
-    /// ```
+    /// ```pic
     /// rd = rs1 ^ sext(rs2)
     /// ```
     Xori {
@@ -97,7 +97,7 @@ pub enum Instruction {
     },
     /// Jalr instruction. Has the following the following
     /// semantics
-    /// ```
+    /// ```pic
     /// rd = PC + 4 // Overflow
     /// PC = rs1 + sext(imm) // Overflow
     /// ```
@@ -183,21 +183,25 @@ impl<const WIDTH: usize> Imm<WIDTH> {
     const SIGN_BIT: RegisterVal = (1 as RegisterVal) << WIDTH - 1;
     const EXTENSION: RegisterVal = RegisterVal::MAX ^ Self::MAX;
 
-    pub fn new(val: RegisterVal) -> Option<Self> {
-        (val <= Self::MAX).then_some(Self(val))
+    pub const fn new(val: RegisterVal) -> Option<Self> {
+        if val <= Self::MAX {
+            Some(Self(val))
+        } else {
+            None
+        }
     }
 
     /// Get the value as [RegisterVal].
     /// The value is zero-extended.
     // NOTE: unused, but may be useful later.
     #[allow(dead_code)]
-    pub fn get_zext(self) -> RegisterVal {
+    pub const fn get_zext(self) -> RegisterVal {
         self.0
     }
 
     /// Get the value as [RegisterVal].
     /// The value is sign-extended.
-    pub fn get_sext(self) -> RegisterVal {
+    pub const fn get_sext(self) -> RegisterVal {
         let mut result = self.0;
         if (result & Self::SIGN_BIT) == Self::SIGN_BIT {
             result |= Self::EXTENSION;
