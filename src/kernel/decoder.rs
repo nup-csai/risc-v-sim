@@ -12,7 +12,7 @@
 //!
 //! J-Type instructions have the following bit represenation
 //!
-//! ```
+//! ```pic
 //! 00010100010000000000 00000 1101111
 //! |                    |     | opcode
 //! |                    | source register
@@ -23,7 +23,7 @@
 //!
 //! R-Type instructions have the following bit representation
 //!
-//! ```
+//! ```pic
 //! 0000000 00001 00110 000 00100 0110011
 //! |       |     |     |   |     | opcode
 //! |       |     |     |   | destination register
@@ -37,7 +37,7 @@
 //!
 //! U-Type instructions have the following bit representation
 //!
-//! ```
+//! ```pic
 //! 00000001000111101011 00110 0110111
 //! |                    |     | opcode
 //! |                    | destination register
@@ -48,7 +48,7 @@
 //!
 //! I-Type instructions have the following bit representation
 //!
-//! ```
+//! ```pic
 //! 000000010100 01100 000 01011 0010011
 //! |            |     |   |     | opcode
 //! |            |     |   | destination register
