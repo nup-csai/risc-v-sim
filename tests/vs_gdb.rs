@@ -202,7 +202,8 @@ fn simulate_elf(filename: &str, tick_count: usize) -> Vec<TraceEntry> {
 
     let mut result = Vec::new();
     let info = risc_v_sim::shell::load_program_from_file(&elf_path).unwrap();
-    let mut kernel = risc_v_sim::kernel::Kernel::new(info.program, info.entry, info.load_address);
+    let mut kernel =
+        risc_v_sim::kernel::Kernel::from_program(info.program, info.entry, info.load_address);
 
     for _ in 0..tick_count {
         let kernel_step = kernel.step().unwrap();

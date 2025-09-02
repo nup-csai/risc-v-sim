@@ -1,33 +1,43 @@
 pub mod decoder;
 pub mod instruction;
+pub mod memory;
 pub mod processor;
 
 pub use decoder::*;
 pub use instruction::*;
+pub use memory::*;
 pub use processor::*;
+
 use thiserror::Error;
 
 #[derive(Debug)]
 pub struct Kernel {
-    program: Program,
-    program_offset: RegisterVal,
-    processor: Processor,
+    pub processor: Processor,
+    pub memory: Memory,
 }
 
 impl Kernel {
-    pub const fn new(
-        program: Program,
-        entry_point: RegisterVal,
-        program_offset: RegisterVal,
-    ) -> Self {
+    pub const fn new(memory: Memory, entry_point: u64) -> Self {
         let mut processor = Processor::new();
         processor.pc = entry_point;
 
-        Self {
-            program,
-            program_offset,
-            processor,
-        }
+        Kernel { processor, memory }
+    }
+
+    pub fn from_program(program: Program, entry_point: u64, program_offset: u64) -> Self {
+        let mut memory = Memory::new();
+        let program_bytes = program.into_bytes().into_iter().collect();
+        memory
+            .add_segment(MemorySegment {
+                is_read: false,
+                is_write: false,
+                is_execute: true,
+                offset: program_offset,
+                mem: program_bytes,
+            })
+            .unwrap();
+
+        Self::new(memory, entry_point)
     }
 
     pub fn step(&mut self) -> Result<KernelStep, KernelError> {
@@ -51,53 +61,55 @@ impl Kernel {
     }
 
     fn fetch_instruction(&self) -> Result<Instruction, KernelError> {
-        let local_offset = match (self.processor.pc).checked_sub(self.program_offset) {
-            Some(x) => x,
-            None => return Err(KernelError::FetchOutOfRange(self.processor.pc)),
-        };
-        let instruction_index = (local_offset / 4) as usize;
+        let instruction_address = self.processor.pc;
+        let instruction_code =
+            self.memory
+                .fetch_instruction(instruction_address)
+                .map_err(|memory_error| KernelError::FetchError {
+                    instruction_address,
+                    memory_error,
+                })?;
+        let instruction = decode_instruction(instruction_code).map_err(|decode_error| {
+            KernelError::DecodeError {
+                instruction_address,
+                instruction_code,
+                decode_error,
+            }
+        })?;
 
-        self.program
-            .instructions
-            .get(instruction_index)
-            .map(|x| *x)
-            .ok_or(KernelError::FetchOutOfRange(self.processor.pc))
+        Ok(instruction)
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Program {
-    instructions: Vec<Instruction>,
+    instructions: Vec<InstructionVal>,
 }
 
 impl Program {
-    pub const fn from_instructions(instructions: Vec<Instruction>) -> Self {
-        Self { instructions }
+    pub fn from_instructions(instructions: Vec<Instruction>) -> Self {
+        Self {
+            instructions: instructions.into_iter().map(encode_instruction).collect(),
+        }
     }
 
     pub fn from_raw_instructions(
         instructions: impl IntoIterator<Item = InstructionVal>,
     ) -> Result<Self, InstructionDecodeError> {
-        let instructions = instructions
-            .into_iter()
-            .enumerate()
-            .map(Self::decode_instruction)
-            .collect::<Result<Vec<_>, _>>()?;
+        let instructions = instructions.into_iter().collect::<Vec<_>>();
+        for (idx, instruction_code) in instructions.iter().copied().enumerate() {
+            decode_instruction(instruction_code).map_err(|error| InstructionDecodeError {
+                instruction_idx: idx,
+                instruction_code,
+                error,
+            })?;
+        }
 
-        Ok(Self::from_instructions(instructions))
+        Ok(Self { instructions })
     }
 
-    fn decode_instruction(
-        (idx, code): (usize, InstructionVal),
-    ) -> Result<Instruction, InstructionDecodeError> {
-        match decode_instruction(code) {
-            Ok(instruction) => Ok(instruction),
-            Err(error) => Err(InstructionDecodeError {
-                instruction_idx: idx,
-                instruction_code: code,
-                error,
-            }),
-        }
+    pub fn into_bytes(self) -> impl IntoIterator<Item = u8> {
+        self.instructions.into_iter().flat_map(u32::to_le_bytes)
     }
 }
 
@@ -125,8 +137,19 @@ pub enum KernelError {
         #[source]
         instruction_error: InstructionError,
     },
-    #[error("Tried to fetch an instruction out of range: {0}")]
-    FetchOutOfRange(RegisterVal),
+    #[error("Failed to fetch instruction at {instruction_address:#x}: {memory_error}")]
+    FetchError {
+        instruction_address: RegisterVal,
+        #[source]
+        memory_error: MemoryError,
+    },
+    #[error("Failed to decode instruction at {instruction_address:#x} with code {instruction_code:#x}: {decode_error}")]
+    DecodeError {
+        instruction_address: RegisterVal,
+        instruction_code: InstructionVal,
+        #[source]
+        decode_error: DecodeError,
+    },
 }
 
 #[cfg(test)]
@@ -269,7 +292,7 @@ mod tests {
         expected_trace: Vec<usize>,
     ) {
         let program = Program::from_instructions(program);
-        let mut kernel = Kernel::new(program, entry_point, program_offset);
+        let mut kernel = Kernel::from_program(program, entry_point, program_offset);
         let actual_trace = (0..expected_trace.len())
             .map(|_| kernel.step().unwrap())
             .map(|step| {

@@ -4,7 +4,10 @@ use elf::endian::AnyEndian;
 use elf::ElfBytes;
 use thiserror::Error;
 
-use crate::kernel::{InstructionDecodeError, InstructionVal, KernelError, Program, RegisterVal};
+use crate::kernel::{
+    InstructionDecodeError, InstructionVal, KernelError, Memory, MemoryError, MemorySegment,
+    Program, RegisterVal,
+};
 
 #[derive(Debug, Error)]
 pub enum ShellError {
@@ -32,10 +35,31 @@ pub enum ShellError {
     KernelError(#[source] KernelError),
 }
 
+#[derive(Debug, Clone)]
 pub struct ProgramInfo {
     pub program: Program,
     pub entry: RegisterVal,
     pub load_address: RegisterVal,
+}
+
+impl ProgramInfo {
+    /// Adds the program to the memory with specified extra
+    /// permissions.
+    pub fn load_into_memory(
+        self,
+        memory: &mut Memory,
+        is_read: bool,
+        is_write: bool,
+    ) -> Result<(), MemoryError> {
+        let program_bytes = self.program.into_bytes().into_iter().collect();
+        memory.add_segment(MemorySegment {
+            is_read,
+            is_write,
+            is_execute: true,
+            offset: self.load_address,
+            mem: program_bytes,
+        })
+    }
 }
 
 pub fn load_program_from_file(path: impl AsRef<Path>) -> Result<ProgramInfo, ShellError> {

@@ -18,7 +18,7 @@ fn main() -> Result<(), ShellError> {
     let args = Args::parse();
     let info = load_program_from_file(&args.path)?;
 
-    let mut kernel = Kernel::new(info.program, info.entry, info.load_address);
+    let mut kernel = Kernel::from_program(info.program, info.entry, info.load_address);
     for _ in 0..MAX_STEPS {
         match kernel.step() {
             Err(e) => return Err(ShellError::KernelError(e)),
