@@ -113,6 +113,33 @@
 //!     imm: Bit::new(20).unwrap(),
 //! });
 //! ```
+//!
+//! ## S-Type
+//!
+//! S-Type instructions have the following bit representation
+//!
+//! ```pic
+//! sw t2, 123(t0)
+//! 0000011 00111 00101 010 11011 0100011
+//! |       |     |     |   |     | opcode
+//! |       |     |     |   | imm [0:4]
+//! |       |     |     | funct 3
+//! |       |     | rs1
+//! |       | rs2
+//! | imm [5:11]
+//! ```
+//!
+//! Here is an example of the decoder decoding this instruction
+//!
+//! ```
+//! # use risc_v_sim::kernel::{decode_instruction,Bit,GeneralRegister,Instruction};
+//! let decoded = decode_instruction(0b0000011_00111_00101_010_11011_0100011).unwrap();
+//! assert_eq!(decoded, Instruction::Sw {
+//!     rs1: GeneralRegister::T0,
+//!     rs2: GeneralRegister::T2,
+//!     imm: Bit::new(123).unwrap(),
+//! });
+//! ```
 
 use thiserror::Error;
 
@@ -159,7 +186,18 @@ pub mod opcodes {
     /// Opcode of [Instruction::Jalr]
     pub const JALR: InstructionVal = 0b1100111;
 
-    pub const ALL_OPCODES: [InstructionVal; 6] = [JAL, R_ALU_OP, LUI, AUIPC, I_ALU_OP, JALR];
+    /* S-type instructions */
+    /// Opcode of the following instructions
+    /// * [Instruction::Sb]
+    /// * [Instruction::Sh]
+    /// * [Instruction::Sw]
+    ///
+    /// To figure out what instruction it is,
+    /// you need to look at funct3.
+    pub const STORE_OP: InstructionVal = 0b0100011;
+
+    pub const ALL_OPCODES: [InstructionVal; 7] =
+        [JAL, R_ALU_OP, LUI, AUIPC, I_ALU_OP, JALR, STORE_OP];
 }
 
 /// [r_alu_op] contains `funct3` and `funct7` values
@@ -199,6 +237,19 @@ pub mod i_alu_op {
     pub const ALL_FUNCT3: [InstructionVal; 2] = [FUNCT3_ADDI, FUNCT3_XORI];
 }
 
+/// [store_op] contains `funct3` values
+/// for instructions with opcode [opcodes::STORE_OP].
+/// For more information, see the comment above that constant.
+pub mod store_op {
+    use super::InstructionVal;
+
+    pub const FUNCT3_SB: InstructionVal = 0b000;
+    pub const FUNCT3_SH: InstructionVal = 0b001;
+    pub const FUNCT3_SW: InstructionVal = 0b010;
+
+    pub const ALL_FUNCT3: [InstructionVal; 3] = [FUNCT3_SB, FUNCT3_SH, FUNCT3_SW];
+}
+
 const REGISTER_MASK: InstructionVal = 0b11111;
 
 /// [offsets] contains all the bit offsets for parts of an
@@ -218,6 +269,8 @@ pub mod offsets {
     pub const J_TYPE_IMM_10: InstructionVal = 20;
     pub const J_TYPE_IMM_11_18: InstructionVal = 12;
     pub const J_TYPE_IMM_19: InstructionVal = 31;
+    pub const S_TYPE_IMM_0_4: InstructionVal = 7;
+    pub const S_TYPE_IMM_5_11: InstructionVal = 25;
 }
 
 /// Decode a RiscV instruction.
@@ -251,6 +304,11 @@ pub const fn decode_instruction(instruction: InstructionVal) -> Result<Instructi
             rd: get_rd(instruction),
             rs1: get_rs1(instruction),
             imm: get_i_type_imm(instruction),
+        },
+        /* S-type instructions */
+        opcodes::STORE_OP => match decode_store_op(instruction) {
+            Ok(x) => x,
+            Err(e) => return Err(e),
         },
         opcode => return Err(DecodeError::UnknownOpcode(opcode)),
     };
@@ -291,6 +349,23 @@ const fn decode_r_alu_op(instruction: InstructionVal) -> Result<Instruction, Dec
     Ok(instruction)
 }
 
+/// Decode an instruction with opcode [opcodes::STORE_OP].
+const fn decode_store_op(instruction: InstructionVal) -> Result<Instruction, DecodeError> {
+    let funct3 = get_funct3(instruction);
+    let rs1 = get_rs1(instruction);
+    let rs2 = get_rs2(instruction);
+    let imm = get_s_type_imm(instruction);
+
+    let instruction = match funct3 {
+        store_op::FUNCT3_SB => Instruction::Sb { rs1, rs2, imm },
+        store_op::FUNCT3_SH => Instruction::Sh { rs1, rs2, imm },
+        store_op::FUNCT3_SW => Instruction::Sw { rs1, rs2, imm },
+        funct3 => return Err(DecodeError::UnknownStoreOp { funct3 }),
+    };
+
+    Ok(instruction)
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Error)]
 pub enum DecodeError {
     #[error("Unkown instruction opcode: {0:#x}")]
@@ -302,6 +377,8 @@ pub enum DecodeError {
     },
     #[error("Unkown i ALU op funct3 value: {funct3:#x}")]
     UnknownIAluOp { funct3: InstructionVal },
+    #[error("Unkown store op funct3 value: {funct3:#x}")]
+    UnknownStoreOp { funct3: InstructionVal },
 }
 
 /// Get the opcode field.
@@ -378,6 +455,17 @@ const fn get_j_type_imm(instruction: InstructionVal) -> Bit<20> {
     Bit::new(raw as RegisterVal).unwrap()
 }
 
+/// Get the immediate value. Applicable to S instructions ONLY.
+/// The value is placed into the lowest bits of [InstructionVal].
+/// The value is not sign-extended.
+/// The result is immediately wrapped with [Imm] for convenience.
+const fn get_s_type_imm(instruction: InstructionVal) -> Bit<12> {
+    let imm_0_4 = (instruction & 0x0000_0F80) >> offsets::S_TYPE_IMM_0_4;
+    let imm_5_11 = (instruction & 0xFE00_0000) >> offsets::S_TYPE_IMM_5_11;
+    let raw = (imm_0_4 << 0) | (imm_5_11 << 5);
+    Bit::new(raw as RegisterVal).unwrap()
+}
+
 /// Encode an instruction back into its [InstructionVal] representation.
 /// The returned value is guaranteed to be parseable back into [Instruction]
 /// and is also a valid RiscV instruction.
@@ -424,6 +512,10 @@ pub const fn encode_instruction(instruction: Instruction) -> InstructionVal {
             out |= (imm.get_zext() as InstructionVal) << offsets::I_TYPE_IMM;
             out
         }
+        /* S-type instructions */
+        Instruction::Sb { rs1, rs2, imm } => encode_store_op(store_op::FUNCT3_SB, rs1, rs2, imm),
+        Instruction::Sh { rs1, rs2, imm } => encode_store_op(store_op::FUNCT3_SH, rs1, rs2, imm),
+        Instruction::Sw { rs1, rs2, imm } => encode_store_op(store_op::FUNCT3_SW, rs1, rs2, imm),
     }
 }
 
@@ -471,11 +563,33 @@ const fn encode_i_alu_op(
     out
 }
 
+const fn encode_store_op(
+    funct3: InstructionVal,
+    rs1: GeneralRegister,
+    rs2: GeneralRegister,
+    imm: Bit<12>,
+) -> InstructionVal {
+    let imm = imm.get_zext() as InstructionVal;
+    let imm_0_4 = (imm & 0x0000_001F) >> 0;
+    let imm_5_11 = (imm & 0x0000_0FE0) >> 5;
+
+    let mut out = 0;
+    out |= opcodes::STORE_OP << offsets::OPCODE;
+    out |= imm_0_4 << offsets::S_TYPE_IMM_0_4;
+    out |= funct3 << offsets::FUNCT3;
+    out |= rs1.get() << offsets::RS1;
+    out |= rs2.get() << offsets::RS2;
+    out |= imm_5_11 << offsets::S_TYPE_IMM_5_11;
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use crate::kernel::{encode_instruction, Bit, InstructionVal, RegisterVal};
 
-    use super::{get_funct3, get_funct7, get_opcode, i_alu_op, opcodes, r_alu_op, DecodeError};
+    use super::{
+        get_funct3, get_funct7, get_opcode, i_alu_op, opcodes, r_alu_op, store_op, DecodeError,
+    };
     use super::{GeneralRegister, Instruction};
 
     const SAMPLE_COUNT: usize = 1000;
@@ -515,6 +629,18 @@ mod tests {
     #[test]
     fn test_simple_negative_parse_r_op() {
         for t in test_data_bad_r_alu_instr() {
+            assert_eq!(
+                super::decode_instruction(t.input),
+                t.expected,
+                "Input {:#x}",
+                t.input
+            );
+        }
+    }
+
+    #[test]
+    fn test_simple_negative_parse_store_op() {
+        for t in test_data_bad_store_op_instr() {
             assert_eq!(
                 super::decode_instruction(t.input),
                 t.expected,
@@ -631,6 +757,31 @@ mod tests {
                     imm: bit(255),
                 }),
             },
+            /* S-Type instructions */
+            ParseTest {
+                input: 0b000001100101_00111_000_11011_0100011,
+                expected: Ok(Instruction::Sb {
+                    rs1: reg_x(7),
+                    rs2: reg_x(5),
+                    imm: bit(123),
+                }),
+            },
+            ParseTest {
+                input: 0b111111111111_00000_001_11111_0100011,
+                expected: Ok(Instruction::Sh {
+                    rs1: reg_x(0),
+                    rs2: reg_x(31),
+                    imm: bit(4095),
+                }),
+            },
+            ParseTest {
+                input: 0b111111111111_00000_010_11111_0100011,
+                expected: Ok(Instruction::Sw {
+                    rs1: reg_x(0),
+                    rs2: reg_x(31),
+                    imm: bit(4095),
+                }),
+            },
         ]
     }
 
@@ -707,6 +858,38 @@ mod tests {
             let funct7 = super::get_funct7(funct37);
             if !r_alu_op::ALL_FUNCT37.contains(&(funct3, funct7)) {
                 return funct37 & 0xfe00_7000;
+            }
+        }
+    }
+
+    /// This testdata is a bunch of negative test cases, where the decoder
+    /// should fail.
+    fn test_data_bad_store_op_instr() -> impl IntoIterator<Item = ParseTest> {
+        // TODO: seed the RNG
+        (0..SAMPLE_COUNT)
+            .map(|_| get_bad_store_op_instr())
+            .map(|bad_instr| ParseTest {
+                input: bad_instr,
+                expected: Err(DecodeError::UnknownStoreOp {
+                    funct3: get_funct3(bad_instr),
+                }),
+            })
+    }
+
+    fn get_bad_store_op_instr() -> InstructionVal {
+        let funct3 = get_bad_store_op_funct3();
+        let rest = rand::random::<InstructionVal>() & 0xffff_8f80;
+
+        opcodes::STORE_OP | rest | funct3
+    }
+
+    fn get_bad_store_op_funct3() -> InstructionVal {
+        // FIXME: this sampling might be suboptimal, because
+        // we are actually trying to randomize only the funct3 bits
+        loop {
+            let funct3 = rand::random::<InstructionVal>();
+            if !store_op::ALL_FUNCT3.contains(&super::get_funct3(funct3)) {
+                return funct3 & 0x0000_7000;
             }
         }
     }

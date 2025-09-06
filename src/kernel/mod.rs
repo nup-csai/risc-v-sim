@@ -47,7 +47,7 @@ impl Kernel {
 
         self.processor.pc += 4;
         instruction
-            .execute(&mut self.processor, old_pc)
+            .execute(&mut self.processor, &mut self.memory, old_pc)
             .map_err(|instruction_error| KernelError::InstructionError {
                 instruction_address: self.processor.pc,
                 instruction_error,
@@ -154,7 +154,12 @@ pub enum KernelError {
 
 #[cfg(test)]
 mod tests {
+    use crate::kernel::MemorySegment;
+
     use super::{Bit, GeneralRegister, Instruction, InstructionVal, Kernel, Program, RegisterVal};
+
+    const MEM_OFFSET: RegisterVal = 0x100;
+    const MEM_LEN: RegisterVal = 0x1000;
 
     #[test]
     fn basic_test() {
@@ -285,14 +290,101 @@ mod tests {
         );
     }
 
+    #[test]
+    fn basic_store() {
+        let mut target_mem = vec![0u8; MEM_LEN as usize];
+        let string_to_reg = [
+            (GeneralRegister::T0, b'h'),
+            (GeneralRegister::T1, b'e'),
+            (GeneralRegister::T2, b'l'),
+            (GeneralRegister::T3, b'l'),
+            (GeneralRegister::T4, b'o'),
+        ];
+        let mut program = Vec::new();
+        for (idx, (reg, val)) in string_to_reg.into_iter().enumerate() {
+            program.extend([
+                Instruction::Addi {
+                    rd: reg,
+                    rs1: GeneralRegister::ZERO,
+                    imm: bit(val as RegisterVal),
+                },
+                Instruction::Sb {
+                    rs1: GeneralRegister::ZERO,
+                    rs2: reg,
+                    imm: bit(MEM_OFFSET + idx as RegisterVal),
+                },
+            ]);
+            target_mem[idx] = val;
+        }
+
+        let program_len = program.len();
+        let kernel = run_test(0, 0, program, (0..program_len).collect());
+        assert_eq!(
+            kernel.memory.segments()[1].as_bytes(),
+            target_mem.as_slice()
+        );
+    }
+
+    #[test]
+    fn smart_store() {
+        let target_mem = b"Hello, world";
+        let mut program = Vec::new();
+        let pieces = [b"Hell", b"o, w", b"orld"];
+
+        for (idx, piece) in pieces.into_iter().enumerate() {
+            generate_smart_store(&mut program, piece, MEM_OFFSET + (4 * idx) as RegisterVal);
+        }
+
+        let program_len = program.len();
+        let kernel = run_test(0, 0, program, (0..program_len).collect());
+        let rw_memory = kernel.memory.segments()[1].as_bytes();
+        assert_eq!(&rw_memory[0..target_mem.len()], target_mem.as_slice());
+    }
+
+    fn generate_smart_store(program: &mut Vec<Instruction>, val: &[u8; 4], off: RegisterVal) {
+        let val = u32::from_le_bytes(*val);
+        let lower_part = val & 0x0000_0FFF;
+        let mut higher_part = (val & 0xFFFF_F000) >> 12;
+        // Because `addi` sign-extends, add a 1 to lui's immediate value
+        // to cancel out the unwanted addition.
+        if (lower_part & 0x800) == 0x800 {
+            higher_part = higher_part.wrapping_add(1);
+            higher_part &= 0xF_FFFF;
+        }
+
+        program.extend([
+            Instruction::Lui {
+                rd: GeneralRegister::T0,
+                imm: bit(higher_part as RegisterVal),
+            },
+            Instruction::Addi {
+                rd: GeneralRegister::T0,
+                rs1: GeneralRegister::T0,
+                imm: bit(lower_part as RegisterVal),
+            },
+            Instruction::Sw {
+                rs1: GeneralRegister::ZERO,
+                rs2: GeneralRegister::T0,
+                imm: bit(off),
+            },
+        ])
+    }
+
     fn run_test(
         entry_point: RegisterVal,
         program_offset: RegisterVal,
         program: Vec<Instruction>,
         expected_trace: Vec<usize>,
-    ) {
+    ) -> Kernel {
         let program = Program::from_instructions(program);
         let mut kernel = Kernel::from_program(program, entry_point, program_offset);
+        kernel
+            .memory
+            .add_segment(MemorySegment::new_zeroed(
+                true, true, true, MEM_OFFSET, MEM_LEN,
+            ))
+            .unwrap();
+
         let actual_trace = (0..expected_trace.len())
             .map(|_| kernel.step().unwrap())
             .map(|step| {
@@ -301,7 +393,8 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        assert_eq!(expected_trace, actual_trace)
+        assert_eq!(expected_trace, actual_trace);
+        kernel
     }
 
     /// Shortcut function that panics if `v` is not a valid reg index.

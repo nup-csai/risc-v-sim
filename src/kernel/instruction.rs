@@ -3,11 +3,21 @@
 
 use thiserror::Error;
 
-use super::{GeneralRegister, Processor, RegisterVal};
+use super::{GeneralRegister, Memory, MemoryError, Processor, RegisterVal};
 
 /// Error returned by [Instruction::execute].
 #[derive(Clone, Copy, PartialEq, Eq, Error, Debug)]
-pub enum InstructionError {}
+pub enum InstructionError {
+    #[error(
+        "Failed to execute instruction {instruction:?} at {instruction_address:#x}: {memory_error}"
+    )]
+    MemoryError {
+        instruction_address: RegisterVal,
+        instruction: Instruction,
+        #[source]
+        memory_error: MemoryError,
+    },
+}
 
 /// [Instruction] is a type-safe representation of a CPU
 /// instruction. That means, all valid values of this type
@@ -94,6 +104,34 @@ pub enum Instruction {
         rs1: GeneralRegister,
         imm: Bit<12>,
     },
+    /* S-Type instructions */
+    /// Sw instruction. Has the followng semantics
+    /// ```pic
+    /// Write(rs1 + sext(imm), rs2[8:0])
+    /// ```
+    Sb {
+        rs1: GeneralRegister,
+        rs2: GeneralRegister,
+        imm: Bit<12>,
+    },
+    /// Sh instruction. Has the followng semantics
+    /// ```pic
+    /// Write(rs1 + sext(imm)], rs2[16:0])
+    /// ```
+    Sh {
+        rs1: GeneralRegister,
+        rs2: GeneralRegister,
+        imm: Bit<12>,
+    },
+    /// Sw instruction. Has the followng semantics
+    /// ```pic
+    /// Write(rs1 + sext(imm), rs2[31:0])
+    /// ```
+    Sw {
+        rs1: GeneralRegister,
+        rs2: GeneralRegister,
+        imm: Bit<12>,
+    },
 }
 
 impl Instruction {
@@ -103,6 +141,7 @@ impl Instruction {
     pub fn execute(
         self,
         processor: &mut Processor,
+        memory: &mut Memory,
         old_pc: RegisterVal,
     ) -> Result<(), InstructionError> {
         match self {
@@ -155,8 +194,38 @@ impl Instruction {
                 processor.pc = new_pc;
                 Ok(())
             }
+            Instruction::Sb { rs1, rs2, imm } => {
+                store_op_impl::<8>(processor, memory, rs1, rs2, imm, old_pc, self)
+            }
+            Instruction::Sh { rs1, rs2, imm } => {
+                store_op_impl::<16>(processor, memory, rs1, rs2, imm, old_pc, self)
+            }
+            Instruction::Sw { rs1, rs2, imm } => {
+                store_op_impl::<32>(processor, memory, rs1, rs2, imm, old_pc, self)
+            }
         }
     }
+}
+
+fn store_op_impl<const WIDTH: usize>(
+    processor: &Processor,
+    memory: &mut Memory,
+    rs1: GeneralRegister,
+    rs2: GeneralRegister,
+    imm: Bit<12>,
+    old_pc: RegisterVal,
+    instruction: Instruction,
+) -> Result<(), InstructionError> {
+    let rs1 = processor.get_register(rs1);
+    let rs2 = processor.get_register(rs2);
+    let address = rs1.wrapping_add(imm.get_sext());
+    memory
+        .write(address, &rs2.to_le_bytes()[0..WIDTH / 8])
+        .map_err(|memory_error| InstructionError::MemoryError {
+            instruction_address: old_pc,
+            instruction,
+            memory_error,
+        })
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
