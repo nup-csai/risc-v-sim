@@ -143,7 +143,7 @@ impl Instruction {
                 Ok(())
             }
             Instruction::Lui { rd, imm } => {
-                state.set_register(rd, imm.get_sext());
+                state.set_register(rd, imm.get_sext() << 12);
                 Ok(())
             }
             Instruction::Auipc { rd, imm } => {
