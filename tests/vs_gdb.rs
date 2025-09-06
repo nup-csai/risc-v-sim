@@ -15,9 +15,41 @@
 
 use std::{fs, io, path::PathBuf, process};
 
-use risc_v_sim::kernel::GeneralRegister;
+use risc_v_sim::kernel::{GeneralRegister, Memory, MemorySegment, RegisterVal};
 
-static TRACER_NAME: &str = "trace_capture";
+#[test]
+fn test_vs_gdb() {
+    let files_with_tick_count = [
+        ("basic.s", 4),
+        ("basic2.s", 6),
+        ("auipc.s", 5),
+        ("load_constant.s", 2),
+        ("loop.s", 8),
+        ("jumps.s", 10),
+        ("calls.s", 10),
+        ("basic_mem.s", 7),
+    ];
+
+    // Create a dir for placing the built elfs
+    let elfs_dir = PathBuf::from_iter(["tests", "elfs"]);
+    if !fs::exists(&elfs_dir).unwrap() {
+        fs::create_dir(&elfs_dir).unwrap();
+    }
+
+    for (filename, tick_count) in files_with_tick_count {
+        println!("Capturing: {filename:?}");
+        let docker_out = run_qemu_command(filename, tick_count);
+        let qemu_trace = parse_trace(docker_out);
+        assert_eq!(qemu_trace.len(), tick_count);
+
+        println!("Simulating the elf");
+        let simulated_trace = simulate_elf(filename, tick_count);
+        assert_eq!(simulated_trace.len(), tick_count);
+
+        assert_eq!(qemu_trace, simulated_trace);
+        println!("Pass: {filename:?}");
+    }
+}
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 struct TraceEntry {
@@ -55,38 +87,7 @@ struct TraceEntry {
     pc: u64,
 }
 
-#[test]
-fn test_vs_gdb() {
-    let files_with_tick_count = [
-        ("basic.s", 4),
-        ("basic2.s", 6),
-        ("auipc.s", 5),
-        ("load_constant.s", 2),
-        ("loop.s", 8),
-        ("jumps.s", 10),
-        ("calls.s", 10),
-    ];
-
-    // Create a dir for placing the built elfs
-    let elfs_dir = PathBuf::from_iter(["tests", "elfs"]);
-    if !fs::exists(&elfs_dir).unwrap() {
-        fs::create_dir(&elfs_dir).unwrap();
-    }
-
-    for (filename, tick_count) in files_with_tick_count {
-        println!("Capturing: {filename:?}");
-        let docker_out = run_qemu_command(filename, tick_count);
-        let qemu_trace = parse_trace(docker_out);
-        assert_eq!(qemu_trace.len(), tick_count);
-
-        println!("Simulating the elf");
-        let simulated_trace = simulate_elf(filename, tick_count);
-        assert_eq!(simulated_trace.len(), tick_count);
-
-        assert_eq!(qemu_trace, simulated_trace);
-        println!("Pass: {filename:?}");
-    }
-}
+static TRACER_NAME: &str = "trace_capture";
 
 fn run_qemu_command(filename: &str, tick_count: usize) -> process::Output {
     let tick_count = tick_count.to_string();
@@ -196,14 +197,34 @@ fn parse_register_entry(line: &str, entry: &mut TraceEntry) {
     }
 }
 
+const SIMULATION_PROGRAM_OFFSET: RegisterVal = 0x80000000;
+const SIMULATION_RW_MEM_OFFSET: RegisterVal = 0x1000;
+const SIUMLATION_RW_MEM_SIZE: RegisterVal = 0x8000;
+
 fn simulate_elf(filename: &str, tick_count: usize) -> Vec<TraceEntry> {
     let mut elf_path = PathBuf::from_iter(["tests", "elfs", filename]);
     elf_path.set_extension("s.elf");
 
     let mut result = Vec::new();
     let info = risc_v_sim::shell::load_program_from_file(&elf_path).unwrap();
-    let mut kernel =
-        risc_v_sim::kernel::Kernel::from_program(info.program, info.entry, info.load_address);
+    let entry_point = info.entry;
+    assert_eq!(info.load_address, SIMULATION_PROGRAM_OFFSET);
+
+    let mut mem = Memory::new();
+    // QEMU lets you use the whole 0x80000000:0x8000000 segment as RAM.
+    // Let's assume the program will always fit into first 4Kb, so the next
+    // 4Kb will be reserved by the memory for program to write to.
+    info.load_into_memory(&mut mem, true, false).unwrap();
+    mem.add_segment(MemorySegment::new_zeroed(
+        true,
+        true,
+        false,
+        SIMULATION_PROGRAM_OFFSET + SIMULATION_RW_MEM_OFFSET,
+        SIUMLATION_RW_MEM_SIZE,
+    ))
+    .unwrap();
+
+    let mut kernel = risc_v_sim::kernel::Kernel::new(mem, entry_point);
 
     for _ in 0..tick_count {
         let kernel_step = kernel.step().unwrap();
