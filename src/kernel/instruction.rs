@@ -104,6 +104,51 @@ pub enum Instruction {
         rs1: GeneralRegister,
         imm: Bit<12>,
     },
+    /// Lb instruction. Has the following semantics
+    /// ```pic
+    /// rd = sext(Read(rs1 + sext(imm), 8))
+    /// ```
+    Lb {
+        rd: GeneralRegister,
+        rs1: GeneralRegister,
+        imm: Bit<12>,
+    },
+    /// Lb instruction. Has the following semantics
+    /// ```pic
+    /// rd = sext(Read(rs1 + sext(imm), 16))
+    /// ```
+    Lh {
+        rd: GeneralRegister,
+        rs1: GeneralRegister,
+        imm: Bit<12>,
+    },
+    /// Lb instruction. Has the following semantics
+    /// ```pic
+    /// rd = sext(Read(rs1 + sext(imm), 32))
+    /// ```
+    Lw {
+        rd: GeneralRegister,
+        rs1: GeneralRegister,
+        imm: Bit<12>,
+    },
+    /// Lb instruction. Has the following semantics
+    /// ```pic
+    /// rd = sext(Read(rs1 + sext(imm), 8))
+    /// ```
+    Lbu {
+        rd: GeneralRegister,
+        rs1: GeneralRegister,
+        imm: Bit<12>,
+    },
+    /// Lb instruction. Has the following semantics
+    /// ```pic
+    /// rd = sext(Read(rs1 + sext(imm), 16))
+    /// ```
+    Lhu {
+        rd: GeneralRegister,
+        rs1: GeneralRegister,
+        imm: Bit<12>,
+    },
     /* S-Type instructions */
     /// Sw instruction. Has the followng semantics
     /// ```pic
@@ -194,6 +239,21 @@ impl Instruction {
                 processor.pc = new_pc;
                 Ok(())
             }
+            Instruction::Lb { rd, rs1, imm } => {
+                load_op_impl::<8>(processor, memory, rs1, rd, imm, old_pc, self)
+            }
+            Instruction::Lh { rd, rs1, imm } => {
+                load_op_impl::<16>(processor, memory, rs1, rd, imm, old_pc, self)
+            }
+            Instruction::Lw { rd, rs1, imm } => {
+                load_op_impl::<32>(processor, memory, rs1, rd, imm, old_pc, self)
+            }
+            Instruction::Lbu { rd, rs1, imm } => {
+                uload_op_impl::<1>(processor, memory, rs1, rd, imm, old_pc, self)
+            }
+            Instruction::Lhu { rd, rs1, imm } => {
+                uload_op_impl::<2>(processor, memory, rs1, rd, imm, old_pc, self)
+            }
             Instruction::Sb { rs1, rs2, imm } => {
                 store_op_impl::<8>(processor, memory, rs1, rs2, imm, old_pc, self)
             }
@@ -205,6 +265,56 @@ impl Instruction {
             }
         }
     }
+}
+
+fn load_op_impl<const WIDTH: usize>(
+    processor: &mut Processor,
+    memory: &Memory,
+    rs1: GeneralRegister,
+    rd: GeneralRegister,
+    imm: Bit<12>,
+    old_pc: RegisterVal,
+    instruction: Instruction,
+) -> Result<(), InstructionError> {
+    let rs1 = processor.get_register(rs1);
+    let address = rs1.wrapping_add(imm.get_sext());
+    let mut dst = [0u8; std::mem::size_of::<RegisterVal>()];
+    memory
+        .read(address, &mut dst[0..WIDTH / 8])
+        .map_err(|memory_error| InstructionError::MemoryError {
+            instruction_address: old_pc,
+            instruction,
+            memory_error,
+        })?;
+    let new_rd = Bit::<WIDTH>::new(RegisterVal::from_le_bytes(dst))
+        .expect("unexpected load overflow")
+        .get_sext();
+    processor.set_register(rd, new_rd);
+    Ok(())
+}
+
+fn uload_op_impl<const WIDTH: usize>(
+    processor: &mut Processor,
+    memory: &Memory,
+    rs1: GeneralRegister,
+    rd: GeneralRegister,
+    imm: Bit<12>,
+    old_pc: RegisterVal,
+    instruction: Instruction,
+) -> Result<(), InstructionError> {
+    let rs1 = processor.get_register(rs1);
+    let address = rs1.wrapping_add(imm.get_sext());
+    let mut dst = [0u8; std::mem::size_of::<RegisterVal>()];
+    memory
+        .read(address, &mut dst[0..WIDTH])
+        .map_err(|memory_error| InstructionError::MemoryError {
+            instruction_address: old_pc,
+            instruction,
+            memory_error,
+        })?;
+    let new_rd = RegisterVal::from_le_bytes(dst);
+    processor.set_register(rd, new_rd);
+    Ok(())
 }
 
 fn store_op_impl<const WIDTH: usize>(

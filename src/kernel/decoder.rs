@@ -185,6 +185,16 @@ pub mod opcodes {
     pub const I_ALU_OP: InstructionVal = 0b0010011;
     /// Opcode of [Instruction::Jalr]
     pub const JALR: InstructionVal = 0b1100111;
+    /// Opcode of the following instructions
+    /// * [Instruction::Lb]
+    /// * [Instruction::Lh]
+    /// * [Instruction::Lw]
+    /// * [Instruction::Lbu]
+    /// * [Instruction::Lhu]
+    ///
+    /// To figure out what instruction it is,
+    /// you need to look at funct3.
+    pub const LOAD_OP: InstructionVal = 0b0000011;
 
     /* S-type instructions */
     /// Opcode of the following instructions
@@ -196,8 +206,8 @@ pub mod opcodes {
     /// you need to look at funct3.
     pub const STORE_OP: InstructionVal = 0b0100011;
 
-    pub const ALL_OPCODES: [InstructionVal; 7] =
-        [JAL, R_ALU_OP, LUI, AUIPC, I_ALU_OP, JALR, STORE_OP];
+    pub const ALL_OPCODES: [InstructionVal; 8] =
+        [JAL, R_ALU_OP, LUI, AUIPC, I_ALU_OP, JALR, LOAD_OP, STORE_OP];
 }
 
 /// [r_alu_op] contains `funct3` and `funct7` values
@@ -235,6 +245,22 @@ pub mod i_alu_op {
     pub const FUNCT3_XORI: InstructionVal = 0b100;
 
     pub const ALL_FUNCT3: [InstructionVal; 2] = [FUNCT3_ADDI, FUNCT3_XORI];
+}
+
+/// [load_op] contains `funct3` values
+/// for instructions with opcode [opcodes::LOAD_OP].
+/// For more information, see the comment above that constant.
+pub mod load_op {
+    use super::InstructionVal;
+
+    pub const FUNCT3_LB: InstructionVal = 0b000;
+    pub const FUNCT3_LH: InstructionVal = 0b001;
+    pub const FUNCT3_LW: InstructionVal = 0b010;
+    pub const FUNCT3_LBU: InstructionVal = 0b100;
+    pub const FUNCT3_LHU: InstructionVal = 0b101;
+
+    pub const ALL_FUNCT3: [InstructionVal; 5] =
+        [FUNCT3_LB, FUNCT3_LH, FUNCT3_LW, FUNCT3_LBU, FUNCT3_LHU];
 }
 
 /// [store_op] contains `funct3` values
@@ -305,6 +331,10 @@ pub const fn decode_instruction(instruction: InstructionVal) -> Result<Instructi
             rs1: get_rs1(instruction),
             imm: get_i_type_imm(instruction),
         },
+        opcodes::LOAD_OP => match decode_load_op(instruction) {
+            Ok(x) => x,
+            Err(e) => return Err(e),
+        },
         /* S-type instructions */
         opcodes::STORE_OP => match decode_store_op(instruction) {
             Ok(x) => x,
@@ -349,6 +379,25 @@ const fn decode_r_alu_op(instruction: InstructionVal) -> Result<Instruction, Dec
     Ok(instruction)
 }
 
+/// Decode an instruction with opcode [opcodes::LOAD_OP].
+const fn decode_load_op(instruction: InstructionVal) -> Result<Instruction, DecodeError> {
+    let funct3 = get_funct3(instruction);
+    let rd = get_rd(instruction);
+    let rs1 = get_rs1(instruction);
+    let imm = get_i_type_imm(instruction);
+
+    let instruction = match funct3 {
+        load_op::FUNCT3_LB => Instruction::Lb { rd, rs1, imm },
+        load_op::FUNCT3_LH => Instruction::Lh { rd, rs1, imm },
+        load_op::FUNCT3_LW => Instruction::Lw { rd, rs1, imm },
+        load_op::FUNCT3_LBU => Instruction::Lbu { rd, rs1, imm },
+        load_op::FUNCT3_LHU => Instruction::Lhu { rd, rs1, imm },
+        funct3 => return Err(DecodeError::UnknownLoadOp { funct3 }),
+    };
+
+    Ok(instruction)
+}
+
 /// Decode an instruction with opcode [opcodes::STORE_OP].
 const fn decode_store_op(instruction: InstructionVal) -> Result<Instruction, DecodeError> {
     let funct3 = get_funct3(instruction);
@@ -377,6 +426,8 @@ pub enum DecodeError {
     },
     #[error("Unkown i ALU op funct3 value: {funct3:#x}")]
     UnknownIAluOp { funct3: InstructionVal },
+    #[error("Unkown load op funct3 value: {funct3:#x}")]
+    UnknownLoadOp { funct3: InstructionVal },
     #[error("Unkown store op funct3 value: {funct3:#x}")]
     UnknownStoreOp { funct3: InstructionVal },
 }
@@ -512,6 +563,11 @@ pub const fn encode_instruction(instruction: Instruction) -> InstructionVal {
             out |= (imm.get_zext() as InstructionVal) << offsets::I_TYPE_IMM;
             out
         }
+        Instruction::Lb { rd, rs1, imm } => encode_load_op(rd, load_op::FUNCT3_LB, rs1, imm),
+        Instruction::Lh { rd, rs1, imm } => encode_load_op(rd, load_op::FUNCT3_LH, rs1, imm),
+        Instruction::Lw { rd, rs1, imm } => encode_load_op(rd, load_op::FUNCT3_LW, rs1, imm),
+        Instruction::Lbu { rd, rs1, imm } => encode_load_op(rd, load_op::FUNCT3_LBU, rs1, imm),
+        Instruction::Lhu { rd, rs1, imm } => encode_load_op(rd, load_op::FUNCT3_LHU, rs1, imm),
         /* S-type instructions */
         Instruction::Sb { rs1, rs2, imm } => encode_store_op(store_op::FUNCT3_SB, rs1, rs2, imm),
         Instruction::Sh { rs1, rs2, imm } => encode_store_op(store_op::FUNCT3_SH, rs1, rs2, imm),
@@ -563,6 +619,21 @@ const fn encode_i_alu_op(
     out
 }
 
+const fn encode_load_op(
+    rd: GeneralRegister,
+    funct3: InstructionVal,
+    rs1: GeneralRegister,
+    imm: Bit<12>,
+) -> InstructionVal {
+    let mut out = 0;
+    out |= opcodes::LOAD_OP << offsets::OPCODE;
+    out |= rd.get() << offsets::RD;
+    out |= funct3 << offsets::FUNCT3;
+    out |= rs1.get() << offsets::RS1;
+    out |= (imm.get_zext() as InstructionVal) << offsets::I_TYPE_IMM;
+    out
+}
+
 const fn encode_store_op(
     funct3: InstructionVal,
     rs1: GeneralRegister,
@@ -585,7 +656,7 @@ const fn encode_store_op(
 
 #[cfg(test)]
 mod tests {
-    use crate::kernel::{encode_instruction, Bit, InstructionVal, RegisterVal};
+    use crate::kernel::{encode_instruction, load_op, Bit, InstructionVal, RegisterVal};
 
     use super::{
         get_funct3, get_funct7, get_opcode, i_alu_op, opcodes, r_alu_op, store_op, DecodeError,
@@ -641,6 +712,18 @@ mod tests {
     #[test]
     fn test_simple_negative_parse_store_op() {
         for t in test_data_bad_store_op_instr() {
+            assert_eq!(
+                super::decode_instruction(t.input),
+                t.expected,
+                "Input {:#x}",
+                t.input
+            );
+        }
+    }
+
+    #[test]
+    fn test_simple_negative_parse_load_op() {
+        for t in test_data_bad_load_op_instr() {
             assert_eq!(
                 super::decode_instruction(t.input),
                 t.expected,
@@ -755,6 +838,46 @@ mod tests {
                     rd: reg_x(10),
                     rs1: reg_x(5),
                     imm: bit(255),
+                }),
+            },
+            ParseTest {
+                input: 0b000010000100_00110_000_00101_0000011,
+                expected: Ok(Instruction::Lb {
+                    rd: reg_x(5),
+                    rs1: reg_x(6),
+                    imm: bit(132),
+                }),
+            },
+            ParseTest {
+                input: 0b111111111111_11111_001_11100_0000011,
+                expected: Ok(Instruction::Lh {
+                    rd: reg_x(28),
+                    rs1: reg_x(31),
+                    imm: bit(0xFFF),
+                }),
+            },
+            ParseTest {
+                input: 0b000000000010_01011_010_01110_0000011,
+                expected: Ok(Instruction::Lw {
+                    rd: reg_x(14),
+                    rs1: reg_x(11),
+                    imm: bit(2),
+                }),
+            },
+            ParseTest {
+                input: 0b000000000001_01110_100_01111_0000011,
+                expected: Ok(Instruction::Lbu {
+                    rd: reg_x(15),
+                    rs1: reg_x(14),
+                    imm: bit(1),
+                }),
+            },
+            ParseTest {
+                input: 0b000000000100_01111_101_01111_0000011,
+                expected: Ok(Instruction::Lhu {
+                    rd: reg_x(15),
+                    rs1: reg_x(15),
+                    imm: bit(4),
                 }),
             },
             /* S-Type instructions */
@@ -889,6 +1012,37 @@ mod tests {
         loop {
             let funct3 = rand::random::<InstructionVal>();
             if !store_op::ALL_FUNCT3.contains(&super::get_funct3(funct3)) {
+                return funct3 & 0x0000_7000;
+            }
+        }
+    }
+    /// This testdata is a bunch of negative test cases, where the decoder
+    /// should fail.
+    fn test_data_bad_load_op_instr() -> impl IntoIterator<Item = ParseTest> {
+        // TODO: seed the RNG
+        (0..SAMPLE_COUNT)
+            .map(|_| get_bad_load_op_instr())
+            .map(|bad_instr| ParseTest {
+                input: bad_instr,
+                expected: Err(DecodeError::UnknownLoadOp {
+                    funct3: get_funct3(bad_instr),
+                }),
+            })
+    }
+
+    fn get_bad_load_op_instr() -> InstructionVal {
+        let funct3 = get_bad_load_op_funct3();
+        let rest = rand::random::<InstructionVal>() & 0xffff_8f80;
+
+        opcodes::LOAD_OP | rest | funct3
+    }
+
+    fn get_bad_load_op_funct3() -> InstructionVal {
+        // FIXME: this sampling might be suboptimal, because
+        // we are actually trying to randomize only the funct3 bits
+        loop {
+            let funct3 = rand::random::<InstructionVal>();
+            if !load_op::ALL_FUNCT3.contains(&super::get_funct3(funct3)) {
                 return funct3 & 0x0000_7000;
             }
         }
