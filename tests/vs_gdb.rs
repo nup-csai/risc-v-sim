@@ -60,6 +60,7 @@ fn test_vs_gdb() {
     let files_with_tick_count = [
         ("basic.s", 4),
         ("basic2.s", 6),
+        ("auipc.s", 5),
         ("load_constant.s", 2),
         ("loop.s", 8),
         ("jumps.s", 10),

@@ -147,7 +147,7 @@ impl Instruction {
                 Ok(())
             }
             Instruction::Auipc { rd, imm } => {
-                state.set_register(rd, state.pc + imm.get_sext() << 12);
+                state.set_register(rd, old_pc.wrapping_add(imm.get_sext() << 12));
                 Ok(())
             }
             Instruction::Addi { rd, rs1, imm } => {
