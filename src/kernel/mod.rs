@@ -10,12 +10,16 @@ use thiserror::Error;
 #[derive(Debug)]
 pub struct Kernel {
     program: Program,
-    program_offset: u64,
+    program_offset: RegisterVal,
     processor: Processor,
 }
 
 impl Kernel {
-    pub const fn new(program: Program, entry_point: u64, program_offset: u64) -> Self {
+    pub const fn new(
+        program: Program,
+        entry_point: RegisterVal,
+        program_offset: RegisterVal,
+    ) -> Self {
         let mut processor = Processor::new();
         processor.pc = entry_point;
 
@@ -115,9 +119,10 @@ pub struct KernelStep {
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Error)]
 pub enum KernelError {
-    #[error("Failed to execute instruction {instruction_address}: {instruction_error}")]
+    #[error("Failed to execute instruction at {instruction_address:#x}: {instruction_error}")]
     InstructionError {
-        instruction_address: u64,
+        instruction_address: RegisterVal,
+        #[source]
         instruction_error: InstructionError,
     },
     #[error("Tried to fetch an instruction out of range: {0}")]
@@ -126,7 +131,7 @@ pub enum KernelError {
 
 #[cfg(test)]
 mod tests {
-    use super::{GeneralRegister, Imm, Instruction, InstructionVal, Kernel, Program, RegisterVal};
+    use super::{Bit, GeneralRegister, Instruction, InstructionVal, Kernel, Program, RegisterVal};
 
     #[test]
     fn basic_test() {
@@ -152,7 +157,7 @@ mod tests {
                 Instruction::Addi {
                     rd: reg_x(1),
                     rs1: reg_x(2),
-                    imm: imm(234),
+                    imm: bit(234),
                 },
             ],
             vec![0, 1, 2],
@@ -183,7 +188,7 @@ mod tests {
                 Instruction::Addi {
                     rd: reg_x(1),
                     rs1: reg_x(2),
-                    imm: imm(234),
+                    imm: bit(234),
                 },
             ],
             vec![0, 1, 2],
@@ -214,7 +219,7 @@ mod tests {
                 Instruction::Addi {
                     rd: reg_x(1),
                     rs1: reg_x(2),
-                    imm: imm(234),
+                    imm: bit(234),
                 },
             ],
             vec![1, 2, 3],
@@ -250,7 +255,7 @@ mod tests {
                 },
                 Instruction::Jal {
                     rd: reg_x(0),
-                    offset: imm(0xF_FFFA),
+                    imm: bit(0xF_FFFA),
                 },
             ],
             expected_trace,
@@ -258,8 +263,8 @@ mod tests {
     }
 
     fn run_test(
-        entry_point: u64,
-        program_offset: u64,
+        entry_point: RegisterVal,
+        program_offset: RegisterVal,
         program: Vec<Instruction>,
         expected_trace: Vec<usize>,
     ) {
@@ -278,11 +283,11 @@ mod tests {
 
     /// Shortcut function that panics if `v` is not a valid reg index.
     fn reg_x(x: InstructionVal) -> GeneralRegister {
-        GeneralRegister::new(x).unwrap()
+        GeneralRegister::new(x).expect("Bad register value")
     }
 
-    /// Shortcut function that panics if `v` is not a valid imm value.
-    fn imm<const WIDTH: usize>(v: RegisterVal) -> Imm<{ WIDTH }> {
-        Imm::new(v).unwrap()
+    /// Shortcut function that panics if `v` is not a valid Bit<N> value.
+    fn bit<const WIDTH: usize>(v: RegisterVal) -> Bit<{ WIDTH }> {
+        Bit::new(v).expect("bad bit value")
     }
 }

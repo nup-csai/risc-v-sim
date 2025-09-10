@@ -10,13 +10,29 @@
 //!
 //! ## J-Type
 //!
-//! J-Type instructions have the following bit represenation
+//! J-Type instructions have the following bit represenation.
+//! The values in square brackets indicate what bits of the immediate
+//! value are stored and in which order as such instructions do not
+//! store them consecutively.
 //!
 //! ```pic
+//! jal zero, 324
 //! 00010100010000000000 00000 1101111
 //! |                    |     | opcode
-//! |                    | source register
-//! | immediate value
+//! |                    | destination register
+//! | immediate value [20 | 10:1 | 11 | 19:12]
+//! ```
+//!
+//! Here is an example of the decoder decoding this instruction
+//!
+//! ```
+//! # use risc_v_sim::kernel::{decode_instruction,Bit,GeneralRegister,Instruction};
+//! let decoded = decode_instruction(0b00010100010000000000_00000_1101111).unwrap();
+//! assert_eq!(decoded, Instruction::Jal {
+//!     rd: GeneralRegister::ZERO,
+//!     /// We extract the immediate value as-is, instead of getting it with 1-bit offset
+//!     imm: Bit::new(324 >> 1).unwrap(),
+//! });
 //! ```
 //!
 //! ## R-Type
@@ -24,6 +40,7 @@
 //! R-Type instructions have the following bit representation
 //!
 //! ```pic
+//! add tp, t1, ra
 //! 0000000 00001 00110 000 00100 0110011
 //! |       |     |     |   |     | opcode
 //! |       |     |     |   | destination register
@@ -33,15 +50,42 @@
 //! | funct 7
 //! ```
 //!
+//! Here is an example of the decoder decoding this instruction
+//!
+//! ```
+//! # use risc_v_sim::kernel::{decode_instruction,Bit,GeneralRegister,Instruction};
+//! let decoded = decode_instruction(0b0000000_00001_00110_000_00100_0110011).unwrap();
+//! assert_eq!(decoded, Instruction::Add {
+//!     rd: GeneralRegister::TP,
+//!     rs1: GeneralRegister::T1,
+//!     rs2: GeneralRegister::RA,
+//! });
+//! ```
+//!
 //! ## U-Type
 //!
 //! U-Type instructions have the following bit representation
 //!
 //! ```pic
+//! lui t1, 4587
 //! 00000001000111101011 00110 0110111
 //! |                    |     | opcode
 //! |                    | destination register
-//! | immediate value
+//! | immediate value [31:12]
+//! ```
+//!
+//! Here is an example of the decoder decoding this instruction
+//!
+//! ```
+//! # use risc_v_sim::kernel::{decode_instruction,Bit,GeneralRegister,Instruction};
+//! let decoded = decode_instruction(0b00000001000111101011_00110_0110111).unwrap();
+//! assert_eq!(decoded, Instruction::Lui {
+//!     rd: GeneralRegister::T1,
+//!     /// RiscV documentation specified that this immediate value represents bits from 12 to 31.
+//!     /// However, when using assembly, you specify this value as if the 12-bit offset does
+//!     /// not exist. This why this value is the same as in the asm instruction above.
+//!     imm: Bit::new(4587).unwrap(),
+//! });
 //! ```
 //!
 //! ## I-Type
@@ -49,18 +93,31 @@
 //! I-Type instructions have the following bit representation
 //!
 //! ```pic
+//! addi a1, a2, 20
 //! 000000010100 01100 000 01011 0010011
 //! |            |     |   |     | opcode
 //! |            |     |   | destination register
 //! |            |     | funct 3
 //! |            | source register
-//! | immediate value
+//! | immediate value [11:0]
+//! ```
+//!
+//! Here is an example of the decoder decoding this instruction
+//!
+//! ```
+//! # use risc_v_sim::kernel::{decode_instruction,Bit,GeneralRegister,Instruction};
+//! let decoded = decode_instruction(0b000000010100_01100_000_01011_0010011).unwrap();
+//! assert_eq!(decoded, Instruction::Addi {
+//!     rd: GeneralRegister::A1,
+//!     rs1: GeneralRegister::A2,
+//!     imm: Bit::new(20).unwrap(),
+//! });
 //! ```
 
 use thiserror::Error;
 
+use super::Bit;
 use super::GeneralRegister;
-use super::Imm;
 use super::Instruction;
 use super::InstructionVal;
 use super::RegisterVal;
@@ -96,11 +153,13 @@ pub mod opcodes {
     /// * [Instruction::Addi]
     /// * [Instruction::Xori]
     ///
-    /// To figure our what instruction it is,
+    /// To figure out what instruction it is,
     /// you need to look at funct3.
     pub const I_ALU_OP: InstructionVal = 0b0010011;
     /// Opcode of [Instruction::Jalr]
     pub const JALR: InstructionVal = 0b1100111;
+
+    pub const ALL_OPCODES: [InstructionVal; 6] = [JAL, R_ALU_OP, LUI, AUIPC, I_ALU_OP, JALR];
 }
 
 /// [r_alu_op] contains `funct3` and `funct7` values
@@ -120,6 +179,12 @@ pub mod r_alu_op {
     /* Codes for XOR */
     pub const FUNCT3_XOR: InstructionVal = 0b100;
     pub const FUNCT7_XOR: InstructionVal = 0b0000000;
+
+    pub const ALL_FUNCT37: [(InstructionVal, InstructionVal); 3] = [
+        (FUNCT3_ADD, FUNCT7_ADD),
+        (FUNCT3_SUB, FUNCT7_SUB),
+        (FUNCT3_XOR, FUNCT7_XOR),
+    ];
 }
 
 /// [i_alu_op] contains `funct3` values
@@ -130,6 +195,8 @@ pub mod i_alu_op {
 
     pub const FUNCT3_ADDI: InstructionVal = 0b000;
     pub const FUNCT3_XORI: InstructionVal = 0b100;
+
+    pub const ALL_FUNCT3: [InstructionVal; 2] = [FUNCT3_ADDI, FUNCT3_XORI];
 }
 
 const REGISTER_MASK: InstructionVal = 0b11111;
@@ -140,7 +207,7 @@ pub const fn decode_instruction(instruction: InstructionVal) -> Result<Instructi
         /* J-type instructions */
         opcodes::JAL => Instruction::Jal {
             rd: get_rd(instruction),
-            offset: get_j_type_imm(instruction),
+            imm: get_j_type_imm(instruction),
         },
         /* R-type instructions */
         opcodes::R_ALU_OP => match decode_r_alu_op(instruction) {
@@ -164,7 +231,7 @@ pub const fn decode_instruction(instruction: InstructionVal) -> Result<Instructi
         opcodes::JALR => Instruction::Jalr {
             rd: get_rd(instruction),
             rs1: get_rs1(instruction),
-            offset: get_i_type_imm(instruction),
+            imm: get_i_type_imm(instruction),
         },
         opcode => return Err(DecodeError::UnknownOpcode(opcode)),
     };
@@ -208,11 +275,14 @@ const fn decode_r_alu_op(instruction: InstructionVal) -> Result<Instruction, Dec
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Error)]
 pub enum DecodeError {
     #[error("Unkown instruction opcode: {0:#x}")]
-    UnknownOpcode(u32),
+    UnknownOpcode(InstructionVal),
     #[error("Unkown r ALU op funct values: {funct3:#x} and {funct7:#x}")]
-    UnknownRAluOp { funct3: u32, funct7: u32 },
+    UnknownRAluOp {
+        funct3: InstructionVal,
+        funct7: InstructionVal,
+    },
     #[error("Unkown i ALU op funct3 value: {funct3:#x}")]
-    UnknownIAluOp { funct3: u32 },
+    UnknownIAluOp { funct3: InstructionVal },
 }
 
 /// Get the opcode field.
@@ -263,35 +333,35 @@ const fn get_rs2(instruction: InstructionVal) -> GeneralRegister {
 /// Get the immediate value. Applicable to I instructions ONLY.
 /// The value is placed into the lowest bits of [InstructionVal].
 /// The value is not sign-extended.
-/// The result is immediately wrapped with [Imm] for convenience.
-const fn get_i_type_imm(instruction: InstructionVal) -> Imm<12> {
-    Imm::new((instruction >> 20) as RegisterVal).unwrap()
+/// The result is immediately wrapped with [Bit] for convenience.
+const fn get_i_type_imm(instruction: InstructionVal) -> Bit<12> {
+    Bit::new((instruction >> 20) as RegisterVal).unwrap()
 }
 
 /// Get the immediate value. Applicable to U instructions ONLY.
 /// The value is placed into the lowest bits of [InstructionVal].
 /// The value is not sign-extended.
-/// The result is immediately wrapped with [Imm] for convenience.
-const fn get_u_type_imm(instruction: InstructionVal) -> Imm<20> {
-    Imm::new((instruction >> 12) as RegisterVal).unwrap()
+/// The result is immediately wrapped with [Bit] for convenience.
+const fn get_u_type_imm(instruction: InstructionVal) -> Bit<20> {
+    Bit::new((instruction >> 12) as RegisterVal).unwrap()
 }
 
 /// Get the immediate value. Applicable to J instructions ONLY.
 /// The value is placed into the lowest bits of [InstructionVal].
 /// The value is not sign-extended.
-/// The result is immediately wrapped with [Imm] for convenience.
-const fn get_j_type_imm(instruction: InstructionVal) -> Imm<20> {
+/// The result is immediately wrapped with [Bit] for convenience.
+const fn get_j_type_imm(instruction: InstructionVal) -> Bit<20> {
     let imm_1_10 = (instruction & 0x7FE0_0000) >> 21;
     let imm_11 = (instruction & 0x0010_0000) >> 20;
     let imm_12_19 = (instruction & 0x000F_F000) >> 12;
     let imm_20 = (instruction & 0x8000_0000) >> 31;
     let raw = (imm_1_10 << 0) | (imm_11 << 10) | (imm_12_19 << 11) | (imm_20 << 19);
-    Imm::new(raw as RegisterVal).unwrap()
+    Bit::new(raw as RegisterVal).unwrap()
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::kernel::{Imm, InstructionVal, RegisterVal};
+    use crate::kernel::{Bit, InstructionVal, RegisterVal};
 
     use super::{get_funct3, get_funct7, get_opcode, i_alu_op, opcodes, r_alu_op, DecodeError};
     use super::{GeneralRegister, Instruction};
@@ -360,21 +430,21 @@ mod tests {
                 input: 0b00010100010000000000_00000_1101111,
                 expected: Ok(Instruction::Jal {
                     rd: reg_x(0),
-                    offset: imm(162),
+                    imm: bit(162),
                 }),
             },
             ParseTest {
                 input: 0b00010100010000000000_00101_1101111,
                 expected: Ok(Instruction::Jal {
                     rd: reg_x(5),
-                    offset: imm(162),
+                    imm: bit(162),
                 }),
             },
             ParseTest {
                 input: 0b11111111000111111111_00000_1101111,
                 expected: Ok(Instruction::Jal {
                     rd: reg_x(0),
-                    offset: imm(0xf_fff8),
+                    imm: bit(0xf_fff8),
                 }),
             },
             /* R-Type instructions */
@@ -407,14 +477,14 @@ mod tests {
                 input: 0b00000001000111101011_00110_0110111,
                 expected: Ok(Instruction::Lui {
                     rd: reg_x(6),
-                    imm: imm(4587),
+                    imm: bit(4587),
                 }),
             },
             ParseTest {
                 input: 0b00000001001100010111_01100_0010111,
                 expected: Ok(Instruction::Auipc {
                     rd: reg_x(12),
-                    imm: imm(4887),
+                    imm: bit(4887),
                 }),
             },
             /* I-Type instructions */
@@ -423,7 +493,7 @@ mod tests {
                 expected: Ok(Instruction::Addi {
                     rd: reg_x(11),
                     rs1: reg_x(12),
-                    imm: imm(20),
+                    imm: bit(20),
                 }),
             },
             ParseTest {
@@ -431,7 +501,7 @@ mod tests {
                 expected: Ok(Instruction::Xori {
                     rd: reg_x(5),
                     rs1: reg_x(29),
-                    imm: imm(3456),
+                    imm: bit(3456),
                 }),
             },
             ParseTest {
@@ -439,20 +509,20 @@ mod tests {
                 expected: Ok(Instruction::Jalr {
                     rd: reg_x(10),
                     rs1: reg_x(5),
-                    offset: imm(255),
+                    imm: bit(255),
                 }),
             },
         ]
     }
 
-    /// Shortcut function that panics if `v` is not a valid imm value.
-    fn imm<const WIDTH: usize>(v: RegisterVal) -> Imm<{ WIDTH }> {
-        Imm::new(v).unwrap()
+    /// Shortcut function that panics if `v` is not a valid Bit<N> value.
+    fn bit<const WIDTH: usize>(v: RegisterVal) -> Bit<{ WIDTH }> {
+        Bit::new(v).expect("bad bit value")
     }
 
     /// Shortcut function that panics if `v` is not a valid reg index.
     fn reg_x(v: InstructionVal) -> GeneralRegister {
-        GeneralRegister::new(v).unwrap()
+        GeneralRegister::new(v).expect("Bad register value")
     }
 
     /// This testdata is a bunch of negative test cases, where the decoder
@@ -470,20 +540,18 @@ mod tests {
     }
 
     fn get_bad_i_alu_instr() -> InstructionVal {
-        let funct3 = get_bad_funct3();
+        let funct3 = get_bad_i_alu_op_funct3();
         let rest = rand::random::<InstructionVal>() & 0xffff_8f80;
 
         opcodes::I_ALU_OP | rest | funct3
     }
 
-    fn get_bad_funct3() -> InstructionVal {
-        let good_functs = [i_alu_op::FUNCT3_ADDI, i_alu_op::FUNCT3_XORI];
-
+    fn get_bad_i_alu_op_funct3() -> InstructionVal {
         // FIXME: this sampling might be suboptimal, because
         // we are actually trying to randomize only the funct3 bits
         loop {
             let funct3 = rand::random::<InstructionVal>();
-            if !good_functs.contains(&super::get_funct3(funct3)) {
+            if !i_alu_op::ALL_FUNCT3.contains(&super::get_funct3(funct3)) {
                 return funct3 & 0x0000_7000;
             }
         }
@@ -505,26 +573,20 @@ mod tests {
     }
 
     fn get_bad_r_alu_instr() -> InstructionVal {
-        let funct37 = get_bad_funct37();
+        let funct37 = get_bad_r_alu_op_funct37();
         let rest = rand::random::<InstructionVal>() & 0x01ff_8f80;
 
         opcodes::R_ALU_OP | rest | funct37
     }
 
-    fn get_bad_funct37() -> InstructionVal {
-        let good_functs = [
-            (r_alu_op::FUNCT3_ADD, r_alu_op::FUNCT7_ADD),
-            (r_alu_op::FUNCT3_SUB, r_alu_op::FUNCT7_SUB),
-            (r_alu_op::FUNCT3_XOR, r_alu_op::FUNCT7_XOR),
-        ];
-
+    fn get_bad_r_alu_op_funct37() -> InstructionVal {
         // FIXME: this sampling might be suboptimal, because
         // we are actually trying to randomize only the funct37 bits
         loop {
             let funct37 = rand::random::<InstructionVal>();
             let funct3 = super::get_funct3(funct37);
             let funct7 = super::get_funct7(funct37);
-            if !good_functs.contains(&(funct3, funct7)) {
+            if !r_alu_op::ALL_FUNCT37.contains(&(funct3, funct7)) {
                 return funct37 & 0xfe00_7000;
             }
         }
@@ -550,20 +612,11 @@ mod tests {
     }
 
     fn get_bad_opcode() -> InstructionVal {
-        let good_opcodes = [
-            opcodes::JAL,
-            opcodes::R_ALU_OP,
-            opcodes::LUI,
-            opcodes::AUIPC,
-            opcodes::I_ALU_OP,
-            opcodes::JALR,
-        ];
-
         // FIXME: this sampling might be suboptimal, because
         // we are actually trying to randomize only the lower 7 bits
         loop {
             let opcode = super::get_opcode(rand::random::<InstructionVal>());
-            if !good_opcodes.contains(&opcode) {
+            if !opcodes::ALL_OPCODES.contains(&opcode) {
                 return opcode;
             }
         }

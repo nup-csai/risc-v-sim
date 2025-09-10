@@ -20,19 +20,14 @@ pub enum InstructionError {}
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum Instruction {
     /* J-Type instructions */
-    /// Jal instruction. Has the following the following
-    /// semantics
+    /// Jal instruction. Has the following semantics
     /// ```pic
     /// rd = PC + 4 // Overflow
     /// PC += sext(imm << 1) // Overflow
     /// ```
-    Jal {
-        rd: GeneralRegister,
-        offset: Imm<20>,
-    },
+    Jal { rd: GeneralRegister, imm: Bit<20> },
     /* R-Type instructions */
-    /// Add instruction. Has the following the following
-    /// semantics
+    /// Add instruction. Has the following semantics
     /// ```pic
     /// rd = rs1 + rs2 // Overflow
     /// ```
@@ -41,8 +36,7 @@ pub enum Instruction {
         rs1: GeneralRegister,
         rs2: GeneralRegister,
     },
-    /// Sub instruction. Has the following the following
-    /// semantics
+    /// Sub instruction. Has the following semantics
     /// ```pic
     /// rd = rs1 - rs2 // Overflow
     /// ```
@@ -51,8 +45,7 @@ pub enum Instruction {
         rs1: GeneralRegister,
         rs2: GeneralRegister,
     },
-    /// Xor instruction. Has the following the following
-    /// semantics
+    /// Xor instruction. Has the following semantics
     /// ```pic
     /// rd = rs1 ^ rs2
     /// ```
@@ -62,41 +55,36 @@ pub enum Instruction {
         rs2: GeneralRegister,
     },
     /* U-Type instructions */
-    /// Lui instruction. Has the following the following
-    /// semantics
+    /// Lui instruction. Has the following semantics
     /// ```pic
     /// rd = sext(imm << 12)
     /// ```
-    Lui { rd: GeneralRegister, imm: Imm<20> },
-    /// Auipc instruction. Has the following the following
-    /// semantics
+    Lui { rd: GeneralRegister, imm: Bit<20> },
+    /// Auipc instruction. Has the following semantics
     /// ```pic
     /// rd = PC + sext(imm << 12) // Overflow
     /// ```
-    Auipc { rd: GeneralRegister, imm: Imm<20> },
+    Auipc { rd: GeneralRegister, imm: Bit<20> },
     /* I-Type instructions */
-    /// Addi instruction. Has the following the following
-    /// semantics
+    /// Addi instruction. Has the following semantics
     /// ```pic
     /// rd = rs1 + sext(imm) // Overflow
     /// ```
     Addi {
         rd: GeneralRegister,
         rs1: GeneralRegister,
-        imm: Imm<12>,
+        imm: Bit<12>,
     },
-    /// Xori instruction. Has the following the following
-    /// semantics
+    /// Xori instruction. Has the following semantics
     /// ```pic
     /// rd = rs1 ^ sext(rs2)
     /// ```
     Xori {
         rd: GeneralRegister,
         rs1: GeneralRegister,
-        imm: Imm<12>,
+        imm: Bit<12>,
     },
-    /// Jalr instruction. Has the following the following
-    /// semantics
+    /// Jalr instruction. Has the following semantics
     /// ```pic
     /// rd = PC + 4 // Overflow
     /// PC = rs1 + sext(imm) // Overflow
@@ -104,7 +92,7 @@ pub enum Instruction {
     Jalr {
         rd: GeneralRegister,
         rs1: GeneralRegister,
-        offset: Imm<12>,
+        imm: Bit<12>,
     },
 }
 
@@ -114,57 +102,57 @@ impl Instruction {
     /// The processor state will not be reliable if `execute` fails.
     pub fn execute(
         self,
-        state: &mut Processor,
+        processor: &mut Processor,
         old_pc: RegisterVal,
     ) -> Result<(), InstructionError> {
         match self {
-            Instruction::Jal { rd, offset } => {
-                let new_pc = old_pc.wrapping_add(offset.get_sext() << 1);
-                state.set_register(rd, old_pc + 4);
-                state.pc = new_pc;
+            Instruction::Jal { rd, imm } => {
+                let new_pc = old_pc.wrapping_add(imm.get_sext() << 1);
+                processor.set_register(rd, old_pc + 4);
+                processor.pc = new_pc;
                 Ok(())
             }
             Instruction::Add { rd, rs1, rs2 } => {
-                let rs1 = state.get_register(rs1);
-                let rs2 = state.get_register(rs2);
-                state.set_register(rd, rs1.overflowing_add(rs2).0);
+                let rs1 = processor.get_register(rs1);
+                let rs2 = processor.get_register(rs2);
+                processor.set_register(rd, rs1.wrapping_add(rs2));
                 Ok(())
             }
             Instruction::Sub { rd, rs1, rs2 } => {
-                let rs1 = state.get_register(rs1);
-                let rs2 = state.get_register(rs2);
-                state.set_register(rd, rs1.wrapping_sub(rs2));
+                let rs1 = processor.get_register(rs1);
+                let rs2 = processor.get_register(rs2);
+                processor.set_register(rd, rs1.wrapping_sub(rs2));
                 Ok(())
             }
             Instruction::Xor { rd, rs1, rs2 } => {
-                let rs1 = state.get_register(rs1);
-                let rs2 = state.get_register(rs2);
-                state.set_register(rd, rs1 ^ rs2);
+                let rs1 = processor.get_register(rs1);
+                let rs2 = processor.get_register(rs2);
+                processor.set_register(rd, rs1 ^ rs2);
                 Ok(())
             }
             Instruction::Lui { rd, imm } => {
-                state.set_register(rd, imm.get_sext() << 12);
+                processor.set_register(rd, imm.get_sext() << 12);
                 Ok(())
             }
             Instruction::Auipc { rd, imm } => {
-                state.set_register(rd, old_pc.wrapping_add(imm.get_sext() << 12));
+                processor.set_register(rd, old_pc.wrapping_add(imm.get_sext() << 12));
                 Ok(())
             }
             Instruction::Addi { rd, rs1, imm } => {
-                let rs1 = state.get_register(rs1);
-                state.set_register(rd, rs1.wrapping_add(imm.get_sext()));
+                let rs1 = processor.get_register(rs1);
+                processor.set_register(rd, rs1.wrapping_add(imm.get_sext()));
                 Ok(())
             }
             Instruction::Xori { rd, rs1, imm } => {
-                let rs1 = state.get_register(rs1);
-                state.set_register(rd, rs1 ^ imm.get_sext());
+                let rs1 = processor.get_register(rs1);
+                processor.set_register(rd, rs1 ^ imm.get_sext());
                 Ok(())
             }
-            Instruction::Jalr { rd, rs1, offset } => {
-                let rs1 = state.get_register(rs1);
-                let new_pc = rs1.wrapping_add(offset.get_sext());
-                state.set_register(rd, old_pc + 4);
-                state.pc = new_pc;
+            Instruction::Jalr { rd, rs1, imm } => {
+                let rs1 = processor.get_register(rs1);
+                let new_pc = rs1.wrapping_add(imm.get_sext());
+                processor.set_register(rd, old_pc + 4);
+                processor.pc = new_pc;
                 Ok(())
             }
         }
@@ -174,9 +162,9 @@ impl Instruction {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 #[repr(transparent)]
 /// Contains a N-bit wide immediate value
-pub struct Imm<const WIDTH: usize>(RegisterVal);
+pub struct Bit<const WIDTH: usize>(RegisterVal);
 
-impl<const WIDTH: usize> Imm<WIDTH> {
+impl<const WIDTH: usize> Bit<WIDTH> {
     /// The maximum possible value.
     pub const MAX: RegisterVal = ((1 as RegisterVal) << WIDTH) - 1;
 
@@ -214,25 +202,25 @@ impl<const WIDTH: usize> Imm<WIDTH> {
 mod tests {
     use crate::kernel::RegisterVal;
 
-    use super::Imm;
+    use super::Bit;
 
     const SAMPLE_COUNT: usize = 10_000;
 
     #[test]
     fn test_imm_12_max() {
-        for x in 0..=Imm::<12>::MAX {
-            Imm::<12>::new(x).expect("Must succeed");
+        for x in 0..=Bit::<12>::MAX {
+            Bit::<12>::new(x).expect("Must succeed");
         }
         for _ in 0..SAMPLE_COUNT {
-            let x = rand::random_range((Imm::<12>::MAX + 1)..RegisterVal::MAX);
-            assert_eq!(Imm::<12>::new(x), None);
+            let x = rand::random_range((Bit::<12>::MAX + 1)..RegisterVal::MAX);
+            assert_eq!(Bit::<12>::new(x), None);
         }
     }
 
     #[test]
     fn test_sext_positive_12() {
         for x in 0..0x400 {
-            let imm = Imm::<12>::new(x).unwrap();
+            let imm = Bit::<12>::new(x).unwrap();
             assert_eq!(x, imm.get_sext());
         }
     }
@@ -240,7 +228,7 @@ mod tests {
     #[test]
     fn test_sext_negative_12() {
         for x in 0..0x400 {
-            let imm = Imm::<12>::new(x | 0x800).unwrap();
+            let imm = Bit::<12>::new(x | 0x800).unwrap();
             let target = x | 0xffff_ffff_ffff_f800;
             assert_eq!(target, imm.get_sext(), "Imm value: {}", imm.get_zext());
         }
@@ -249,7 +237,7 @@ mod tests {
     #[test]
     fn test_sext_positive_20() {
         for x in 0..0x4_0000 {
-            let imm = Imm::<20>::new(x).unwrap();
+            let imm = Bit::<20>::new(x).unwrap();
             assert_eq!(x, imm.get_sext());
         }
     }
@@ -257,7 +245,7 @@ mod tests {
     #[test]
     fn test_sext_negative_20() {
         for x in 0..0x4_0000 {
-            let imm = Imm::<20>::new(x | 0x8_0000).unwrap();
+            let imm = Bit::<20>::new(x | 0x8_0000).unwrap();
             let target = x | 0xffff_ffff_fff8_0000;
             assert_eq!(target, imm.get_sext(), "Imm value: {}", imm.get_zext());
         }
@@ -265,12 +253,12 @@ mod tests {
 
     #[test]
     fn test_imm_20_max() {
-        for x in 0..=Imm::<20>::MAX {
-            Imm::<20>::new(x).expect("Must succeed");
+        for x in 0..=Bit::<20>::MAX {
+            Bit::<20>::new(x).expect("Must succeed");
         }
         for _ in 0..SAMPLE_COUNT {
-            let x = rand::random_range((Imm::<20>::MAX + 1)..RegisterVal::MAX);
-            assert_eq!(Imm::<20>::new(x), None);
+            let x = rand::random_range((Bit::<20>::MAX + 1)..RegisterVal::MAX);
+            assert_eq!(Bit::<20>::new(x), None);
         }
     }
 }
