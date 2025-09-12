@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use elf::endian::AnyEndian;
 use elf::ElfBytes;
@@ -33,6 +33,20 @@ pub enum ShellError {
     InstructionDecoderError(#[source] InstructionDecodeError),
     #[error("Failed to load the program into memory: {0}")]
     LoadingProramIntoMemory(#[source] MemoryError),
+    #[error("Failed to load segment bytes from {file:?}: {error}")]
+    LoadingInputSegment {
+        file: PathBuf,
+        #[source]
+        error: std::io::Error,
+    },
+    #[error("Failed to add a segment to memory: {0}")]
+    AddingSegmentToMemory(#[source] MemoryError),
+    #[error("Failed to write segment bytes to {file:?}: {error}")]
+    WritingOutputSegment {
+        file: PathBuf,
+        #[source]
+        error: std::io::Error,
+    },
     #[error("Kernel error: {0}")]
     KernelError(#[source] KernelError),
 }
