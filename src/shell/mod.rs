@@ -11,13 +11,13 @@ use crate::kernel::{
 
 #[derive(Debug, Error)]
 pub enum ShellError {
-    #[error("Failed to load the .elf file")]
+    #[error("Failed to load the .elf file: {0}")]
     Load(#[source] std::io::Error),
-    #[error("Failed to parse the .elf file")]
+    #[error("Failed to parse the .elf file: {0}")]
     ElfHead(#[source] elf::ParseError),
     #[error("The .elf file is not little-endian")]
     ElfNotLittleEndian,
-    #[error("Failed to parse a section from the .elf file")]
+    #[error("Failed to parse a section from the .elf file: {0}")]
     ElfSection(#[source] elf::ParseError),
     #[error("The .elf file does not have a .text section")]
     NoText,
@@ -29,9 +29,11 @@ pub enum ShellError {
     CompressedText,
     #[error("The .text section is not a multiple of 4")]
     UnalignedText,
-    #[error("Failed to decode the .text section")]
+    #[error("Failed to decode the .text section: {0}")]
     InstructionDecoderError(#[source] InstructionDecodeError),
-    #[error("Kernel error")]
+    #[error("Failed to load the program into memory: {0}")]
+    LoadingProramIntoMemory(#[source] MemoryError),
+    #[error("Kernel error: {0}")]
     KernelError(#[source] KernelError),
 }
 

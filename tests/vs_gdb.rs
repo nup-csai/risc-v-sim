@@ -53,38 +53,38 @@ fn test_vs_gdb() {
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 struct TraceEntry {
-    ra: u64,
-    sp: u64,
-    gp: u64,
-    tp: u64,
-    t0: u64,
-    t1: u64,
-    t2: u64,
-    fp: u64,
-    s1: u64,
-    a0: u64,
-    a1: u64,
-    a2: u64,
-    a3: u64,
-    a4: u64,
-    a5: u64,
-    a6: u64,
-    a7: u64,
-    s2: u64,
-    s3: u64,
-    s4: u64,
-    s5: u64,
-    s6: u64,
-    s7: u64,
-    s8: u64,
-    s9: u64,
-    s10: u64,
-    s11: u64,
-    t3: u64,
-    t4: u64,
-    t5: u64,
-    t6: u64,
-    pc: u64,
+    ra: RegisterVal,
+    sp: RegisterVal,
+    gp: RegisterVal,
+    tp: RegisterVal,
+    t0: RegisterVal,
+    t1: RegisterVal,
+    t2: RegisterVal,
+    fp: RegisterVal,
+    s1: RegisterVal,
+    a0: RegisterVal,
+    a1: RegisterVal,
+    a2: RegisterVal,
+    a3: RegisterVal,
+    a4: RegisterVal,
+    a5: RegisterVal,
+    a6: RegisterVal,
+    a7: RegisterVal,
+    s2: RegisterVal,
+    s3: RegisterVal,
+    s4: RegisterVal,
+    s5: RegisterVal,
+    s6: RegisterVal,
+    s7: RegisterVal,
+    s8: RegisterVal,
+    s9: RegisterVal,
+    s10: RegisterVal,
+    s11: RegisterVal,
+    t3: RegisterVal,
+    t4: RegisterVal,
+    t5: RegisterVal,
+    t6: RegisterVal,
+    pc: RegisterVal,
 }
 
 static TRACER_NAME: &str = "trace_capture";
@@ -156,7 +156,7 @@ fn parse_register_entry(line: &str, entry: &mut TraceEntry) {
     let Some(val) = val.get(2..) else {
         return;
     };
-    let Ok(val) = u64::from_str_radix(val, 16) else {
+    let Ok(val) = RegisterVal::from_str_radix(val, 16) else {
         return;
     };
 
