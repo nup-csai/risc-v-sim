@@ -4,6 +4,7 @@ on: [push, pull_request]
 
 env:
   RUSTFLAGS: "-D warnings"
+  RUST_BACKTRACE: "1"
   RUSTVERSION: "1.88"
 
 jobs:

@@ -1,29 +1,43 @@
 pub mod decoder;
 pub mod instruction;
+pub mod memory;
 pub mod processor;
 
 pub use decoder::*;
 pub use instruction::*;
+pub use memory::*;
 pub use processor::*;
+
 use thiserror::Error;
 
 #[derive(Debug)]
 pub struct Kernel {
-    program: Program,
-    program_offset: u64,
-    processor: Processor,
+    pub processor: Processor,
+    pub memory: Memory,
 }
 
 impl Kernel {
-    pub const fn new(program: Program, entry_point: u64, program_offset: u64) -> Self {
+    pub const fn new(memory: Memory, entry_point: u64) -> Self {
         let mut processor = Processor::new();
         processor.pc = entry_point;
 
-        Self {
-            program,
-            program_offset,
-            processor,
-        }
+        Kernel { processor, memory }
+    }
+
+    pub fn from_program(program: Program, entry_point: u64, program_offset: u64) -> Self {
+        let mut memory = Memory::new();
+        let program_bytes = program.into_bytes().into_iter().collect();
+        memory
+            .add_segment(MemorySegment {
+                is_read: false,
+                is_write: false,
+                is_execute: true,
+                offset: program_offset,
+                mem: program_bytes,
+            })
+            .unwrap();
+
+        Self::new(memory, entry_point)
     }
 
     pub fn step(&mut self) -> Result<KernelStep, KernelError> {
@@ -33,7 +47,7 @@ impl Kernel {
 
         self.processor.pc += 4;
         instruction
-            .execute(&mut self.processor, old_pc)
+            .execute(&mut self.processor, &mut self.memory, old_pc)
             .map_err(|instruction_error| KernelError::InstructionError {
                 instruction_address: self.processor.pc,
                 instruction_error,
@@ -47,53 +61,55 @@ impl Kernel {
     }
 
     fn fetch_instruction(&self) -> Result<Instruction, KernelError> {
-        let local_offset = match (self.processor.pc).checked_sub(self.program_offset) {
-            Some(x) => x,
-            None => return Err(KernelError::FetchOutOfRange(self.processor.pc)),
-        };
-        let instruction_index = (local_offset / 4) as usize;
+        let instruction_address = self.processor.pc;
+        let instruction_code =
+            self.memory
+                .fetch_instruction(instruction_address)
+                .map_err(|memory_error| KernelError::FetchError {
+                    instruction_address,
+                    memory_error,
+                })?;
+        let instruction = decode_instruction(instruction_code).map_err(|decode_error| {
+            KernelError::DecodeError {
+                instruction_address,
+                instruction_code,
+                decode_error,
+            }
+        })?;
 
-        self.program
-            .instructions
-            .get(instruction_index)
-            .map(|x| *x)
-            .ok_or(KernelError::FetchOutOfRange(self.processor.pc))
+        Ok(instruction)
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Program {
-    instructions: Vec<Instruction>,
+    instructions: Vec<InstructionVal>,
 }
 
 impl Program {
-    pub const fn from_instructions(instructions: Vec<Instruction>) -> Self {
-        Self { instructions }
+    pub fn from_instructions(instructions: Vec<Instruction>) -> Self {
+        Self {
+            instructions: instructions.into_iter().map(encode_instruction).collect(),
+        }
     }
 
     pub fn from_raw_instructions(
         instructions: impl IntoIterator<Item = InstructionVal>,
     ) -> Result<Self, InstructionDecodeError> {
-        let instructions = instructions
-            .into_iter()
-            .enumerate()
-            .map(Self::decode_instruction)
-            .collect::<Result<Vec<_>, _>>()?;
+        let instructions = instructions.into_iter().collect::<Vec<_>>();
+        for (idx, instruction_code) in instructions.iter().copied().enumerate() {
+            decode_instruction(instruction_code).map_err(|error| InstructionDecodeError {
+                instruction_idx: idx,
+                instruction_code,
+                error,
+            })?;
+        }
 
-        Ok(Self::from_instructions(instructions))
+        Ok(Self { instructions })
     }
 
-    fn decode_instruction(
-        (idx, code): (usize, InstructionVal),
-    ) -> Result<Instruction, InstructionDecodeError> {
-        match decode_instruction(code) {
-            Ok(instruction) => Ok(instruction),
-            Err(error) => Err(InstructionDecodeError {
-                instruction_idx: idx,
-                instruction_code: code,
-                error,
-            }),
-        }
+    pub fn into_bytes(self) -> impl IntoIterator<Item = u8> {
+        self.instructions.into_iter().flat_map(u32::to_le_bytes)
     }
 }
 
@@ -115,18 +131,35 @@ pub struct KernelStep {
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Error)]
 pub enum KernelError {
-    #[error("Failed to execute instruction {instruction_address}: {instruction_error}")]
+    #[error("Failed to execute instruction at {instruction_address:#x}: {instruction_error}")]
     InstructionError {
-        instruction_address: u64,
+        instruction_address: RegisterVal,
+        #[source]
         instruction_error: InstructionError,
     },
-    #[error("Tried to fetch an instruction out of range: {0}")]
-    FetchOutOfRange(RegisterVal),
+    #[error("Failed to fetch instruction at {instruction_address:#x}: {memory_error}")]
+    FetchError {
+        instruction_address: RegisterVal,
+        #[source]
+        memory_error: MemoryError,
+    },
+    #[error("Failed to decode instruction at {instruction_address:#x} with code {instruction_code:#x}: {decode_error}")]
+    DecodeError {
+        instruction_address: RegisterVal,
+        instruction_code: InstructionVal,
+        #[source]
+        decode_error: DecodeError,
+    },
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{GeneralRegister, Imm, Instruction, InstructionVal, Kernel, Program, RegisterVal};
+    use crate::kernel::MemorySegment;
+
+    use super::{Bit, GeneralRegister, Instruction, InstructionVal, Kernel, Program, RegisterVal};
+
+    const MEM_OFFSET: RegisterVal = 0x100;
+    const MEM_LEN: RegisterVal = 0x1000;
 
     #[test]
     fn basic_test() {
@@ -152,7 +185,7 @@ mod tests {
                 Instruction::Addi {
                     rd: reg_x(1),
                     rs1: reg_x(2),
-                    imm: imm(234),
+                    imm: bit(234),
                 },
             ],
             vec![0, 1, 2],
@@ -183,7 +216,7 @@ mod tests {
                 Instruction::Addi {
                     rd: reg_x(1),
                     rs1: reg_x(2),
-                    imm: imm(234),
+                    imm: bit(234),
                 },
             ],
             vec![0, 1, 2],
@@ -214,7 +247,7 @@ mod tests {
                 Instruction::Addi {
                     rd: reg_x(1),
                     rs1: reg_x(2),
-                    imm: imm(234),
+                    imm: bit(234),
                 },
             ],
             vec![1, 2, 3],
@@ -250,21 +283,108 @@ mod tests {
                 },
                 Instruction::Jal {
                     rd: reg_x(0),
-                    offset: imm(0xF_FFFA),
+                    imm: bit(0xF_FFFA),
                 },
             ],
             expected_trace,
         );
     }
 
+    #[test]
+    fn basic_store() {
+        let mut target_mem = vec![0u8; MEM_LEN as usize];
+        let string_to_reg = [
+            (GeneralRegister::T0, b'h'),
+            (GeneralRegister::T1, b'e'),
+            (GeneralRegister::T2, b'l'),
+            (GeneralRegister::T3, b'l'),
+            (GeneralRegister::T4, b'o'),
+        ];
+        let mut program = Vec::new();
+        for (idx, (reg, val)) in string_to_reg.into_iter().enumerate() {
+            program.extend([
+                Instruction::Addi {
+                    rd: reg,
+                    rs1: GeneralRegister::ZERO,
+                    imm: bit(val as RegisterVal),
+                },
+                Instruction::Sb {
+                    rs1: GeneralRegister::ZERO,
+                    rs2: reg,
+                    imm: bit(MEM_OFFSET + idx as RegisterVal),
+                },
+            ]);
+            target_mem[idx] = val;
+        }
+
+        let program_len = program.len();
+        let kernel = run_test(0, 0, program, (0..program_len).collect());
+        assert_eq!(
+            kernel.memory.segments()[1].as_bytes(),
+            target_mem.as_slice()
+        );
+    }
+
+    #[test]
+    fn smart_store() {
+        let target_mem = b"Hello, world";
+        let mut program = Vec::new();
+        let pieces = [b"Hell", b"o, w", b"orld"];
+
+        for (idx, piece) in pieces.into_iter().enumerate() {
+            generate_smart_store(&mut program, piece, MEM_OFFSET + (4 * idx) as RegisterVal);
+        }
+
+        let program_len = program.len();
+        let kernel = run_test(0, 0, program, (0..program_len).collect());
+        let rw_memory = kernel.memory.segments()[1].as_bytes();
+        assert_eq!(&rw_memory[0..target_mem.len()], target_mem.as_slice());
+    }
+
+    fn generate_smart_store(program: &mut Vec<Instruction>, val: &[u8; 4], off: RegisterVal) {
+        let val = u32::from_le_bytes(*val);
+        let lower_part = val & 0x0000_0FFF;
+        let mut higher_part = (val & 0xFFFF_F000) >> 12;
+        // Because `addi` sign-extends, add a 1 to lui's immediate value
+        // to cancel out the unwanted addition.
+        if (lower_part & 0x800) == 0x800 {
+            higher_part = higher_part.wrapping_add(1);
+            higher_part &= 0xF_FFFF;
+        }
+
+        program.extend([
+            Instruction::Lui {
+                rd: GeneralRegister::T0,
+                imm: bit(higher_part as RegisterVal),
+            },
+            Instruction::Addi {
+                rd: GeneralRegister::T0,
+                rs1: GeneralRegister::T0,
+                imm: bit(lower_part as RegisterVal),
+            },
+            Instruction::Sw {
+                rs1: GeneralRegister::ZERO,
+                rs2: GeneralRegister::T0,
+                imm: bit(off),
+            },
+        ])
+    }
+
     fn run_test(
-        entry_point: u64,
-        program_offset: u64,
+        entry_point: RegisterVal,
+        program_offset: RegisterVal,
         program: Vec<Instruction>,
         expected_trace: Vec<usize>,
-    ) {
+    ) -> Kernel {
         let program = Program::from_instructions(program);
-        let mut kernel = Kernel::new(program, entry_point, program_offset);
+        let mut kernel = Kernel::from_program(program, entry_point, program_offset);
+        kernel
+            .memory
+            .add_segment(MemorySegment::new_zeroed(
+                true, true, true, MEM_OFFSET, MEM_LEN,
+            ))
+            .unwrap();
+
         let actual_trace = (0..expected_trace.len())
             .map(|_| kernel.step().unwrap())
             .map(|step| {
@@ -273,16 +393,17 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        assert_eq!(expected_trace, actual_trace)
+        assert_eq!(expected_trace, actual_trace);
+        kernel
     }
 
     /// Shortcut function that panics if `v` is not a valid reg index.
     fn reg_x(x: InstructionVal) -> GeneralRegister {
-        GeneralRegister::new(x).unwrap()
+        GeneralRegister::new(x).expect("Bad register value")
     }
 
-    /// Shortcut function that panics if `v` is not a valid imm value.
-    fn imm<const WIDTH: usize>(v: RegisterVal) -> Imm<{ WIDTH }> {
-        Imm::new(v).unwrap()
+    /// Shortcut function that panics if `v` is not a valid Bit<N> value.
+    fn bit<const WIDTH: usize>(v: RegisterVal) -> Bit<{ WIDTH }> {
+        Bit::new(v).expect("bad bit value")
     }
 }
