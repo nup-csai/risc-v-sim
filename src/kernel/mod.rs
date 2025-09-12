@@ -17,14 +17,18 @@ pub struct Kernel {
 }
 
 impl Kernel {
-    pub const fn new(memory: Memory, entry_point: u64) -> Self {
+    pub const fn new(memory: Memory, entry_point: RegisterVal) -> Self {
         let mut processor = Processor::new();
         processor.pc = entry_point;
 
         Kernel { processor, memory }
     }
 
-    pub fn from_program(program: Program, entry_point: u64, program_offset: u64) -> Self {
+    pub fn from_program(
+        program: Program,
+        entry_point: RegisterVal,
+        program_offset: RegisterVal,
+    ) -> Self {
         let mut memory = Memory::new();
         let program_bytes = program.into_bytes().into_iter().collect();
         memory
