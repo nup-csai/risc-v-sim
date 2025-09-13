@@ -240,102 +240,108 @@ impl Instruction {
                 Ok(())
             }
             Instruction::Lb { rd, rs1, imm } => {
-                load_op_impl::<8>(processor, memory, rs1, rd, imm, old_pc, self)
+                let rs1 = processor.get_register(rs1);
+                let address = rs1.wrapping_add(imm.get_sext());
+                let mut dst = [0u8; std::mem::size_of::<RegisterVal>()];
+                self.mem_read(memory, old_pc, address, &mut dst[0..1])?;
+                processor.set_register(rd, sext_regval::<8>(RegisterVal::from_le_bytes(dst)));
+                Ok(())
             }
             Instruction::Lh { rd, rs1, imm } => {
-                load_op_impl::<16>(processor, memory, rs1, rd, imm, old_pc, self)
+                let rs1 = processor.get_register(rs1);
+                let address = rs1.wrapping_add(imm.get_sext());
+                let mut dst = [0u8; std::mem::size_of::<RegisterVal>()];
+                self.mem_read(memory, old_pc, address, &mut dst[0..2])?;
+                processor.set_register(rd, sext_regval::<16>(RegisterVal::from_le_bytes(dst)));
+                Ok(())
             }
             Instruction::Lw { rd, rs1, imm } => {
-                load_op_impl::<32>(processor, memory, rs1, rd, imm, old_pc, self)
+                let rs1 = processor.get_register(rs1);
+                let address = rs1.wrapping_add(imm.get_sext());
+                let mut dst = [0u8; std::mem::size_of::<RegisterVal>()];
+                self.mem_read(memory, old_pc, address, &mut dst[0..4])?;
+                // TODO: remove the sext when we migrate to RV32
+                processor.set_register(rd, sext_regval::<32>(RegisterVal::from_le_bytes(dst)));
+                Ok(())
             }
             Instruction::Lbu { rd, rs1, imm } => {
-                uload_op_impl::<1>(processor, memory, rs1, rd, imm, old_pc, self)
+                let rs1 = processor.get_register(rs1);
+                let address = rs1.wrapping_add(imm.get_sext());
+                let mut dst = [0u8; std::mem::size_of::<RegisterVal>()];
+                self.mem_read(memory, old_pc, address, &mut dst[0..1])?;
+                processor.set_register(rd, RegisterVal::from_le_bytes(dst));
+                Ok(())
             }
             Instruction::Lhu { rd, rs1, imm } => {
-                uload_op_impl::<2>(processor, memory, rs1, rd, imm, old_pc, self)
+                let rs1 = processor.get_register(rs1);
+                let address = rs1.wrapping_add(imm.get_sext());
+                let mut dst = [0u8; std::mem::size_of::<RegisterVal>()];
+                self.mem_read(memory, old_pc, address, &mut dst[0..2])?;
+                processor.set_register(rd, RegisterVal::from_le_bytes(dst));
+                Ok(())
             }
             Instruction::Sb { rs1, rs2, imm } => {
-                store_op_impl::<8>(processor, memory, rs1, rs2, imm, old_pc, self)
+                let rs1 = processor.get_register(rs1);
+                let rs2 = processor.get_register(rs2);
+                let address = rs1.wrapping_add(imm.get_sext());
+                let src = rs2.to_le_bytes();
+                self.mem_write(memory, old_pc, address, &src[0..1])?;
+                Ok(())
             }
             Instruction::Sh { rs1, rs2, imm } => {
-                store_op_impl::<16>(processor, memory, rs1, rs2, imm, old_pc, self)
+                let rs1 = processor.get_register(rs1);
+                let rs2 = processor.get_register(rs2);
+                let address = rs1.wrapping_add(imm.get_sext());
+                let src = rs2.to_le_bytes();
+                self.mem_write(memory, old_pc, address, &src[0..2])?;
+                Ok(())
             }
             Instruction::Sw { rs1, rs2, imm } => {
-                store_op_impl::<32>(processor, memory, rs1, rs2, imm, old_pc, self)
+                let rs1 = processor.get_register(rs1);
+                let rs2 = processor.get_register(rs2);
+                let address = rs1.wrapping_add(imm.get_sext());
+                let src = rs2.to_le_bytes();
+                self.mem_write(memory, old_pc, address, &src[0..4])?;
+                Ok(())
             }
         }
     }
+
+    fn mem_read(
+        self,
+        memory: &Memory,
+        instruction_address: RegisterVal,
+        address: RegisterVal,
+        dst: &mut [u8],
+    ) -> Result<(), InstructionError> {
+        memory
+            .read(address, dst)
+            .map_err(|memory_error| InstructionError::MemoryError {
+                instruction: self,
+                instruction_address,
+                memory_error,
+            })
+    }
+
+    fn mem_write(
+        self,
+        memory: &mut Memory,
+        instruction_address: RegisterVal,
+        address: RegisterVal,
+        src: &[u8],
+    ) -> Result<(), InstructionError> {
+        memory
+            .write(address, src)
+            .map_err(|memory_error| InstructionError::MemoryError {
+                instruction: self,
+                instruction_address,
+                memory_error,
+            })
+    }
 }
 
-fn load_op_impl<const WIDTH: usize>(
-    processor: &mut Processor,
-    memory: &Memory,
-    rs1: GeneralRegister,
-    rd: GeneralRegister,
-    imm: Bit<12>,
-    old_pc: RegisterVal,
-    instruction: Instruction,
-) -> Result<(), InstructionError> {
-    let rs1 = processor.get_register(rs1);
-    let address = rs1.wrapping_add(imm.get_sext());
-    let mut dst = [0u8; std::mem::size_of::<RegisterVal>()];
-    memory
-        .read(address, &mut dst[0..WIDTH / 8])
-        .map_err(|memory_error| InstructionError::MemoryError {
-            instruction_address: old_pc,
-            instruction,
-            memory_error,
-        })?;
-    let new_rd = Bit::<WIDTH>::new(RegisterVal::from_le_bytes(dst))
-        .expect("unexpected load overflow")
-        .get_sext();
-    processor.set_register(rd, new_rd);
-    Ok(())
-}
-
-fn uload_op_impl<const WIDTH: usize>(
-    processor: &mut Processor,
-    memory: &Memory,
-    rs1: GeneralRegister,
-    rd: GeneralRegister,
-    imm: Bit<12>,
-    old_pc: RegisterVal,
-    instruction: Instruction,
-) -> Result<(), InstructionError> {
-    let rs1 = processor.get_register(rs1);
-    let address = rs1.wrapping_add(imm.get_sext());
-    let mut dst = [0u8; std::mem::size_of::<RegisterVal>()];
-    memory
-        .read(address, &mut dst[0..WIDTH])
-        .map_err(|memory_error| InstructionError::MemoryError {
-            instruction_address: old_pc,
-            instruction,
-            memory_error,
-        })?;
-    let new_rd = RegisterVal::from_le_bytes(dst);
-    processor.set_register(rd, new_rd);
-    Ok(())
-}
-
-fn store_op_impl<const WIDTH: usize>(
-    processor: &Processor,
-    memory: &mut Memory,
-    rs1: GeneralRegister,
-    rs2: GeneralRegister,
-    imm: Bit<12>,
-    old_pc: RegisterVal,
-    instruction: Instruction,
-) -> Result<(), InstructionError> {
-    let rs1 = processor.get_register(rs1);
-    let rs2 = processor.get_register(rs2);
-    let address = rs1.wrapping_add(imm.get_sext());
-    memory
-        .write(address, &rs2.to_le_bytes()[0..WIDTH / 8])
-        .map_err(|memory_error| InstructionError::MemoryError {
-            instruction_address: old_pc,
-            instruction,
-            memory_error,
-        })
+fn sext_regval<const WIDTH: usize>(x: RegisterVal) -> RegisterVal {
+    Bit::<WIDTH>::new(x).unwrap().get_sext()
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
