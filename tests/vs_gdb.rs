@@ -22,12 +22,14 @@ fn test_vs_gdb() {
     let files_with_tick_count = [
         ("basic.s", 4),
         ("basic2.s", 6),
+        ("xoriadd.s", 7),
         ("auipc.s", 5),
         ("load_constant.s", 2),
         ("loop.s", 8),
         ("jumps.s", 10),
         ("calls.s", 10),
         ("basic_mem.s", 7),
+        ("all_mem.s", 19),
     ];
 
     // Create a dir for placing the built elfs
