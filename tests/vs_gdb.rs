@@ -29,6 +29,7 @@ fn test_vs_gdb() {
         ("jumps.s", 10),
         ("calls.s", 10),
         ("basic_mem.s", 7),
+        ("all_mem.s", 19),
     ];
 
     // Create a dir for placing the built elfs
