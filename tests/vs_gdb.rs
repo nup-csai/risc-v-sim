@@ -27,6 +27,7 @@ fn test_vs_gdb() {
         ("load_constant.s", 2),
         ("loop.s", 8),
         ("jumps.s", 10),
+        ("jumps_hard.s", 8),
         ("calls.s", 10),
         ("basic_mem.s", 7),
         ("all_mem.s", 19),
