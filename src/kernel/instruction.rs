@@ -3,16 +3,14 @@
 
 use thiserror::Error;
 
-use super::{GeneralRegister, Memory, MemoryError, Processor, RegisterVal};
+use super::{GeneralRegister, Memory, MemoryError, Processor, RegVal};
 
 /// Error returned by [Instruction::execute].
 #[derive(Clone, Copy, PartialEq, Eq, Error, Debug)]
 pub enum InstructionError {
-    #[error(
-        "Failed to execute instruction {instruction:?} at {instruction_address:#x}: {memory_error}"
-    )]
+    #[error("Failed to execute instruction {instruction:?} at {instruction_address:#x}: {memory_error}")]
     MemoryError {
-        instruction_address: RegisterVal,
+        instruction_address: RegVal,
         instruction: Instruction,
         #[source]
         memory_error: MemoryError,
@@ -41,29 +39,17 @@ pub enum Instruction {
     /// ```pic
     /// rd = rs1 + rs2 // Overflow
     /// ```
-    Add {
-        rd: GeneralRegister,
-        rs1: GeneralRegister,
-        rs2: GeneralRegister,
-    },
+    Add { rd: GeneralRegister, rs1: GeneralRegister, rs2: GeneralRegister },
     /// Sub instruction. Has the following semantics
     /// ```pic
     /// rd = rs1 - rs2 // Overflow
     /// ```
-    Sub {
-        rd: GeneralRegister,
-        rs1: GeneralRegister,
-        rs2: GeneralRegister,
-    },
+    Sub { rd: GeneralRegister, rs1: GeneralRegister, rs2: GeneralRegister },
     /// Xor instruction. Has the following semantics
     /// ```pic
     /// rd = rs1 ^ rs2
     /// ```
-    Xor {
-        rd: GeneralRegister,
-        rs1: GeneralRegister,
-        rs2: GeneralRegister,
-    },
+    Xor { rd: GeneralRegister, rs1: GeneralRegister, rs2: GeneralRegister },
     /* U-Type instructions */
     /// Lui instruction. Has the following semantics
     /// ```pic
@@ -80,103 +66,59 @@ pub enum Instruction {
     /// ```pic
     /// rd = rs1 + sext(imm) // Overflow
     /// ```
-    Addi {
-        rd: GeneralRegister,
-        rs1: GeneralRegister,
-        imm: Bit<12>,
-    },
+    Addi { rd: GeneralRegister, rs1: GeneralRegister, imm: Bit<12> },
     /// Xori instruction. Has the following semantics
     /// ```pic
     /// rd = rs1 ^ sext(rs2)
     /// ```
-    Xori {
-        rd: GeneralRegister,
-        rs1: GeneralRegister,
-        imm: Bit<12>,
-    },
+    Xori { rd: GeneralRegister, rs1: GeneralRegister, imm: Bit<12> },
     /// Jalr instruction. Has the following semantics
     /// ```pic
     /// rd = PC + 4 // Overflow
     /// PC = rs1 + sext(imm) // Overflow
     /// ```
-    Jalr {
-        rd: GeneralRegister,
-        rs1: GeneralRegister,
-        imm: Bit<12>,
-    },
+    Jalr { rd: GeneralRegister, rs1: GeneralRegister, imm: Bit<12> },
     /// Lb instruction. Has the following semantics
     /// ```pic
     /// rd = sext(Read(rs1 + sext(imm), 8))
     /// ```
-    Lb {
-        rd: GeneralRegister,
-        rs1: GeneralRegister,
-        imm: Bit<12>,
-    },
+    Lb { rd: GeneralRegister, rs1: GeneralRegister, imm: Bit<12> },
     /// Lb instruction. Has the following semantics
     /// ```pic
     /// rd = sext(Read(rs1 + sext(imm), 16))
     /// ```
-    Lh {
-        rd: GeneralRegister,
-        rs1: GeneralRegister,
-        imm: Bit<12>,
-    },
+    Lh { rd: GeneralRegister, rs1: GeneralRegister, imm: Bit<12> },
     /// Lb instruction. Has the following semantics
     /// ```pic
     /// rd = sext(Read(rs1 + sext(imm), 32))
     /// ```
-    Lw {
-        rd: GeneralRegister,
-        rs1: GeneralRegister,
-        imm: Bit<12>,
-    },
+    Lw { rd: GeneralRegister, rs1: GeneralRegister, imm: Bit<12> },
     /// Lb instruction. Has the following semantics
     /// ```pic
     /// rd = sext(Read(rs1 + sext(imm), 8))
     /// ```
-    Lbu {
-        rd: GeneralRegister,
-        rs1: GeneralRegister,
-        imm: Bit<12>,
-    },
+    Lbu { rd: GeneralRegister, rs1: GeneralRegister, imm: Bit<12> },
     /// Lb instruction. Has the following semantics
     /// ```pic
     /// rd = sext(Read(rs1 + sext(imm), 16))
     /// ```
-    Lhu {
-        rd: GeneralRegister,
-        rs1: GeneralRegister,
-        imm: Bit<12>,
-    },
+    Lhu { rd: GeneralRegister, rs1: GeneralRegister, imm: Bit<12> },
     /* S-Type instructions */
     /// Sw instruction. Has the followng semantics
     /// ```pic
     /// Write(rs1 + sext(imm), rs2[8:0])
     /// ```
-    Sb {
-        rs1: GeneralRegister,
-        rs2: GeneralRegister,
-        imm: Bit<12>,
-    },
+    Sb { rs1: GeneralRegister, rs2: GeneralRegister, imm: Bit<12> },
     /// Sh instruction. Has the followng semantics
     /// ```pic
     /// Write(rs1 + sext(imm)], rs2[16:0])
     /// ```
-    Sh {
-        rs1: GeneralRegister,
-        rs2: GeneralRegister,
-        imm: Bit<12>,
-    },
+    Sh { rs1: GeneralRegister, rs2: GeneralRegister, imm: Bit<12> },
     /// Sw instruction. Has the followng semantics
     /// ```pic
     /// Write(rs1 + sext(imm), rs2[31:0])
     /// ```
-    Sw {
-        rs1: GeneralRegister,
-        rs2: GeneralRegister,
-        imm: Bit<12>,
-    },
+    Sw { rs1: GeneralRegister, rs2: GeneralRegister, imm: Bit<12> },
 }
 
 impl Instruction {
@@ -187,7 +129,7 @@ impl Instruction {
         self,
         processor: &mut Processor,
         memory: &mut Memory,
-        old_pc: RegisterVal,
+        old_pc: RegVal,
     ) -> Result<(), InstructionError> {
         match self {
             Instruction::Jal { rd, imm } => {
@@ -242,42 +184,42 @@ impl Instruction {
             Instruction::Lb { rd, rs1, imm } => {
                 let rs1 = processor.get_register(rs1);
                 let address = rs1.wrapping_add(imm.get_sext());
-                let mut dst = [0u8; std::mem::size_of::<RegisterVal>()];
+                let mut dst = [0u8; std::mem::size_of::<RegVal>()];
                 self.mem_read(memory, old_pc, address, &mut dst[0..1])?;
-                processor.set_register(rd, sext_regval::<8>(RegisterVal::from_le_bytes(dst)));
+                processor.set_register(rd, sext_regval::<8>(RegVal::from_le_bytes(dst)));
                 Ok(())
             }
             Instruction::Lh { rd, rs1, imm } => {
                 let rs1 = processor.get_register(rs1);
                 let address = rs1.wrapping_add(imm.get_sext());
-                let mut dst = [0u8; std::mem::size_of::<RegisterVal>()];
+                let mut dst = [0u8; std::mem::size_of::<RegVal>()];
                 self.mem_read(memory, old_pc, address, &mut dst[0..2])?;
-                processor.set_register(rd, sext_regval::<16>(RegisterVal::from_le_bytes(dst)));
+                processor.set_register(rd, sext_regval::<16>(RegVal::from_le_bytes(dst)));
                 Ok(())
             }
             Instruction::Lw { rd, rs1, imm } => {
                 let rs1 = processor.get_register(rs1);
                 let address = rs1.wrapping_add(imm.get_sext());
-                let mut dst = [0u8; std::mem::size_of::<RegisterVal>()];
+                let mut dst = [0u8; std::mem::size_of::<RegVal>()];
                 self.mem_read(memory, old_pc, address, &mut dst[0..4])?;
                 // TODO: remove the sext when we migrate to RV32
-                processor.set_register(rd, sext_regval::<32>(RegisterVal::from_le_bytes(dst)));
+                processor.set_register(rd, sext_regval::<32>(RegVal::from_le_bytes(dst)));
                 Ok(())
             }
             Instruction::Lbu { rd, rs1, imm } => {
                 let rs1 = processor.get_register(rs1);
                 let address = rs1.wrapping_add(imm.get_sext());
-                let mut dst = [0u8; std::mem::size_of::<RegisterVal>()];
+                let mut dst = [0u8; std::mem::size_of::<RegVal>()];
                 self.mem_read(memory, old_pc, address, &mut dst[0..1])?;
-                processor.set_register(rd, RegisterVal::from_le_bytes(dst));
+                processor.set_register(rd, RegVal::from_le_bytes(dst));
                 Ok(())
             }
             Instruction::Lhu { rd, rs1, imm } => {
                 let rs1 = processor.get_register(rs1);
                 let address = rs1.wrapping_add(imm.get_sext());
-                let mut dst = [0u8; std::mem::size_of::<RegisterVal>()];
+                let mut dst = [0u8; std::mem::size_of::<RegVal>()];
                 self.mem_read(memory, old_pc, address, &mut dst[0..2])?;
-                processor.set_register(rd, RegisterVal::from_le_bytes(dst));
+                processor.set_register(rd, RegVal::from_le_bytes(dst));
                 Ok(())
             }
             Instruction::Sb { rs1, rs2, imm } => {
@@ -310,8 +252,8 @@ impl Instruction {
     fn mem_read(
         self,
         memory: &Memory,
-        instruction_address: RegisterVal,
-        address: RegisterVal,
+        instruction_address: RegVal,
+        address: RegVal,
         dst: &mut [u8],
     ) -> Result<(), InstructionError> {
         memory
@@ -326,8 +268,8 @@ impl Instruction {
     fn mem_write(
         self,
         memory: &mut Memory,
-        instruction_address: RegisterVal,
-        address: RegisterVal,
+        instruction_address: RegVal,
+        address: RegVal,
         src: &[u8],
     ) -> Result<(), InstructionError> {
         memory
@@ -340,23 +282,23 @@ impl Instruction {
     }
 }
 
-fn sext_regval<const WIDTH: usize>(x: RegisterVal) -> RegisterVal {
-    Bit::<WIDTH>::new(x).unwrap().get_sext()
+fn sext_regval<const N: usize>(x: RegVal) -> RegVal {
+    Bit::<N>::new(x).unwrap().get_sext()
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 #[repr(transparent)]
 /// Contains a N-bit wide immediate value
-pub struct Bit<const WIDTH: usize>(RegisterVal);
+pub struct Bit<const N: usize>(RegVal);
 
-impl<const WIDTH: usize> Bit<WIDTH> {
+impl<const N: usize> Bit<N> {
     /// The maximum possible value.
-    pub const MAX: RegisterVal = ((1 as RegisterVal) << WIDTH) - 1;
+    pub const MAX: RegVal = ((1 as RegVal) << N) - 1;
 
-    const SIGN_BIT: RegisterVal = (1 as RegisterVal) << WIDTH - 1;
-    const EXTENSION: RegisterVal = RegisterVal::MAX ^ Self::MAX;
+    const SIGN_BIT: RegVal = (1 as RegVal) << (N - 1);
+    const EXTENSION: RegVal = RegVal::MAX ^ Self::MAX;
 
-    pub const fn new(val: RegisterVal) -> Option<Self> {
+    pub const fn new(val: RegVal) -> Option<Self> {
         if val <= Self::MAX {
             Some(Self(val))
         } else {
@@ -368,13 +310,13 @@ impl<const WIDTH: usize> Bit<WIDTH> {
     /// The value is zero-extended.
     // NOTE: unused, but may be useful later.
     #[allow(dead_code)]
-    pub const fn get_zext(self) -> RegisterVal {
+    pub const fn get_zext(self) -> RegVal {
         self.0
     }
 
     /// Get the value as [RegisterVal].
     /// The value is sign-extended.
-    pub const fn get_sext(self) -> RegisterVal {
+    pub const fn get_sext(self) -> RegVal {
         let mut result = self.0;
         if (result & Self::SIGN_BIT) == Self::SIGN_BIT {
             result |= Self::EXTENSION;
@@ -385,7 +327,7 @@ impl<const WIDTH: usize> Bit<WIDTH> {
 
 #[cfg(test)]
 mod tests {
-    use crate::kernel::RegisterVal;
+    use crate::kernel::RegVal;
 
     use super::Bit;
 
@@ -397,7 +339,7 @@ mod tests {
             Bit::<12>::new(x).expect("Must succeed");
         }
         for _ in 0..SAMPLE_COUNT {
-            let x = rand::random_range((Bit::<12>::MAX + 1)..RegisterVal::MAX);
+            let x = rand::random_range((Bit::<12>::MAX + 1)..RegVal::MAX);
             assert_eq!(Bit::<12>::new(x), None);
         }
     }
@@ -442,7 +384,7 @@ mod tests {
             Bit::<20>::new(x).expect("Must succeed");
         }
         for _ in 0..SAMPLE_COUNT {
-            let x = rand::random_range((Bit::<20>::MAX + 1)..RegisterVal::MAX);
+            let x = rand::random_range((Bit::<20>::MAX + 1)..RegVal::MAX);
             assert_eq!(Bit::<20>::new(x), None);
         }
     }

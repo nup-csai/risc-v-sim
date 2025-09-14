@@ -15,7 +15,7 @@
 
 use std::{fs, io, path::PathBuf, process};
 
-use risc_v_sim::kernel::{GeneralRegister, Memory, MemorySegment, RegisterVal};
+use risc_v_sim::kernel::{GeneralRegister, Memory, MemorySegment, RegVal};
 
 #[test]
 fn test_vs_gdb() {
@@ -56,38 +56,38 @@ fn test_vs_gdb() {
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 struct TraceEntry {
-    ra: RegisterVal,
-    sp: RegisterVal,
-    gp: RegisterVal,
-    tp: RegisterVal,
-    t0: RegisterVal,
-    t1: RegisterVal,
-    t2: RegisterVal,
-    fp: RegisterVal,
-    s1: RegisterVal,
-    a0: RegisterVal,
-    a1: RegisterVal,
-    a2: RegisterVal,
-    a3: RegisterVal,
-    a4: RegisterVal,
-    a5: RegisterVal,
-    a6: RegisterVal,
-    a7: RegisterVal,
-    s2: RegisterVal,
-    s3: RegisterVal,
-    s4: RegisterVal,
-    s5: RegisterVal,
-    s6: RegisterVal,
-    s7: RegisterVal,
-    s8: RegisterVal,
-    s9: RegisterVal,
-    s10: RegisterVal,
-    s11: RegisterVal,
-    t3: RegisterVal,
-    t4: RegisterVal,
-    t5: RegisterVal,
-    t6: RegisterVal,
-    pc: RegisterVal,
+    ra: RegVal,
+    sp: RegVal,
+    gp: RegVal,
+    tp: RegVal,
+    t0: RegVal,
+    t1: RegVal,
+    t2: RegVal,
+    fp: RegVal,
+    s1: RegVal,
+    a0: RegVal,
+    a1: RegVal,
+    a2: RegVal,
+    a3: RegVal,
+    a4: RegVal,
+    a5: RegVal,
+    a6: RegVal,
+    a7: RegVal,
+    s2: RegVal,
+    s3: RegVal,
+    s4: RegVal,
+    s5: RegVal,
+    s6: RegVal,
+    s7: RegVal,
+    s8: RegVal,
+    s9: RegVal,
+    s10: RegVal,
+    s11: RegVal,
+    t3: RegVal,
+    t4: RegVal,
+    t5: RegVal,
+    t6: RegVal,
+    pc: RegVal,
 }
 
 static TRACER_NAME: &str = "trace_capture";
@@ -104,12 +104,7 @@ fn run_qemu_command(filename: &str, tick_count: usize) -> process::Output {
         .args(["--mount", "type=bind,src=./tests/samples/,dst=/ws,ro"])
         .args(["--mount", "type=bind,src=./tests/elfs/,dst=/elfs"])
         .arg("krinkin/rv64-toolchain")
-        .args([
-            "/usr/bin/bash",
-            "/ws/capture_trace.sh",
-            &filename,
-            &tick_count,
-        ])
+        .args(["/usr/bin/bash", "/ws/capture_trace.sh", &filename, &tick_count])
         .output()
         .unwrap();
 
@@ -154,12 +149,14 @@ fn parse_register_entry(line: &str, entry: &mut TraceEntry) {
     let Some(name) = it.next() else {
         return;
     };
-    let Some(val) = it.next() else { return };
+    let Some(val) = it.next() else {
+        return;
+    };
     // Cut off the 0x part. Rust's number parser doesn't like it.
     let Some(val) = val.get(2..) else {
         return;
     };
-    let Ok(val) = RegisterVal::from_str_radix(val, 16) else {
+    let Ok(val) = RegVal::from_str_radix(val, 16) else {
         return;
     };
 
@@ -200,9 +197,9 @@ fn parse_register_entry(line: &str, entry: &mut TraceEntry) {
     }
 }
 
-const SIMULATION_PROGRAM_OFFSET: RegisterVal = 0x80000000;
-const SIMULATION_RW_MEM_OFFSET: RegisterVal = 0x1000;
-const SIUMLATION_RW_MEM_SIZE: RegisterVal = 0x8000;
+const SIMULATION_PROGRAM_OFFSET: RegVal = 0x80000000;
+const SIMULATION_RW_MEM_OFFSET: RegVal = 0x1000;
+const SIUMLATION_RW_MEM_SIZE: RegVal = 0x8000;
 
 fn simulate_elf(filename: &str, tick_count: usize) -> Vec<TraceEntry> {
     let mut elf_path = PathBuf::from_iter(["tests", "elfs", filename]);

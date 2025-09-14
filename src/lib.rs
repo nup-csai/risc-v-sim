@@ -1,5 +1,6 @@
 pub mod kernel;
 pub mod shell;
+mod util;
 
 use std::error::Error;
 use std::path::PathBuf;
@@ -9,7 +10,9 @@ use clap::Parser;
 use kernel::Kernel;
 use shell::{load_program_from_file, ShellError};
 
-use crate::kernel::{Memory, MemorySegment, RegisterVal};
+use crate::kernel::{Memory, MemorySegment, RegVal};
+
+pub type ErrBox = Box<dyn Error + Send + Sync>;
 
 /// Emulates RiscV programs. After each step, the program
 /// prints a trace step into standard output. Each trace step
@@ -66,22 +69,18 @@ pub struct Args {
 
 #[derive(Debug, Clone, Copy)]
 pub struct MemorySegmentDef {
-    pub offset: RegisterVal,
-    pub length: RegisterVal,
+    pub off: RegVal,
+    pub len: RegVal,
     pub is_read: bool,
     pub is_write: bool,
     pub is_execute: bool,
 }
 
-fn parse_input_memory_segment(
-    s: &str,
-) -> Result<(MemorySegmentDef, PathBuf), Box<dyn Error + Send + Sync>> {
+fn parse_input_memory_segment(s: &str) -> Result<(MemorySegmentDef, PathBuf), ErrBox> {
     parse_memory_segment(s, true, false, false)
 }
 
-fn parse_output_memory_segment(
-    s: &str,
-) -> Result<(MemorySegmentDef, PathBuf), Box<dyn Error + Send + Sync>> {
+fn parse_output_memory_segment(s: &str) -> Result<(MemorySegmentDef, PathBuf), ErrBox> {
     parse_memory_segment(s, false, true, false)
 }
 
@@ -90,7 +89,7 @@ fn parse_memory_segment(
     mut is_read: bool,
     mut is_write: bool,
     mut is_execute: bool,
-) -> Result<(MemorySegmentDef, PathBuf), Box<dyn Error + Send + Sync>> {
+) -> Result<(MemorySegmentDef, PathBuf), ErrBox> {
     use clap::{error::*, Error};
 
     let eq_pos = s.find('=').ok_or_else(|| Error::new(ErrorKind::NoEquals))?;
@@ -98,10 +97,10 @@ fn parse_memory_segment(
     let file_path_str = &s[eq_pos + 1..];
 
     let mut segment_def_pieces = segment_def_string.split(':');
-    let segment_offset_string = segment_def_pieces
+    let segment_off_string = segment_def_pieces
         .next()
         .ok_or_else(|| format!("not enough `:` in `{segment_def_string}`"))?;
-    let segment_length_string = segment_def_pieces
+    let segment_len_string = segment_def_pieces
         .next()
         .ok_or_else(|| format!("not enough `:` in `{segment_def_string}`"))?;
     let segment_flags_string = segment_def_pieces.next();
@@ -113,8 +112,8 @@ fn parse_memory_segment(
     }
 
     let segment_def = MemorySegmentDef {
-        offset: parse_segment_number(segment_offset_string)?,
-        length: parse_segment_number(segment_length_string)?,
+        off: parse_segment_number(segment_off_string)?,
+        len: parse_segment_number(segment_len_string)?,
         is_read,
         is_write,
         is_execute,
@@ -124,7 +123,7 @@ fn parse_memory_segment(
     Ok((segment_def, path))
 }
 
-fn parse_segment_number(s: &str) -> Result<RegisterVal, Box<dyn Error + Send + Sync>> {
+fn parse_segment_number(s: &str) -> Result<RegVal, ErrBox> {
     let mut radix = 10;
     let mut to_parse = s;
     if s.starts_with("0x") {
@@ -132,13 +131,12 @@ fn parse_segment_number(s: &str) -> Result<RegisterVal, Box<dyn Error + Send + S
         to_parse = &to_parse[2..];
     }
 
-    let res = RegisterVal::from_str_radix(to_parse, radix).map_err(|_| {
-        format!("`{s}` must be a valid decimal number or a hexadecimal nummber prefixed with `0x`")
-    })?;
+    let res = RegVal::from_str_radix(to_parse, radix)
+        .map_err(|_| format!("`{s}` must be a valid decimal number or a hexadecimal nummber prefixed with `0x`"))?;
     Ok(res)
 }
 
-fn parse_segment_flags(s: &str) -> Result<(bool, bool, bool), Box<dyn Error + Send + Sync>> {
+fn parse_segment_flags(s: &str) -> Result<(bool, bool, bool), ErrBox> {
     let mut is_read = false;
     let mut is_write = false;
     let mut is_execute = false;
@@ -150,8 +148,8 @@ fn parse_segment_flags(s: &str) -> Result<(bool, bool, bool), Box<dyn Error + Se
             'x' => is_execute = true,
             _ => {
                 return Err(format!(
-                    "`{ch}` is not a valid permission flag. Available flags are: r, w and x"
-                )
+                "`{ch}` is not a valid permission flag. Available flags are: r, w and x"
+            )
                 .into())
             }
         }
@@ -169,9 +167,8 @@ pub fn run(args: Args) -> Result<(), ShellError> {
         .map_err(ShellError::LoadingProramIntoMemory)?;
 
     for (def, file) in &args.input {
-        let bytes = std::fs::read(file).map_err(|error| ShellError::LoadingInputSegment {
-            file: file.clone(),
-            error,
+        let bytes = std::fs::read(file).map_err(|error| {
+            ShellError::LoadingInputSegment { file: file.clone(), error }
         })?;
 
         memory
@@ -179,20 +176,20 @@ pub fn run(args: Args) -> Result<(), ShellError> {
                 is_read: def.is_read,
                 is_write: def.is_write,
                 is_execute: def.is_execute,
-                offset: def.offset,
-                mem: bytes[0..std::cmp::min(bytes.len(), def.length as usize)].into(),
+                off: def.off,
+                mem: bytes[0..std::cmp::min(bytes.len(), def.len as usize)].into(),
             })
             .map_err(ShellError::AddingSegmentToMemory)?;
     }
 
     for (def, _) in &args.output {
-        let bytes = vec![0u8; def.length as usize].into_boxed_slice();
+        let bytes = vec![0u8; def.len as usize].into_boxed_slice();
         memory
             .add_segment(MemorySegment {
                 is_read: def.is_read,
                 is_write: def.is_write,
                 is_execute: def.is_execute,
-                offset: def.offset,
+                off: def.off,
                 mem: bytes,
             })
             .map_err(ShellError::AddingSegmentToMemory)?;
@@ -211,13 +208,10 @@ pub fn run(args: Args) -> Result<(), ShellError> {
             .memory
             .segments()
             .iter()
-            .find(|s| s.contains_address(def.offset))
+            .find(|s| s.contains_address(def.off))
             .unwrap();
         std::fs::write(file.clone(), segment.as_bytes()).map_err(|error| {
-            ShellError::WritingOutputSegment {
-                file: file.clone(),
-                error,
-            }
+            ShellError::WritingOutputSegment { file: file.clone(), error }
         })?;
     }
 
