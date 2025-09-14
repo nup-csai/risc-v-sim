@@ -322,6 +322,79 @@ impl<const N: usize> Bit<N> {
     }
 }
 
+/// Useful short-cut functions for constructing instructions.
+pub mod shortcodes {
+    use super::{Bit, Instruction, RegId};
+
+    pub const fn jal(rd: RegId, imm: Bit<20>) -> Instruction {
+        Instruction::Jal { rd, imm }
+    }
+
+    pub const fn add(rd: RegId, rs1: RegId, rs2: RegId) -> Instruction {
+        Instruction::Add { rd, rs1, rs2 }
+    }
+
+    pub const fn sub(rd: RegId, rs1: RegId, rs2: RegId) -> Instruction {
+        Instruction::Sub { rd, rs1, rs2 }
+    }
+
+    pub const fn xor(rd: RegId, rs1: RegId, rs2: RegId) -> Instruction {
+        Instruction::Xor { rd, rs1, rs2 }
+    }
+
+    pub const fn lui(rd: RegId, imm: Bit<20>) -> Instruction {
+        Instruction::Lui { rd, imm }
+    }
+
+    pub const fn auipc(rd: RegId, imm: Bit<20>) -> Instruction {
+        Instruction::Auipc { rd, imm }
+    }
+
+    pub const fn addi(rd: RegId, rs1: RegId, imm: Bit<12>) -> Instruction {
+        Instruction::Addi { rd, rs1, imm }
+    }
+
+    pub const fn xori(rd: RegId, rs1: RegId, imm: Bit<12>) -> Instruction {
+        Instruction::Xori { rd, rs1, imm }
+    }
+
+    pub const fn jalr(rd: RegId, rs1: RegId, imm: Bit<12>) -> Instruction {
+        Instruction::Jalr { rd, rs1, imm }
+    }
+
+    pub const fn lb(rd: RegId, rs1: RegId, imm: Bit<12>) -> Instruction {
+        Instruction::Lb { rd, rs1, imm }
+    }
+
+    pub const fn lh(rd: RegId, rs1: RegId, imm: Bit<12>) -> Instruction {
+        Instruction::Lh { rd, rs1, imm }
+    }
+
+    pub const fn lw(rd: RegId, rs1: RegId, imm: Bit<12>) -> Instruction {
+        Instruction::Lw { rd, rs1, imm }
+    }
+
+    pub const fn lbu(rd: RegId, rs1: RegId, imm: Bit<12>) -> Instruction {
+        Instruction::Lbu { rd, rs1, imm }
+    }
+
+    pub const fn lhu(rd: RegId, rs1: RegId, imm: Bit<12>) -> Instruction {
+        Instruction::Lhu { rd, rs1, imm }
+    }
+
+    pub const fn sb(rs1: RegId, rs2: RegId, imm: Bit<12>) -> Instruction {
+        Instruction::Sb { rs1, rs2, imm }
+    }
+
+    pub const fn sh(rs1: RegId, rs2: RegId, imm: Bit<12>) -> Instruction {
+        Instruction::Sh { rs1, rs2, imm }
+    }
+
+    pub const fn sw(rs1: RegId, rs2: RegId, imm: Bit<12>) -> Instruction {
+        Instruction::Sw { rs1, rs2, imm }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::kernel::RegVal;

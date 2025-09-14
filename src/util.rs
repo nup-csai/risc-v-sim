@@ -13,6 +13,31 @@ macro_rules! c_try {
     };
 }
 
+#[macro_export]
+macro_rules! instr {
+    ($name:ident $($arg:tt),*) => {
+        $crate::kernel::shortcodes::$name($(
+            $crate::instr!(@operand $arg)
+        ),*)
+    };
+    (@operand $reg:ident) => {
+        $crate::kernel::RegId::$reg
+    };
+    (@operand $l:literal) => {
+        $crate::util::bit($l)
+    };
+    (@operand {$e:expr}) => { $e };
+}
+
+#[macro_export]
+macro_rules! program {
+    ($($name:ident $($arg:tt),*;)+) => (
+        [$(
+            $crate::instr!($name $($arg),*)
+        ),+]
+    );
+}
+
 /// Shortcut function that panics if `v` is not a valid reg index.
 #[allow(dead_code)]
 pub fn reg_x(x: InstrVal) -> RegId {
