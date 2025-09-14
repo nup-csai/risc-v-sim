@@ -15,7 +15,7 @@
 
 use std::{fs, io, path::PathBuf, process};
 
-use risc_v_sim::kernel::{GeneralRegister, Memory, MemorySegment, RegVal};
+use risc_v_sim::kernel::{Memory, MemorySegment, RegId, RegVal};
 
 #[test]
 fn test_vs_gdb() {
@@ -237,37 +237,37 @@ fn simulate_elf(filename: &str, tick_count: usize) -> Vec<TraceEntry> {
 
 fn kernel_step_to_trace_entry(kernel_step: risc_v_sim::kernel::KernelStep) -> TraceEntry {
     TraceEntry {
-        ra: kernel_step.new_processor.get_register(GeneralRegister::RA),
-        sp: kernel_step.new_processor.get_register(GeneralRegister::SP),
-        gp: kernel_step.new_processor.get_register(GeneralRegister::GP),
-        tp: kernel_step.new_processor.get_register(GeneralRegister::TP),
-        t0: kernel_step.new_processor.get_register(GeneralRegister::T0),
-        t1: kernel_step.new_processor.get_register(GeneralRegister::T1),
-        t2: kernel_step.new_processor.get_register(GeneralRegister::T2),
-        fp: kernel_step.new_processor.get_register(GeneralRegister::FP),
-        s1: kernel_step.new_processor.get_register(GeneralRegister::S1),
-        a0: kernel_step.new_processor.get_register(GeneralRegister::A0),
-        a1: kernel_step.new_processor.get_register(GeneralRegister::A1),
-        a2: kernel_step.new_processor.get_register(GeneralRegister::A2),
-        a3: kernel_step.new_processor.get_register(GeneralRegister::A3),
-        a4: kernel_step.new_processor.get_register(GeneralRegister::A4),
-        a5: kernel_step.new_processor.get_register(GeneralRegister::A5),
-        a6: kernel_step.new_processor.get_register(GeneralRegister::A6),
-        a7: kernel_step.new_processor.get_register(GeneralRegister::A7),
-        s2: kernel_step.new_processor.get_register(GeneralRegister::S2),
-        s3: kernel_step.new_processor.get_register(GeneralRegister::S3),
-        s4: kernel_step.new_processor.get_register(GeneralRegister::S4),
-        s5: kernel_step.new_processor.get_register(GeneralRegister::S5),
-        s6: kernel_step.new_processor.get_register(GeneralRegister::S6),
-        s7: kernel_step.new_processor.get_register(GeneralRegister::S7),
-        s8: kernel_step.new_processor.get_register(GeneralRegister::S8),
-        s9: kernel_step.new_processor.get_register(GeneralRegister::S9),
-        s10: kernel_step.new_processor.get_register(GeneralRegister::S10),
-        s11: kernel_step.new_processor.get_register(GeneralRegister::S11),
-        t3: kernel_step.new_processor.get_register(GeneralRegister::T3),
-        t4: kernel_step.new_processor.get_register(GeneralRegister::T4),
-        t5: kernel_step.new_processor.get_register(GeneralRegister::T5),
-        t6: kernel_step.new_processor.get_register(GeneralRegister::T6),
-        pc: kernel_step.new_processor.pc,
+        ra: kernel_step.new_registers.get(RegId::RA),
+        sp: kernel_step.new_registers.get(RegId::SP),
+        gp: kernel_step.new_registers.get(RegId::GP),
+        tp: kernel_step.new_registers.get(RegId::TP),
+        t0: kernel_step.new_registers.get(RegId::T0),
+        t1: kernel_step.new_registers.get(RegId::T1),
+        t2: kernel_step.new_registers.get(RegId::T2),
+        fp: kernel_step.new_registers.get(RegId::FP),
+        s1: kernel_step.new_registers.get(RegId::S1),
+        a0: kernel_step.new_registers.get(RegId::A0),
+        a1: kernel_step.new_registers.get(RegId::A1),
+        a2: kernel_step.new_registers.get(RegId::A2),
+        a3: kernel_step.new_registers.get(RegId::A3),
+        a4: kernel_step.new_registers.get(RegId::A4),
+        a5: kernel_step.new_registers.get(RegId::A5),
+        a6: kernel_step.new_registers.get(RegId::A6),
+        a7: kernel_step.new_registers.get(RegId::A7),
+        s2: kernel_step.new_registers.get(RegId::S2),
+        s3: kernel_step.new_registers.get(RegId::S3),
+        s4: kernel_step.new_registers.get(RegId::S4),
+        s5: kernel_step.new_registers.get(RegId::S5),
+        s6: kernel_step.new_registers.get(RegId::S6),
+        s7: kernel_step.new_registers.get(RegId::S7),
+        s8: kernel_step.new_registers.get(RegId::S8),
+        s9: kernel_step.new_registers.get(RegId::S9),
+        s10: kernel_step.new_registers.get(RegId::S10),
+        s11: kernel_step.new_registers.get(RegId::S11),
+        t3: kernel_step.new_registers.get(RegId::T3),
+        t4: kernel_step.new_registers.get(RegId::T4),
+        t5: kernel_step.new_registers.get(RegId::T5),
+        t6: kernel_step.new_registers.get(RegId::T6),
+        pc: kernel_step.new_registers.pc,
     }
 }

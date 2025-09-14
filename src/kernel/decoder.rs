@@ -26,10 +26,10 @@
 //! Here is an example of the decoder decoding this instruction
 //!
 //! ```
-//! # use risc_v_sim::kernel::{decode_instruction,Bit,GeneralRegister,Instruction};
+//! # use risc_v_sim::kernel::{decode_instruction,Bit,RegId,Instruction};
 //! let decoded = decode_instruction(0b00010100010000000000_00000_1101111).unwrap();
 //! assert_eq!(decoded, Instruction::Jal {
-//!     rd: GeneralRegister::ZERO,
+//!     rd: RegId::ZERO,
 //!     /// We extract the immediate value as-is, instead of getting it with 1-bit offset
 //!     imm: Bit::new(324 >> 1).unwrap(),
 //! });
@@ -53,12 +53,12 @@
 //! Here is an example of the decoder decoding this instruction
 //!
 //! ```
-//! # use risc_v_sim::kernel::{decode_instruction,Bit,GeneralRegister,Instruction};
+//! # use risc_v_sim::kernel::{decode_instruction,Bit,RegId,Instruction};
 //! let decoded = decode_instruction(0b0000000_00001_00110_000_00100_0110011).unwrap();
 //! assert_eq!(decoded, Instruction::Add {
-//!     rd: GeneralRegister::TP,
-//!     rs1: GeneralRegister::T1,
-//!     rs2: GeneralRegister::RA,
+//!     rd: RegId::TP,
+//!     rs1: RegId::T1,
+//!     rs2: RegId::RA,
 //! });
 //! ```
 //!
@@ -77,10 +77,10 @@
 //! Here is an example of the decoder decoding this instruction
 //!
 //! ```
-//! # use risc_v_sim::kernel::{decode_instruction,Bit,GeneralRegister,Instruction};
+//! # use risc_v_sim::kernel::{decode_instruction,Bit,RegId,Instruction};
 //! let decoded = decode_instruction(0b00000001000111101011_00110_0110111).unwrap();
 //! assert_eq!(decoded, Instruction::Lui {
-//!     rd: GeneralRegister::T1,
+//!     rd: RegId::T1,
 //!     /// RiscV documentation specified that this immediate value represents bits from 12 to 31.
 //!     /// However, when using assembly, you specify this value as if the 12-bit offset does
 //!     /// not exist. This why this value is the same as in the asm instruction above.
@@ -105,11 +105,11 @@
 //! Here is an example of the decoder decoding this instruction
 //!
 //! ```
-//! # use risc_v_sim::kernel::{decode_instruction,Bit,GeneralRegister,Instruction};
+//! # use risc_v_sim::kernel::{decode_instruction,Bit,RegId,Instruction};
 //! let decoded = decode_instruction(0b000000010100_01100_000_01011_0010011).unwrap();
 //! assert_eq!(decoded, Instruction::Addi {
-//!     rd: GeneralRegister::A1,
-//!     rs1: GeneralRegister::A2,
+//!     rd: RegId::A1,
+//!     rs1: RegId::A2,
 //!     imm: Bit::new(20).unwrap(),
 //! });
 //! ```
@@ -132,11 +132,11 @@
 //! Here is an example of the decoder decoding this instruction
 //!
 //! ```
-//! # use risc_v_sim::kernel::{decode_instruction,Bit,GeneralRegister,Instruction};
+//! # use risc_v_sim::kernel::{decode_instruction,Bit,RegId,Instruction};
 //! let decoded = decode_instruction(0b0000011_00111_00101_010_11011_0100011).unwrap();
 //! assert_eq!(decoded, Instruction::Sw {
-//!     rs1: GeneralRegister::T0,
-//!     rs2: GeneralRegister::T2,
+//!     rs1: RegId::T0,
+//!     rs2: RegId::T2,
 //!     imm: Bit::new(123).unwrap(),
 //! });
 //! ```
@@ -145,7 +145,7 @@ use thiserror::Error;
 
 use crate::c_try;
 
-use super::{Bit, GeneralRegister, InstrVal, Instruction, RegVal};
+use super::{Bit, InstrVal, Instruction, RegId, RegVal};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Error)]
 pub enum DecodeError {
@@ -421,29 +421,29 @@ const fn get_funct7(code: InstrVal) -> InstrVal {
 
 /// Get the rd field. Applicable to R, I, U, J instructions.
 /// The value is placed into the lowest bits of [InstrVal].
-/// The result is immediately wrapped with [GeneralRegister] for
+/// The result is immediately wrapped with [RegId] for
 /// convenience.
-const fn get_rd(code: InstrVal) -> GeneralRegister {
+const fn get_rd(code: InstrVal) -> RegId {
     let raw = (code >> offsets::RD) & REGISTER_MASK;
-    GeneralRegister::new(raw).unwrap()
+    RegId::new(raw).unwrap()
 }
 
 /// Get the rs1 field. Applicable to R, I, S, B instructions.
 /// The value is placed into the lowest bits of [InstrVal].
-/// The result is immediately wrapped with [GeneralRegister] for
+/// The result is immediately wrapped with [RegId] for
 /// convenience.
-const fn get_rs1(code: InstrVal) -> GeneralRegister {
+const fn get_rs1(code: InstrVal) -> RegId {
     let raw = (code >> offsets::RS1) & REGISTER_MASK;
-    GeneralRegister::new(raw).unwrap()
+    RegId::new(raw).unwrap()
 }
 
 /// Get the rs2 field. Applicable to R, S, B instructions.
 /// The value is placed into the lowest bits of [InstrVal].
-/// The result is immediately wrapped with [GeneralRegister] for
+/// The result is immediately wrapped with [RegId] for
 /// convenience.
-const fn get_rs2(code: InstrVal) -> GeneralRegister {
+const fn get_rs2(code: InstrVal) -> RegId {
     let raw = (code >> offsets::RS2) & REGISTER_MASK;
-    GeneralRegister::new(raw).unwrap()
+    RegId::new(raw).unwrap()
 }
 
 /// Get the immediate value. Applicable to I instructions ONLY.
@@ -513,7 +513,7 @@ pub const fn encode_instruction(instruction: Instruction) -> InstrVal {
     }
 }
 
-const fn encode_jal(rd: GeneralRegister, imm: Bit<20>) -> InstrVal {
+const fn encode_jal(rd: RegId, imm: Bit<20>) -> InstrVal {
     let imm = imm.get_zext() as InstrVal;
     let imm_0_9 = imm & 0x0000_03FF;
     let imm_10 = (imm & 0x0000_0400) >> 10;
@@ -531,10 +531,10 @@ const fn encode_jal(rd: GeneralRegister, imm: Bit<20>) -> InstrVal {
 }
 
 const fn encode_op(
-    rd: GeneralRegister,
+    rd: RegId,
     funct3: InstrVal,
-    rs1: GeneralRegister,
-    rs2: GeneralRegister,
+    rs1: RegId,
+    rs2: RegId,
     funct7: InstrVal,
 ) -> InstrVal {
     let mut out = 0;
@@ -547,7 +547,7 @@ const fn encode_op(
     out
 }
 
-const fn encode_u_instr(opcode: InstrVal, rd: GeneralRegister, imm: Bit<20>) -> InstrVal {
+const fn encode_u_instr(opcode: InstrVal, rd: RegId, imm: Bit<20>) -> InstrVal {
     let mut out = 0;
     out |= opcode;
     out |= rd.get() << offsets::RD;
@@ -556,9 +556,9 @@ const fn encode_u_instr(opcode: InstrVal, rd: GeneralRegister, imm: Bit<20>) -> 
 }
 
 const fn encode_op_imm(
-    rd: GeneralRegister,
+    rd: RegId,
     funct3: InstrVal,
-    rs1: GeneralRegister,
+    rs1: RegId,
     imm: Bit<12>,
 ) -> InstrVal {
     let mut out = 0;
@@ -570,11 +570,7 @@ const fn encode_op_imm(
     out
 }
 
-const fn encode_jalr(
-    rd: GeneralRegister,
-    rs1: GeneralRegister,
-    imm: Bit<12>,
-) -> InstrVal {
+const fn encode_jalr(rd: RegId, rs1: RegId, imm: Bit<12>) -> InstrVal {
     let mut out = 0;
     out |= opcodes::JALR;
     out |= rd.get() << offsets::RD;
@@ -583,12 +579,7 @@ const fn encode_jalr(
     out
 }
 
-const fn encode_load(
-    rd: GeneralRegister,
-    funct3: InstrVal,
-    rs1: GeneralRegister,
-    imm: Bit<12>,
-) -> InstrVal {
+const fn encode_load(rd: RegId, funct3: InstrVal, rs1: RegId, imm: Bit<12>) -> InstrVal {
     let mut out = 0;
     out |= opcodes::LOAD;
     out |= rd.get() << offsets::RD;
@@ -600,8 +591,8 @@ const fn encode_load(
 
 const fn encode_store(
     funct3: InstrVal,
-    rs1: GeneralRegister,
-    rs2: GeneralRegister,
+    rs1: RegId,
+    rs2: RegId,
     imm: Bit<12>,
 ) -> InstrVal {
     let imm = imm.get_zext() as InstrVal;

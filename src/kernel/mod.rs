@@ -1,27 +1,27 @@
 pub mod decoder;
 pub mod instruction;
 pub mod memory;
-pub mod processor;
+pub mod registers;
 
 pub use decoder::*;
 pub use instruction::*;
 pub use memory::*;
-pub use processor::*;
+pub use registers::*;
 
 use thiserror::Error;
 
 #[derive(Debug)]
 pub struct Kernel {
-    pub processor: Processor,
+    pub registers: Registers,
     pub memory: Memory,
 }
 
 impl Kernel {
     pub const fn new(memory: Memory, entry_point: RegVal) -> Self {
-        let mut processor = Processor::new();
-        processor.pc = entry_point;
+        let mut registers = Registers::new();
+        registers.pc = entry_point;
 
-        Kernel { processor, memory }
+        Kernel { registers, memory }
     }
 
     pub fn from_program(
@@ -45,23 +45,23 @@ impl Kernel {
     }
 
     pub fn step(&mut self) -> Result<KernelStep, KernelError> {
-        let old_processor = self.processor;
-        let old_pc = old_processor.pc;
+        let old_registers = self.registers;
+        let old_pc = old_registers.pc;
         let instruction = self.fetch_instruction()?;
 
-        self.processor.pc += 4;
+        self.registers.pc += 4;
         instruction
-            .execute(&mut self.processor, &mut self.memory, old_pc)
+            .execute(&mut self.registers, &mut self.memory, old_pc)
             .map_err(|instruction_error| KernelError::InstructionError {
-                instruction_address: self.processor.pc,
+                instruction_address: self.registers.pc,
                 instruction_error,
             })?;
 
-        Ok(KernelStep { old_processor, instruction, new_processor: self.processor })
+        Ok(KernelStep { old_registers, instruction, new_registers: self.registers })
     }
 
     fn fetch_instruction(&self) -> Result<Instruction, KernelError> {
-        let instruction_address = self.processor.pc;
+        let instruction_address = self.registers.pc;
         let instruction_code = self
             .memory
             .fetch_instruction(instruction_address)
@@ -119,8 +119,8 @@ pub struct InstructionDecodeError {
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, serde::Serialize)]
 pub struct KernelStep {
-    pub old_processor: Processor,
-    pub new_processor: Processor,
+    pub old_registers: Registers,
+    pub new_registers: Registers,
     pub instruction: Instruction,
 }
 
@@ -156,7 +156,7 @@ mod tests {
     use crate::kernel::MemorySegment;
     use crate::util::{bit, reg_x};
 
-    use super::{GeneralRegister, InstrVal, Instruction, Kernel, Program, RegVal};
+    use super::{InstrVal, Instruction, Kernel, Program, RegId, RegVal};
 
     const MEM_OFFSET: RegVal = 0x100;
     const MEM_LEN: RegVal = 0x1000;
@@ -231,22 +231,18 @@ mod tests {
     fn basic_store() {
         let mut target_mem = vec![0u8; MEM_LEN as usize];
         let string_to_reg = [
-            (GeneralRegister::T0, b'h'),
-            (GeneralRegister::T1, b'e'),
-            (GeneralRegister::T2, b'l'),
-            (GeneralRegister::T3, b'l'),
-            (GeneralRegister::T4, b'o'),
+            (RegId::T0, b'h'),
+            (RegId::T1, b'e'),
+            (RegId::T2, b'l'),
+            (RegId::T3, b'l'),
+            (RegId::T4, b'o'),
         ];
         let mut program = Vec::new();
         for (idx, (reg, val)) in string_to_reg.into_iter().enumerate() {
             program.extend([
-                Instruction::Addi {
-                    rd: reg,
-                    rs1: GeneralRegister::ZERO,
-                    imm: bit(val as RegVal),
-                },
+                Instruction::Addi { rd: reg, rs1: RegId::ZERO, imm: bit(val as RegVal) },
                 Instruction::Sb {
-                    rs1: GeneralRegister::ZERO,
+                    rs1: RegId::ZERO,
                     rs2: reg,
                     imm: bit(MEM_OFFSET + idx as RegVal),
                 },
@@ -290,17 +286,13 @@ mod tests {
         }
 
         program.extend([
-            Instruction::Lui { rd: GeneralRegister::T0, imm: bit(higher_part as RegVal) },
+            Instruction::Lui { rd: RegId::T0, imm: bit(higher_part as RegVal) },
             Instruction::Addi {
-                rd: GeneralRegister::T0,
-                rs1: GeneralRegister::T0,
+                rd: RegId::T0,
+                rs1: RegId::T0,
                 imm: bit(lower_part as RegVal),
             },
-            Instruction::Sw {
-                rs1: GeneralRegister::ZERO,
-                rs2: GeneralRegister::T0,
-                imm: bit(off),
-            },
+            Instruction::Sw { rs1: RegId::ZERO, rs2: RegId::T0, imm: bit(off) },
         ])
     }
 
@@ -322,7 +314,7 @@ mod tests {
         let actual_trace = (0..expected_trace.len())
             .map(|_| kernel.step().unwrap())
             .map(|step| {
-                (step.old_processor.pc - program_off) as usize
+                (step.old_registers.pc - program_off) as usize
                     / std::mem::size_of::<InstrVal>()
             })
             .collect::<Vec<_>>();

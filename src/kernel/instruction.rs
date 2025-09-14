@@ -3,7 +3,7 @@
 
 use thiserror::Error;
 
-use super::{GeneralRegister, Memory, MemoryError, Processor, RegVal};
+use super::{Memory, MemoryError, RegId, RegVal, Registers};
 
 /// Error returned by [Instruction::execute].
 #[derive(Clone, Copy, PartialEq, Eq, Error, Debug)]
@@ -33,214 +33,211 @@ pub enum Instruction {
     /// rd = PC + 4 // Overflow
     /// PC += sext(imm << 1) // Overflow
     /// ```
-    Jal { rd: GeneralRegister, imm: Bit<20> },
+    Jal { rd: RegId, imm: Bit<20> },
     /* R-Type instructions */
     /// Add instruction. Has the following semantics
     /// ```pic
     /// rd = rs1 + rs2 // Overflow
     /// ```
-    Add { rd: GeneralRegister, rs1: GeneralRegister, rs2: GeneralRegister },
+    Add { rd: RegId, rs1: RegId, rs2: RegId },
     /// Sub instruction. Has the following semantics
     /// ```pic
     /// rd = rs1 - rs2 // Overflow
     /// ```
-    Sub { rd: GeneralRegister, rs1: GeneralRegister, rs2: GeneralRegister },
+    Sub { rd: RegId, rs1: RegId, rs2: RegId },
     /// Xor instruction. Has the following semantics
     /// ```pic
     /// rd = rs1 ^ rs2
     /// ```
-    Xor { rd: GeneralRegister, rs1: GeneralRegister, rs2: GeneralRegister },
+    Xor { rd: RegId, rs1: RegId, rs2: RegId },
     /* U-Type instructions */
     /// Lui instruction. Has the following semantics
     /// ```pic
     /// rd = sext(imm << 12)
     /// ```
-    Lui { rd: GeneralRegister, imm: Bit<20> },
+    Lui { rd: RegId, imm: Bit<20> },
     /// Auipc instruction. Has the following semantics
     /// ```pic
     /// rd = PC + sext(imm << 12) // Overflow
     /// ```
-    Auipc { rd: GeneralRegister, imm: Bit<20> },
+    Auipc { rd: RegId, imm: Bit<20> },
     /* I-Type instructions */
     /// Addi instruction. Has the following semantics
     /// ```pic
     /// rd = rs1 + sext(imm) // Overflow
     /// ```
-    Addi { rd: GeneralRegister, rs1: GeneralRegister, imm: Bit<12> },
+    Addi { rd: RegId, rs1: RegId, imm: Bit<12> },
     /// Xori instruction. Has the following semantics
     /// ```pic
     /// rd = rs1 ^ sext(rs2)
     /// ```
-    Xori { rd: GeneralRegister, rs1: GeneralRegister, imm: Bit<12> },
+    Xori { rd: RegId, rs1: RegId, imm: Bit<12> },
     /// Jalr instruction. Has the following semantics
     /// ```pic
     /// rd = PC + 4 // Overflow
     /// PC = rs1 + sext(imm) // Overflow
     /// ```
-    Jalr { rd: GeneralRegister, rs1: GeneralRegister, imm: Bit<12> },
+    Jalr { rd: RegId, rs1: RegId, imm: Bit<12> },
     /// Lb instruction. Has the following semantics
     /// ```pic
     /// rd = sext(Read(rs1 + sext(imm), 8))
     /// ```
-    Lb { rd: GeneralRegister, rs1: GeneralRegister, imm: Bit<12> },
+    Lb { rd: RegId, rs1: RegId, imm: Bit<12> },
     /// Lb instruction. Has the following semantics
     /// ```pic
     /// rd = sext(Read(rs1 + sext(imm), 16))
     /// ```
-    Lh { rd: GeneralRegister, rs1: GeneralRegister, imm: Bit<12> },
+    Lh { rd: RegId, rs1: RegId, imm: Bit<12> },
     /// Lb instruction. Has the following semantics
     /// ```pic
     /// rd = sext(Read(rs1 + sext(imm), 32))
     /// ```
-    Lw { rd: GeneralRegister, rs1: GeneralRegister, imm: Bit<12> },
+    Lw { rd: RegId, rs1: RegId, imm: Bit<12> },
     /// Lb instruction. Has the following semantics
     /// ```pic
     /// rd = sext(Read(rs1 + sext(imm), 8))
     /// ```
-    Lbu { rd: GeneralRegister, rs1: GeneralRegister, imm: Bit<12> },
+    Lbu { rd: RegId, rs1: RegId, imm: Bit<12> },
     /// Lb instruction. Has the following semantics
     /// ```pic
     /// rd = sext(Read(rs1 + sext(imm), 16))
     /// ```
-    Lhu { rd: GeneralRegister, rs1: GeneralRegister, imm: Bit<12> },
+    Lhu { rd: RegId, rs1: RegId, imm: Bit<12> },
     /* S-Type instructions */
     /// Sw instruction. Has the followng semantics
     /// ```pic
     /// Write(rs1 + sext(imm), rs2[8:0])
     /// ```
-    Sb { rs1: GeneralRegister, rs2: GeneralRegister, imm: Bit<12> },
+    Sb { rs1: RegId, rs2: RegId, imm: Bit<12> },
     /// Sh instruction. Has the followng semantics
     /// ```pic
     /// Write(rs1 + sext(imm)], rs2[16:0])
     /// ```
-    Sh { rs1: GeneralRegister, rs2: GeneralRegister, imm: Bit<12> },
+    Sh { rs1: RegId, rs2: RegId, imm: Bit<12> },
     /// Sw instruction. Has the followng semantics
     /// ```pic
     /// Write(rs1 + sext(imm), rs2[31:0])
     /// ```
-    Sw { rs1: GeneralRegister, rs2: GeneralRegister, imm: Bit<12> },
+    Sw { rs1: RegId, rs2: RegId, imm: Bit<12> },
 }
 
 impl Instruction {
-    /// Executes the instruction on a processor. The processor is
-    /// modified in-place. In case of an error, an error is returned.
-    /// The processor state will not be reliable if `execute` fails.
     pub fn execute(
         self,
-        processor: &mut Processor,
+        registers: &mut Registers,
         memory: &mut Memory,
         old_pc: RegVal,
     ) -> Result<(), InstructionError> {
         match self {
             Instruction::Jal { rd, imm } => {
                 let new_pc = old_pc.wrapping_add(imm.get_sext() << 1);
-                processor.set_register(rd, old_pc + 4);
-                processor.pc = new_pc;
+                registers.set(rd, old_pc + 4);
+                registers.pc = new_pc;
                 Ok(())
             }
             Instruction::Add { rd, rs1, rs2 } => {
-                let rs1 = processor.get_register(rs1);
-                let rs2 = processor.get_register(rs2);
-                processor.set_register(rd, rs1.wrapping_add(rs2));
+                let rs1 = registers.get(rs1);
+                let rs2 = registers.get(rs2);
+                registers.set(rd, rs1.wrapping_add(rs2));
                 Ok(())
             }
             Instruction::Sub { rd, rs1, rs2 } => {
-                let rs1 = processor.get_register(rs1);
-                let rs2 = processor.get_register(rs2);
-                processor.set_register(rd, rs1.wrapping_sub(rs2));
+                let rs1 = registers.get(rs1);
+                let rs2 = registers.get(rs2);
+                registers.set(rd, rs1.wrapping_sub(rs2));
                 Ok(())
             }
             Instruction::Xor { rd, rs1, rs2 } => {
-                let rs1 = processor.get_register(rs1);
-                let rs2 = processor.get_register(rs2);
-                processor.set_register(rd, rs1 ^ rs2);
+                let rs1 = registers.get(rs1);
+                let rs2 = registers.get(rs2);
+                registers.set(rd, rs1 ^ rs2);
                 Ok(())
             }
             Instruction::Lui { rd, imm } => {
-                processor.set_register(rd, imm.get_sext() << 12);
+                registers.set(rd, imm.get_sext() << 12);
                 Ok(())
             }
             Instruction::Auipc { rd, imm } => {
-                processor.set_register(rd, old_pc.wrapping_add(imm.get_sext() << 12));
+                registers.set(rd, old_pc.wrapping_add(imm.get_sext() << 12));
                 Ok(())
             }
             Instruction::Addi { rd, rs1, imm } => {
-                let rs1 = processor.get_register(rs1);
-                processor.set_register(rd, rs1.wrapping_add(imm.get_sext()));
+                let rs1 = registers.get(rs1);
+                registers.set(rd, rs1.wrapping_add(imm.get_sext()));
                 Ok(())
             }
             Instruction::Xori { rd, rs1, imm } => {
-                let rs1 = processor.get_register(rs1);
-                processor.set_register(rd, rs1 ^ imm.get_sext());
+                let rs1 = registers.get(rs1);
+                registers.set(rd, rs1 ^ imm.get_sext());
                 Ok(())
             }
             Instruction::Jalr { rd, rs1, imm } => {
-                let rs1 = processor.get_register(rs1);
+                let rs1 = registers.get(rs1);
                 let new_pc = rs1.wrapping_add(imm.get_sext());
-                processor.set_register(rd, old_pc + 4);
-                processor.pc = new_pc;
+                registers.set(rd, old_pc + 4);
+                registers.pc = new_pc;
                 Ok(())
             }
             Instruction::Lb { rd, rs1, imm } => {
-                let rs1 = processor.get_register(rs1);
+                let rs1 = registers.get(rs1);
                 let address = rs1.wrapping_add(imm.get_sext());
                 let mut dst = [0u8; std::mem::size_of::<RegVal>()];
                 self.mem_read(memory, old_pc, address, &mut dst[0..1])?;
-                processor.set_register(rd, sext_regval::<8>(RegVal::from_le_bytes(dst)));
+                registers.set(rd, sext_regval::<8>(RegVal::from_le_bytes(dst)));
                 Ok(())
             }
             Instruction::Lh { rd, rs1, imm } => {
-                let rs1 = processor.get_register(rs1);
+                let rs1 = registers.get(rs1);
                 let address = rs1.wrapping_add(imm.get_sext());
                 let mut dst = [0u8; std::mem::size_of::<RegVal>()];
                 self.mem_read(memory, old_pc, address, &mut dst[0..2])?;
-                processor.set_register(rd, sext_regval::<16>(RegVal::from_le_bytes(dst)));
+                registers.set(rd, sext_regval::<16>(RegVal::from_le_bytes(dst)));
                 Ok(())
             }
             Instruction::Lw { rd, rs1, imm } => {
-                let rs1 = processor.get_register(rs1);
+                let rs1 = registers.get(rs1);
                 let address = rs1.wrapping_add(imm.get_sext());
                 let mut dst = [0u8; std::mem::size_of::<RegVal>()];
                 self.mem_read(memory, old_pc, address, &mut dst[0..4])?;
                 // TODO: remove the sext when we migrate to RV32
-                processor.set_register(rd, sext_regval::<32>(RegVal::from_le_bytes(dst)));
+                registers.set(rd, sext_regval::<32>(RegVal::from_le_bytes(dst)));
                 Ok(())
             }
             Instruction::Lbu { rd, rs1, imm } => {
-                let rs1 = processor.get_register(rs1);
+                let rs1 = registers.get(rs1);
                 let address = rs1.wrapping_add(imm.get_sext());
                 let mut dst = [0u8; std::mem::size_of::<RegVal>()];
                 self.mem_read(memory, old_pc, address, &mut dst[0..1])?;
-                processor.set_register(rd, RegVal::from_le_bytes(dst));
+                registers.set(rd, RegVal::from_le_bytes(dst));
                 Ok(())
             }
             Instruction::Lhu { rd, rs1, imm } => {
-                let rs1 = processor.get_register(rs1);
+                let rs1 = registers.get(rs1);
                 let address = rs1.wrapping_add(imm.get_sext());
                 let mut dst = [0u8; std::mem::size_of::<RegVal>()];
                 self.mem_read(memory, old_pc, address, &mut dst[0..2])?;
-                processor.set_register(rd, RegVal::from_le_bytes(dst));
+                registers.set(rd, RegVal::from_le_bytes(dst));
                 Ok(())
             }
             Instruction::Sb { rs1, rs2, imm } => {
-                let rs1 = processor.get_register(rs1);
-                let rs2 = processor.get_register(rs2);
+                let rs1 = registers.get(rs1);
+                let rs2 = registers.get(rs2);
                 let address = rs1.wrapping_add(imm.get_sext());
                 let src = rs2.to_le_bytes();
                 self.mem_write(memory, old_pc, address, &src[0..1])?;
                 Ok(())
             }
             Instruction::Sh { rs1, rs2, imm } => {
-                let rs1 = processor.get_register(rs1);
-                let rs2 = processor.get_register(rs2);
+                let rs1 = registers.get(rs1);
+                let rs2 = registers.get(rs2);
                 let address = rs1.wrapping_add(imm.get_sext());
                 let src = rs2.to_le_bytes();
                 self.mem_write(memory, old_pc, address, &src[0..2])?;
                 Ok(())
             }
             Instruction::Sw { rs1, rs2, imm } => {
-                let rs1 = processor.get_register(rs1);
-                let rs2 = processor.get_register(rs2);
+                let rs1 = registers.get(rs1);
+                let rs2 = registers.get(rs2);
                 let address = rs1.wrapping_add(imm.get_sext());
                 let src = rs2.to_le_bytes();
                 self.mem_write(memory, old_pc, address, &src[0..4])?;

@@ -1,4 +1,4 @@
-use crate::kernel::{Bit, GeneralRegister, InstrVal, RegVal};
+use crate::kernel::{Bit, InstrVal, RegId, RegVal};
 
 /// A simple macro to do try-like stuff in const contexts.
 /// This exists because Rust currently does not allow `?` in
@@ -15,8 +15,8 @@ macro_rules! c_try {
 
 /// Shortcut function that panics if `v` is not a valid reg index.
 #[allow(dead_code)]
-pub fn reg_x(x: InstrVal) -> GeneralRegister {
-    GeneralRegister::new(x).expect("Bad register value")
+pub fn reg_x(x: InstrVal) -> RegId {
+    RegId::new(x).expect("Bad register value")
 }
 
 /// Shortcut function that panics if `v` is not a valid Bit<N> value.

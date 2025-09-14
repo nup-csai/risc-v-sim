@@ -5,20 +5,23 @@ pub type InstrVal = u32;
 
 pub const GENERAL_REGISTER_COUNT: usize = 32;
 
-/// The `Processor` struct represents a simple risc-v 64i CPU
+/// The [Registers] struct contains all Rv64i registers.
+/// You can manipulate them with [Registers::get] and
+/// [Registers::set]. The [RegId::ZERO] registers is guaranteed
+/// to always return `0` wil be unaffected by sets.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
-pub struct Processor {
-    storage: [RegVal; 31],
+pub struct Registers {
+    storage: [RegVal; GENERAL_REGISTER_COUNT - 1],
     pub pc: RegVal,
 }
 
-/// [GeneralRegister] represents a validated general purpose register index.
-/// In baseline RiscV (rv64i), there are 32 general purpose registers.
+/// [RegId] represents a validated general purpose register index.
+/// In baseline Rv64i there are 32 general purpose registers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[repr(transparent)]
-pub struct GeneralRegister(InstrVal);
+pub struct RegId(InstrVal);
 
-impl GeneralRegister {
+impl RegId {
     pub const fn new(value: InstrVal) -> Option<Self> {
         if value < GENERAL_REGISTER_COUNT as InstrVal {
             Some(Self(value))
@@ -32,106 +35,106 @@ impl GeneralRegister {
     }
 
     /// Hardwired zero. Always zero on the processor.
-    pub const ZERO: GeneralRegister = Self::new(0).unwrap();
+    pub const ZERO: RegId = Self::new(0).unwrap();
     /// Return address.
     /// Saved by caller.
-    pub const RA: GeneralRegister = Self::new(1).unwrap();
+    pub const RA: RegId = Self::new(1).unwrap();
     /// Stack pointer.
     /// Saved by callee.
-    pub const SP: GeneralRegister = Self::new(2).unwrap();
+    pub const SP: RegId = Self::new(2).unwrap();
     /// Global pointer
-    pub const GP: GeneralRegister = Self::new(3).unwrap();
+    pub const GP: RegId = Self::new(3).unwrap();
     /// Thread pointer
-    pub const TP: GeneralRegister = Self::new(4).unwrap();
+    pub const TP: RegId = Self::new(4).unwrap();
     /// Temporary / alternate return address.
     /// Saved by caller.
-    pub const T0: GeneralRegister = Self::new(5).unwrap();
+    pub const T0: RegId = Self::new(5).unwrap();
     /// Temporary.
     /// Saved by caller.
-    pub const T1: GeneralRegister = Self::new(6).unwrap();
+    pub const T1: RegId = Self::new(6).unwrap();
     /// Temporary.
     /// Saved by caller.
-    pub const T2: GeneralRegister = Self::new(7).unwrap();
+    pub const T2: RegId = Self::new(7).unwrap();
     /// Saved register / frame pointer.
     /// Sometimes called S0.
     /// Saved by callee.
-    pub const FP: GeneralRegister = Self::new(8).unwrap();
+    pub const FP: RegId = Self::new(8).unwrap();
     /// Saved register.
     /// Saved by callee.
-    pub const S1: GeneralRegister = Self::new(9).unwrap();
+    pub const S1: RegId = Self::new(9).unwrap();
     /// Function argument / return value.
-    pub const A0: GeneralRegister = Self::new(10).unwrap();
+    pub const A0: RegId = Self::new(10).unwrap();
     /// Function argument / return value.
-    pub const A1: GeneralRegister = Self::new(11).unwrap();
+    pub const A1: RegId = Self::new(11).unwrap();
     /// Function argument.
-    pub const A2: GeneralRegister = Self::new(12).unwrap();
-    /// Function argument.
-    /// Saved by caller.
-    pub const A3: GeneralRegister = Self::new(13).unwrap();
+    pub const A2: RegId = Self::new(12).unwrap();
     /// Function argument.
     /// Saved by caller.
-    pub const A4: GeneralRegister = Self::new(14).unwrap();
+    pub const A3: RegId = Self::new(13).unwrap();
     /// Function argument.
     /// Saved by caller.
-    pub const A5: GeneralRegister = Self::new(15).unwrap();
+    pub const A4: RegId = Self::new(14).unwrap();
     /// Function argument.
     /// Saved by caller.
-    pub const A6: GeneralRegister = Self::new(16).unwrap();
+    pub const A5: RegId = Self::new(15).unwrap();
     /// Function argument.
     /// Saved by caller.
-    pub const A7: GeneralRegister = Self::new(17).unwrap();
+    pub const A6: RegId = Self::new(16).unwrap();
+    /// Function argument.
+    /// Saved by caller.
+    pub const A7: RegId = Self::new(17).unwrap();
     /// Saved register.
     /// Saved by callee.
-    pub const S2: GeneralRegister = Self::new(18).unwrap();
+    pub const S2: RegId = Self::new(18).unwrap();
     /// Saved register.
     /// Saved by callee.
-    pub const S3: GeneralRegister = Self::new(19).unwrap();
+    pub const S3: RegId = Self::new(19).unwrap();
     /// Saved register.
     /// Saved by callee.
-    pub const S4: GeneralRegister = Self::new(20).unwrap();
+    pub const S4: RegId = Self::new(20).unwrap();
     /// Saved register.
     /// Saved by callee.
-    pub const S5: GeneralRegister = Self::new(21).unwrap();
+    pub const S5: RegId = Self::new(21).unwrap();
     /// Saved register.
     /// Saved by callee.
-    pub const S6: GeneralRegister = Self::new(22).unwrap();
+    pub const S6: RegId = Self::new(22).unwrap();
     /// Saved register.
     /// Saved by callee.
-    pub const S7: GeneralRegister = Self::new(23).unwrap();
+    pub const S7: RegId = Self::new(23).unwrap();
     /// Saved register.
     /// Saved by callee.
-    pub const S8: GeneralRegister = Self::new(24).unwrap();
+    pub const S8: RegId = Self::new(24).unwrap();
     /// Saved register.
     /// Saved by callee.
-    pub const S9: GeneralRegister = Self::new(25).unwrap();
+    pub const S9: RegId = Self::new(25).unwrap();
     /// Saved register.
     /// Saved by callee.
-    pub const S10: GeneralRegister = Self::new(26).unwrap();
+    pub const S10: RegId = Self::new(26).unwrap();
     /// Saved register.
     /// Saved by callee.
-    pub const S11: GeneralRegister = Self::new(27).unwrap();
+    pub const S11: RegId = Self::new(27).unwrap();
     /// Temporary.
     /// Saved by caller.
-    pub const T3: GeneralRegister = Self::new(28).unwrap();
+    pub const T3: RegId = Self::new(28).unwrap();
     /// Temporary.
     /// Saved by caller.
-    pub const T4: GeneralRegister = Self::new(29).unwrap();
+    pub const T4: RegId = Self::new(29).unwrap();
     /// Temporary.
     /// Saved by caller.
-    pub const T5: GeneralRegister = Self::new(30).unwrap();
+    pub const T5: RegId = Self::new(30).unwrap();
     /// Temporary.
     /// Saved by caller.
-    pub const T6: GeneralRegister = Self::new(31).unwrap();
+    pub const T6: RegId = Self::new(31).unwrap();
 }
 
-impl Processor {
+impl Registers {
     /// Create a new `Processor` instance
-    pub const fn new() -> Processor {
-        Processor { storage: [0; GENERAL_REGISTER_COUNT - 1], pc: 0 }
+    pub const fn new() -> Registers {
+        Registers { storage: [0; GENERAL_REGISTER_COUNT - 1], pc: 0 }
     }
 
     /// Get the value of a register.
-    pub const fn get_register(&self, reg: GeneralRegister) -> RegVal {
+    pub const fn get(&self, reg: RegId) -> RegVal {
         let reg = reg.get() as usize;
         if reg == 0 {
             return 0;
@@ -142,7 +145,7 @@ impl Processor {
         self.storage[reg - 1]
     }
 
-    pub const fn set_register(&mut self, reg: GeneralRegister, value: RegVal) {
+    pub const fn set(&mut self, reg: RegId, value: RegVal) {
         let reg = reg.get() as usize;
         if reg == 0 {
             return;
@@ -151,5 +154,11 @@ impl Processor {
         // GeneralRegister can't represent out of range indicies.
         // If it manages to do that -- that's a bug
         self.storage[reg - 1] = value;
+    }
+}
+
+impl Default for Registers {
+    fn default() -> Self {
+        Self::new()
     }
 }
