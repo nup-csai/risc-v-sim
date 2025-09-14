@@ -154,8 +154,8 @@ pub enum KernelError {
 #[cfg(test)]
 mod tests {
     use crate::kernel::MemorySegment;
-    use crate::util::bit;
     use crate::program;
+    use crate::util::bit;
 
     use super::{InstrVal, Instruction, Kernel, Program, RegVal};
 

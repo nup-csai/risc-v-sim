@@ -1,6 +1,8 @@
 //! This module contains the type-safe internal representation
 //! of a RiscV instruction and other related types related to it.
 
+use std::ops::{Shl, Shr};
+
 use thiserror::Error;
 
 use super::{Memory, MemoryError, RegId, RegVal, Registers};
@@ -67,11 +69,53 @@ pub enum Instruction {
     /// rd = rs1 + sext(imm) // Overflow
     /// ```
     Addi { rd: RegId, rs1: RegId, imm: Bit<12> },
+    /// Jalr instruction. Has the following semantics
+    /// ```pic
+    /// rd = PC + 4 // Overflow
+    /// PC = rs1 + sext(imm) // Overflow
+    /// ```
+    Slli { rd: RegId, rs1: RegId, imm: Bit<12> },
+    /// Jalr instruction. Has the following semantics
+    /// ```pic
+    /// rd = PC + 4 // Overflow
+    /// PC = rs1 + sext(imm) // Overflow
+    /// ```
+    Slti { rd: RegId, rs1: RegId, imm: Bit<12> },
+    /// Jalr instruction. Has the following semantics
+    /// ```pic
+    /// rd = PC + 4 // Overflow
+    /// PC = rs1 + sext(imm) // Overflow
+    /// ```
+    Sltiu { rd: RegId, rs1: RegId, imm: Bit<12> },
     /// Xori instruction. Has the following semantics
     /// ```pic
     /// rd = rs1 ^ sext(rs2)
     /// ```
     Xori { rd: RegId, rs1: RegId, imm: Bit<12> },
+    /// Jalr instruction. Has the following semantics
+    /// ```pic
+    /// rd = PC + 4 // Overflow
+    /// PC = rs1 + sext(imm) // Overflow
+    /// ```
+    Srli { rd: RegId, rs1: RegId, imm: Bit<5> },
+    /// Jalr instruction. Has the following semantics
+    /// ```pic
+    /// rd = PC + 4 // Overflow
+    /// PC = rs1 + sext(imm) // Overflow
+    /// ```
+    Srai { rd: RegId, rs1: RegId, imm: Bit<5> },
+    /// Jalr instruction. Has the following semantics
+    /// ```pic
+    /// rd = PC + 4 // Overflow
+    /// PC = rs1 + sext(imm) // Overflow
+    /// ```
+    Ori { rd: RegId, rs1: RegId, imm: Bit<12> },
+    /// Jalr instruction. Has the following semantics
+    /// ```pic
+    /// rd = PC + 4 // Overflow
+    /// PC = rs1 + sext(imm) // Overflow
+    /// ```
+    Andi { rd: RegId, rs1: RegId, imm: Bit<12> },
     /// Jalr instruction. Has the following semantics
     /// ```pic
     /// rd = PC + 4 // Overflow
@@ -166,9 +210,46 @@ impl Instruction {
                 registers.set(rd, rs1.wrapping_add(imm.get_sext()));
                 Ok(())
             }
+            Instruction::Slli { rd, rs1, imm } => {
+                let rs1 = registers.get(rs1);
+                registers.set(rd, rs1.shl(imm.get_zext()));
+                Ok(())
+            }
+            Instruction::Slti { rd, rs1, imm } => {
+                let rs1 = registers.get(rs1);
+                let new_rd = if lts_regval(rs1, imm.get_sext()) { 1 } else { 0 };
+                registers.set(rd, new_rd);
+                Ok(())
+            }
+            Instruction::Sltiu { rd, rs1, imm } => {
+                let rs1 = registers.get(rs1);
+                let new_rd = if rs1 < imm.get_zext() { 1 } else { 0 };
+                registers.set(rd, new_rd);
+                Ok(())
+            }
             Instruction::Xori { rd, rs1, imm } => {
                 let rs1 = registers.get(rs1);
                 registers.set(rd, rs1 ^ imm.get_sext());
+                Ok(())
+            }
+            Instruction::Srli { rd, rs1, imm } => {
+                let rs1 = registers.get(rs1);
+                registers.set(rd, rs1.shr(imm.get_zext()));
+                Ok(())
+            }
+            Instruction::Srai { rd, rs1, imm } => {
+                let rs1 = registers.get(rs1);
+                registers.set(rd, shra_regval(rs1, imm.get_zext()));
+                Ok(())
+            }
+            Instruction::Ori { rd, rs1, imm } => {
+                let rs1 = registers.get(rs1);
+                registers.set(rd, rs1 | imm.get_sext());
+                Ok(())
+            }
+            Instruction::Andi { rd, rs1, imm } => {
+                let rs1 = registers.get(rs1);
+                registers.set(rd, rs1 & imm.get_sext());
                 Ok(())
             }
             Instruction::Jalr { rd, rs1, imm } => {
@@ -283,6 +364,26 @@ fn sext_regval<const N: usize>(x: RegVal) -> RegVal {
     Bit::<N>::new(x).unwrap().get_sext()
 }
 
+/// Does an arithmetic shift on a regval.
+fn shra_regval(x: RegVal, amount: RegVal) -> RegVal {
+    // Sanity check for making migration seemless.
+    // If this is true, it will be NOOP in release.
+    assert_eq!(i64::BITS, RegVal::BITS);
+    // Converting between i64 and RegVal is just
+    // a bit reinterpretation.
+    // When doing a sihft to the left on a signed
+    // integer, rust does an arithmetic shift.
+    ((x as i64) >> amount) as RegVal
+}
+
+/// Check if x < y, treating both as signed values.
+fn lts_regval(x: RegVal, y: RegVal) -> bool {
+    // Sanity check for making migration seemless.
+    // If this is true, it will be NOOP in release.
+    assert_eq!(i64::BITS, RegVal::BITS);
+    (x as i64) < (y as i64)
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 #[repr(transparent)]
 /// Contains a N-bit wide immediate value
@@ -354,8 +455,36 @@ pub mod shortcodes {
         Instruction::Addi { rd, rs1, imm }
     }
 
+    pub const fn slli(rd: RegId, rs1: RegId, imm: Bit<12>) -> Instruction {
+        Instruction::Slli { rd, rs1, imm }
+    }
+
+    pub const fn slti(rd: RegId, rs1: RegId, imm: Bit<12>) -> Instruction {
+        Instruction::Slti { rd, rs1, imm }
+    }
+
+    pub const fn sltiu(rd: RegId, rs1: RegId, imm: Bit<12>) -> Instruction {
+        Instruction::Sltiu { rd, rs1, imm }
+    }
+
     pub const fn xori(rd: RegId, rs1: RegId, imm: Bit<12>) -> Instruction {
         Instruction::Xori { rd, rs1, imm }
+    }
+
+    pub const fn srli(rd: RegId, rs1: RegId, imm: Bit<5>) -> Instruction {
+        Instruction::Srli { rd, rs1, imm }
+    }
+
+    pub const fn srai(rd: RegId, rs1: RegId, imm: Bit<5>) -> Instruction {
+        Instruction::Srai { rd, rs1, imm }
+    }
+
+    pub const fn ori(rd: RegId, rs1: RegId, imm: Bit<12>) -> Instruction {
+        Instruction::Ori { rd, rs1, imm }
+    }
+
+    pub const fn andi(rd: RegId, rs1: RegId, imm: Bit<12>) -> Instruction {
+        Instruction::Andi { rd, rs1, imm }
     }
 
     pub const fn jalr(rd: RegId, rs1: RegId, imm: Bit<12>) -> Instruction {

@@ -159,6 +159,8 @@ pub enum DecodeError {
     UnknownLoadOp { funct3: InstrVal },
     #[error("Unkown store op funct3 value: {funct3:#x}")]
     UnknownStoreOp { funct3: InstrVal },
+    #[error("Unknown bitwise shift type: {shtyp:#x}")]
+    UnknownShtyp { shtyp: InstrVal },
 }
 
 type Result<T> = std::result::Result<T, DecodeError>;
@@ -252,12 +254,46 @@ pub mod op {
 /// for instructions with opcode [opcodes::OP_IMM].
 /// For more information, see the comment above that constant.
 pub mod op_imm {
+    #[allow(unused_imports)]
+    use super::srli_srai_shtyp;
     use super::InstrVal;
 
     pub const FUNCT3_ADDI: InstrVal = 0b000;
+    pub const FUNCT3_SLLI: InstrVal = 0b001;
+    pub const FUNCT3_SLTI: InstrVal = 0b010;
+    pub const FUNCT3_SLTIU: InstrVal = 0b011;
     pub const FUNCT3_XORI: InstrVal = 0b100;
+    /// This funct3 represents two operations. SRLI and SRAI
+    /// are special as their immediate value is actualy split
+    /// into two values known as "shtyp" and "shamt".
+    ///
+    /// To figure out which one is it, consult values in
+    /// [srli_srai_shtyp].
+    pub const FUNCT3_SRLI_SRAI: InstrVal = 0b101;
+    pub const FUNCT3_ORI: InstrVal = 0b110;
+    pub const FUNCT3_ANDI: InstrVal = 0b111;
 
-    pub const ALL_FUNCT3: [InstrVal; 2] = [FUNCT3_ADDI, FUNCT3_XORI];
+    pub const ALL_FUNCT3: [InstrVal; 8] = [
+        FUNCT3_ADDI,
+        FUNCT3_SLLI,
+        FUNCT3_SLTI,
+        FUNCT3_SLTIU,
+        FUNCT3_XORI,
+        FUNCT3_SRLI_SRAI,
+        FUNCT3_ORI,
+        FUNCT3_ANDI,
+    ];
+}
+
+/// The shtyp values for deciding if an instruction is
+/// a SRLI or SRAI.
+pub mod srli_srai_shtyp {
+    use crate::kernel::InstrVal;
+
+    pub const SHTYP_SRLI: InstrVal = 0b0000000;
+    pub const SHTYP_SRAI: InstrVal = 0b0100000;
+
+    pub const ALL_SHTYP: [InstrVal; 2] = [SHTYP_SRLI, SHTYP_SRAI];
 }
 
 /// [load] contains `funct3` values
@@ -302,6 +338,8 @@ pub mod offsets {
     pub const RS1: InstrVal = 15;
     pub const RS2: InstrVal = 20;
     pub const I_TYPE_IMM: InstrVal = 20;
+    pub const I_TYPE_SHIFT_AMOUNT: InstrVal = 20;
+    pub const I_TYPE_SHIFT_TYPE: InstrVal = 25;
     pub const U_TYPE_IMM: InstrVal = 12;
     pub const J_TYPE_IMM_0_9: InstrVal = 21;
     pub const J_TYPE_IMM_10: InstrVal = 20;
@@ -341,8 +379,31 @@ const fn decode_op_imm(instruction: InstrVal) -> Result<Instruction> {
 
     let instruction = match funct3 {
         op_imm::FUNCT3_ADDI => addi(rd, rs1, imm),
+        op_imm::FUNCT3_SLLI => slli(rd, rs1, imm),
+        op_imm::FUNCT3_SLTI => slti(rd, rs1, imm),
+        op_imm::FUNCT3_SLTIU => sltiu(rd, rs1, imm),
         op_imm::FUNCT3_XORI => xori(rd, rs1, imm),
+        op_imm::FUNCT3_SRLI_SRAI => c_try!(decode_srli_srai(instruction)),
+        op_imm::FUNCT3_ORI => ori(rd, rs1, imm),
+        op_imm::FUNCT3_ANDI => andi(rd, rs1, imm),
         funct3 => return Err(DecodeError::UnknownIAluOp { funct3 }),
+    };
+
+    Ok(instruction)
+}
+
+/// Decode an op_imm with funct3 [op_imm::FUNCT3_SRLI_SRAI]
+const fn decode_srli_srai(instruction: InstrVal) -> Result<Instruction> {
+    use super::instruction::shortcodes::*;
+
+    let rd = get_rd(instruction);
+    let rs1 = get_rs1(instruction);
+    let (amount, shtyp) = get_shift_imms(instruction);
+
+    let instruction = match shtyp.get_zext() as InstrVal {
+        srli_srai_shtyp::SHTYP_SRLI => srli(rd, rs1, amount),
+        srli_srai_shtyp::SHTYP_SRAI => srai(rd, rs1, amount),
+        shtyp => return Err(DecodeError::UnknownShtyp { shtyp }),
     };
 
     Ok(instruction)
@@ -460,6 +521,19 @@ const fn get_i_imm(code: InstrVal) -> Bit<12> {
     Bit::new((code >> offsets::I_TYPE_IMM) as RegVal).unwrap()
 }
 
+/// Get the immediate value split into shift amount and shtyp.
+/// Applicable to shif imm-op only.
+/// The value is placed into the lowest bits of [InstrVal].
+/// The value is not sign-extended.
+/// The result is immediately wrapped with [Bit] for convenience.
+const fn get_shift_imms(code: InstrVal) -> (Bit<5>, Bit<7>) {
+    let amount = (code >> offsets::I_TYPE_SHIFT_AMOUNT) & 0x1F;
+    let shtyp = (code >> offsets::I_TYPE_SHIFT_TYPE) & 0x7F;
+    let amount = Bit::new(amount as RegVal).unwrap();
+    let shtyp = Bit::new(shtyp as RegVal).unwrap();
+    (amount, shtyp)
+}
+
 /// Get the immediate value. Applicable to U instructions ONLY.
 /// The value is placed into the lowest bits of [InstrVal].
 /// The value is not sign-extended.
@@ -506,8 +580,20 @@ pub const fn encode_instruction(instruction: Instruction) -> InstrVal {
         Lui { rd, imm } => encode_u_instr(opcodes::LUI, rd, imm),
         Auipc { rd, imm } => encode_u_instr(opcodes::AUIPC, rd, imm),
         Addi { rd, rs1, imm } => encode_op_imm(rd, op_imm::FUNCT3_ADDI, rs1, imm),
+        Slli { rd, rs1, imm } => encode_op_imm(
+            rd,
+            op_imm::FUNCT3_SLLI,
+            rs1,
+            Bit::new(imm.get_zext()).unwrap(),
+        ),
+        Slti { rd, rs1, imm } => encode_op_imm(rd, op_imm::FUNCT3_SLTI, rs1, imm),
+        Sltiu { rd, rs1, imm } => encode_op_imm(rd, op_imm::FUNCT3_SLTIU, rs1, imm),
         Xori { rd, rs1, imm } => encode_op_imm(rd, op_imm::FUNCT3_XORI, rs1, imm),
         Jalr { rd, rs1, imm } => encode_jalr(rd, rs1, imm),
+        Srli { rd, rs1, imm } => encode_shift(rd, rs1, imm, srli_srai_shtyp::SHTYP_SRLI),
+        Srai { rd, rs1, imm } => encode_shift(rd, rs1, imm, srli_srai_shtyp::SHTYP_SRAI),
+        Ori { rd, rs1, imm } => encode_op_imm(rd, op_imm::FUNCT3_ORI, rs1, imm),
+        Andi { rd, rs1, imm } => encode_op_imm(rd, op_imm::FUNCT3_ANDI, rs1, imm),
         Lb { rd, rs1, imm } => encode_load(rd, load::FUNCT3_LB, rs1, imm),
         Lh { rd, rs1, imm } => encode_load(rd, load::FUNCT3_LH, rs1, imm),
         Lw { rd, rs1, imm } => encode_load(rd, load::FUNCT3_LW, rs1, imm),
@@ -559,6 +645,19 @@ const fn encode_u_instr(opcode: InstrVal, rd: RegId, imm: Bit<20>) -> InstrVal {
     out |= rd.get() << offsets::RD;
     out |= (imm.get_zext() as InstrVal) << offsets::U_TYPE_IMM;
     out
+}
+
+const fn encode_shift(
+    rd: RegId,
+    rs1: RegId,
+    amount: Bit<5>,
+    shtyp: InstrVal,
+) -> InstrVal {
+    let amount_local_off = offsets::I_TYPE_SHIFT_TYPE - offsets::I_TYPE_SHIFT_AMOUNT;
+    let mut imm = 0;
+    imm |= amount.get_zext();
+    imm |= (shtyp << amount_local_off) as RegVal;
+    encode_op_imm(rd, op_imm::FUNCT3_SRLI_SRAI, rs1, Bit::new(imm).unwrap())
 }
 
 const fn encode_op_imm(
@@ -816,13 +915,13 @@ mod tests {
     }
 
     fn get_bad_i_alu_instr() -> InstrVal {
-        let funct3 = get_bad_i_alu_op_funct3();
+        let funct3 = get_bad_op_imm_funct3();
         let rest = rand::random::<InstrVal>() & 0xffff_8f80;
 
         opcodes::OP_IMM | rest | funct3
     }
 
-    fn get_bad_i_alu_op_funct3() -> InstrVal {
+    fn get_bad_op_imm_funct3() -> InstrVal {
         // FIXME: this sampling might be suboptimal, because
         // we are actually trying to randomize only the funct3 bits
         loop {
