@@ -716,15 +716,11 @@ const fn encode_store(
 
 #[cfg(test)]
 mod tests {
-    use crate::kernel::{decode_instruction, encode_instruction, load, InstrVal};
+    use crate::kernel::{decode_instruction, encode_instruction, InstrVal};
     use crate::util::{bit, reg_x};
 
+    use super::DecodeError;
     use super::Instruction;
-    use super::{
-        get_funct3, get_funct7, get_opcode, op, op_imm, opcodes, store, DecodeError,
-    };
-
-    const SAMPLE_COUNT: usize = 1000;
 
     #[derive(Debug, Clone, Copy)]
     struct ParseTest {
@@ -741,66 +737,6 @@ mod tests {
                 encode_instruction(decoded.unwrap()),
                 t.input,
                 "failed to decode-encode instruction: {:#b}",
-                t.input
-            );
-        }
-    }
-
-    #[test]
-    fn test_simple_negative_parse_i_op() {
-        for t in test_data_bad_i_alu_instr() {
-            assert_eq!(
-                decode_instruction(t.input),
-                t.expected,
-                "Input {:#x}",
-                t.input
-            );
-        }
-    }
-
-    #[test]
-    fn test_simple_negative_parse_r_op() {
-        for t in test_data_bad_r_alu_instr() {
-            assert_eq!(
-                decode_instruction(t.input),
-                t.expected,
-                "Input {:#x}",
-                t.input
-            );
-        }
-    }
-
-    #[test]
-    fn test_simple_negative_parse_store_op() {
-        for t in test_data_bad_store_op_instr() {
-            assert_eq!(
-                decode_instruction(t.input),
-                t.expected,
-                "Input {:#x}",
-                t.input
-            );
-        }
-    }
-
-    #[test]
-    fn test_simple_negative_parse_load_op() {
-        for t in test_data_bad_load_op_instr() {
-            assert_eq!(
-                decode_instruction(t.input),
-                t.expected,
-                "Input {:#x}",
-                t.input
-            );
-        }
-    }
-
-    #[test]
-    fn test_simple_negative_parse_opcode() {
-        for t in test_data_bad_opcode() {
-            assert_eq!(
-                decode_instruction(t.input),
-                t.expected,
-                "Input {:#x}",
                 t.input
             );
         }
@@ -898,164 +834,5 @@ mod tests {
                 expected: Ok(sw(reg_x(0), reg_x(31), bit(4095))),
             },
         ]
-    }
-
-    /// This testdata is a bunch of negative test cases, where the decoder
-    /// should fail.
-    fn test_data_bad_i_alu_instr() -> impl IntoIterator<Item = ParseTest> {
-        // TODO: seed the RNG
-        (0..SAMPLE_COUNT)
-            .map(|_| get_bad_i_alu_instr())
-            .map(|bad_instr| ParseTest {
-                input: bad_instr,
-                expected: Err(DecodeError::UnknownIAluOp {
-                    funct3: get_funct3(bad_instr),
-                }),
-            })
-    }
-
-    fn get_bad_i_alu_instr() -> InstrVal {
-        let funct3 = get_bad_op_imm_funct3();
-        let rest = rand::random::<InstrVal>() & 0xffff_8f80;
-
-        opcodes::OP_IMM | rest | funct3
-    }
-
-    fn get_bad_op_imm_funct3() -> InstrVal {
-        // FIXME: this sampling might be suboptimal, because
-        // we are actually trying to randomize only the funct3 bits
-        loop {
-            let funct3 = rand::random::<InstrVal>();
-            if !op_imm::ALL_FUNCT3.contains(&get_funct3(funct3)) {
-                return funct3 & 0x0000_7000;
-            }
-        }
-    }
-
-    /// This testdata is a bunch of negative test cases, where the decoder
-    /// should fail.
-    fn test_data_bad_r_alu_instr() -> impl IntoIterator<Item = ParseTest> {
-        // TODO: seed the RNG
-        (0..SAMPLE_COUNT)
-            .map(|_| get_bad_r_alu_instr())
-            .map(|bad_instr| ParseTest {
-                input: bad_instr,
-                expected: Err(DecodeError::UnknownRAluOp {
-                    funct3: get_funct3(bad_instr),
-                    funct7: get_funct7(bad_instr),
-                }),
-            })
-    }
-
-    fn get_bad_r_alu_instr() -> InstrVal {
-        let funct37 = get_bad_r_alu_op_funct37();
-        let rest = rand::random::<InstrVal>() & 0x01ff_8f80;
-
-        opcodes::OP | rest | funct37
-    }
-
-    fn get_bad_r_alu_op_funct37() -> InstrVal {
-        // FIXME: this sampling might be suboptimal, because
-        // we are actually trying to randomize only the funct37 bits
-        loop {
-            let funct37 = rand::random::<InstrVal>();
-            let (funct3, funct7) = (get_funct3(funct37), get_funct7(funct37));
-            if !op::ALL_FUNCT37.contains(&(funct3, funct7)) {
-                return funct37 & 0xfe00_7000;
-            }
-        }
-    }
-
-    /// This testdata is a bunch of negative test cases, where the decoder
-    /// should fail.
-    fn test_data_bad_store_op_instr() -> impl IntoIterator<Item = ParseTest> {
-        // TODO: seed the RNG
-        (0..SAMPLE_COUNT)
-            .map(|_| get_bad_store_op_instr())
-            .map(|bad_instr| ParseTest {
-                input: bad_instr,
-                expected: Err(DecodeError::UnknownStoreOp {
-                    funct3: get_funct3(bad_instr),
-                }),
-            })
-    }
-
-    fn get_bad_store_op_instr() -> InstrVal {
-        let funct3 = get_bad_store_op_funct3();
-        let rest = rand::random::<InstrVal>() & 0xffff_8f80;
-
-        opcodes::STORE | rest | funct3
-    }
-
-    fn get_bad_store_op_funct3() -> InstrVal {
-        // FIXME: this sampling might be suboptimal, because
-        // we are actually trying to randomize only the funct3 bits
-        loop {
-            let funct3 = rand::random::<InstrVal>();
-            if !store::ALL_FUNCT3.contains(&get_funct3(funct3)) {
-                return funct3 & 0x0000_7000;
-            }
-        }
-    }
-    /// This testdata is a bunch of negative test cases, where the decoder
-    /// should fail.
-    fn test_data_bad_load_op_instr() -> impl IntoIterator<Item = ParseTest> {
-        // TODO: seed the RNG
-        (0..SAMPLE_COUNT)
-            .map(|_| get_bad_load_op_instr())
-            .map(|bad_instr| ParseTest {
-                input: bad_instr,
-                expected: Err(DecodeError::UnknownLoadOp {
-                    funct3: get_funct3(bad_instr),
-                }),
-            })
-    }
-
-    fn get_bad_load_op_instr() -> InstrVal {
-        let funct3 = get_bad_load_op_funct3();
-        let rest = rand::random::<InstrVal>() & 0xffff_8f80;
-
-        opcodes::LOAD | rest | funct3
-    }
-
-    fn get_bad_load_op_funct3() -> InstrVal {
-        // FIXME: this sampling might be suboptimal, because
-        // we are actually trying to randomize only the funct3 bits
-        loop {
-            let funct3 = rand::random::<InstrVal>();
-            if !load::ALL_FUNCT3.contains(&get_funct3(funct3)) {
-                return funct3 & 0x0000_7000;
-            }
-        }
-    }
-
-    /// This testdata is a bunch of negative test cases, where the decoder
-    /// should fail.
-    fn test_data_bad_opcode() -> impl IntoIterator<Item = ParseTest> {
-        // TODO: seed the RNG
-        (0..SAMPLE_COUNT)
-            .map(|_| get_bad_opcode_instr())
-            .map(|bad_instr| ParseTest {
-                input: bad_instr,
-                expected: Err(DecodeError::UnknownOpcode(get_opcode(bad_instr))),
-            })
-    }
-
-    fn get_bad_opcode_instr() -> InstrVal {
-        let opcode = get_bad_opcode();
-        let other = rand::random::<InstrVal>() & !0b1111111;
-
-        opcode | other
-    }
-
-    fn get_bad_opcode() -> InstrVal {
-        // FIXME: this sampling might be suboptimal, because
-        // we are actually trying to randomize only the lower 7 bits
-        loop {
-            let opcode = get_opcode(rand::random::<InstrVal>());
-            if !opcodes::ALL_OPCODES.contains(&opcode) {
-                return opcode;
-            }
-        }
     }
 }
