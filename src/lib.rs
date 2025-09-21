@@ -3,27 +3,26 @@ pub mod shell;
 mod util;
 
 use std::error::Error;
+use std::io::stdout;
 use std::path::PathBuf;
-use std::{io::Write, str::FromStr};
+use std::str::FromStr;
 
 use clap::Parser;
 use kernel::Kernel;
 use shell::{load_program_from_file, ShellError};
 
 use crate::kernel::{Memory, MemorySegment, RegVal};
+use crate::shell::run_kernel;
 
 pub type ErrBox = Box<dyn Error + Send + Sync>;
 
-/// Emulates RiscV programs. After each step, the program
-/// prints a trace step into standard output. Each trace step
-/// is a JSON message located on a single line. A line break
-/// means the end of a trace step.
-///
-/// It is guaranteed that the program will not print anything
-/// else to the standard output, so the user may freely pipe
+/// Emulates RiscV programs. The result is a JSON object printed
+/// into stdout. The JSON object is guaranteed to always be printed
+/// to stdout and will have the same shape. The user may freely pipe
 /// the output into a JSON-parsing program.
 ///
-/// All errors will be reported into standard error.
+/// All errors and logs will also be reported into standard error
+/// for debugging purposes.
 #[derive(Parser, Debug)]
 pub struct Args {
     /// Path to the .elf file
@@ -158,7 +157,7 @@ fn parse_segment_flags(s: &str) -> Result<(bool, bool, bool), ErrBox> {
     Ok((is_read, is_write, is_execute))
 }
 
-pub fn run(args: Args) -> Result<(), ShellError> {
+pub fn run_cli(args: Args) -> Result<(), ShellError> {
     let info = load_program_from_file(&args.path)?;
     let entry_point = info.entry;
     let mut memory = Memory::new();
@@ -196,12 +195,7 @@ pub fn run(args: Args) -> Result<(), ShellError> {
     }
 
     let mut kernel = Kernel::new(memory, entry_point);
-    for _ in 0..args.ticks {
-        let step = kernel.step().map_err(ShellError::KernelError)?;
-        let mut stdout = std::io::stdout().lock();
-        serde_json::ser::to_writer(&mut stdout, &step).unwrap();
-        stdout.write(std::slice::from_ref(&b'\n')).unwrap();
-    }
+    run_kernel(&mut kernel, args.ticks, &mut stdout().lock())?;
 
     for (def, file) in &args.output {
         let segment = kernel
