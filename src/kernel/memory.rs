@@ -1,6 +1,26 @@
 use thiserror::Error;
 
-use crate::kernel::{InstructionVal, RegisterVal};
+use crate::kernel::{InstrVal, RegVal};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
+pub enum MemoryError {
+    #[error("Address {address:#x} is not mapped")]
+    AddressOutOfRange { address: RegVal },
+    #[error("Address {address:#x} does not have read permissions")]
+    AddressNotReadable { address: RegVal },
+    #[error("Address {address:#x} does not have write permissions")]
+    AddressNotWritable { address: RegVal },
+    #[error("Address {address:#x} does not have execute permissions")]
+    AddressNotExecutable { address: RegVal },
+    #[error("Expected {address:#x} to {expected_alignment}-aligned")]
+    MisalignedAccess { address: RegVal, expected_alignment: usize },
+    #[error(
+        "Segment {off:#x}:{len:#x}) overlaps existing: {found_off:#x}:{found_len:#x}"
+    )]
+    SegmentOverlap { found_off: RegVal, found_len: RegVal, off: RegVal, len: RegVal },
+}
+
+type Result<T> = std::result::Result<T, MemoryError>;
 
 /// The heart of the memory system. All memory requests
 /// should be done through it. A memory system consists of
@@ -15,24 +35,22 @@ pub struct Memory {
 
 impl Memory {
     pub fn new() -> Self {
-        Self {
-            segments: Vec::new(),
-        }
+        Self { segments: Vec::new() }
     }
 
     /// Adds a segment ot the memory. If the segment turns out to be overlapping,
     /// [MemoryError::AddingOverlappingSegment] is returned.
-    pub fn add_segment(&mut self, added_segment: MemorySegment) -> Result<(), MemoryError> {
+    pub fn add_segment(&mut self, added_segment: MemorySegment) -> Result<()> {
         let conflicting_segment = self
             .segments
             .iter()
-            .find(|x| x.overlaps_segment(added_segment.offset, added_segment.len()));
+            .find(|x| x.overlaps_segment(added_segment.off, added_segment.len()));
         if let Some(conflicting_segment) = conflicting_segment {
-            return Err(MemoryError::AddingOverlappingSegment {
-                existing_segment_offset: conflicting_segment.offset,
-                existing_segment_len: conflicting_segment.len(),
-                added_segment_offset: added_segment.offset,
-                added_segment_len: added_segment.len(),
+            return Err(MemoryError::SegmentOverlap {
+                found_off: conflicting_segment.off,
+                found_len: conflicting_segment.len(),
+                off: added_segment.off,
+                len: added_segment.len(),
             });
         }
 
@@ -49,63 +67,15 @@ impl Memory {
     /// * `address` not belonging to any segment
     /// * the segment responsible for `address` does not allow reads
     /// * alignment enforcement is enabled and `address` is not properly aligned
-    pub fn read(&self, address: RegisterVal, dst: &mut [u8]) -> Result<(), MemoryError> {
-        let Some(matching_segment) = self.segments.iter().find(|x| x.contains_address(address))
-        else {
-            return Err(MemoryError::AddressOutOfRange { address });
-        };
-
-        if !matching_segment.is_read {
+    pub fn read(&self, address: RegVal, dst: &mut [u8]) -> Result<()> {
+        let segment = self.find_segment(address)?;
+        if !segment.is_read {
             return Err(MemoryError::AddressNotReadable { address });
         }
+        Self::alignment_check(address, dst.len())?;
 
-        if address as usize % dst.len() != 0 {
-            return Err(MemoryError::MisalignedAccess {
-                address,
-                expected_alignment: dst.len(),
-            });
-        }
-
-        let (local_start, local_end) =
-            Self::translate_address(address, dst.len(), matching_segment);
-        let src = &matching_segment.as_bytes()[local_start..local_end];
-        dst.copy_from_slice(src);
-
-        Ok(())
-    }
-
-    /// Issue a wirtte request to the memory. The contents of `src` will be
-    /// written to the appropriate memory segment.
-    ///
-    /// # Errors
-    ///
-    /// The following scenarios will read to memory errors:
-    /// * `address` not belonging to any segment
-    /// * the segment responsible for `address` does not allow writes
-    /// * alignment enforcement is enabled and `address` is not properly aligned
-    pub fn write(&mut self, address: RegisterVal, src: &[u8]) -> Result<(), MemoryError> {
-        let Some(matching_segment) = self
-            .segments
-            .iter_mut()
-            .find(|x| x.contains_address(address))
-        else {
-            return Err(MemoryError::AddressOutOfRange { address });
-        };
-
-        if !matching_segment.is_write {
-            return Err(MemoryError::AddressNotWritable { address });
-        }
-
-        if address as usize % src.len() != 0 {
-            return Err(MemoryError::MisalignedAccess {
-                address,
-                expected_alignment: src.len(),
-            });
-        }
-
-        let (local_start, local_end) =
-            Self::translate_address(address, src.len(), matching_segment);
-        let dst = &mut matching_segment.as_mut_bytes()[local_start..local_end];
+        let (seg_start, seg_end) = to_segment_offs(address, dst.len(), segment);
+        let src = &segment.as_bytes()[seg_start..seg_end];
         dst.copy_from_slice(src);
 
         Ok(())
@@ -120,41 +90,56 @@ impl Memory {
     /// * `address` not belonging to any segment
     /// * the segment responsible for `address` does not allow execution
     /// * alignment enforcement is enabled and `address` is not properly aligned
-    pub fn fetch_instruction(&self, address: RegisterVal) -> Result<InstructionVal, MemoryError> {
-        let Some(matching_segment) = self.segments.iter().find(|x| x.contains_address(address))
-        else {
-            return Err(MemoryError::AddressOutOfRange { address });
-        };
-
-        if !matching_segment.is_execute {
+    pub fn fetch_instruction(&self, address: RegVal) -> Result<InstrVal> {
+        let segment = self.find_segment(address)?;
+        if !segment.is_execute {
             return Err(MemoryError::AddressNotExecutable { address });
         }
-
-        if address % 4 != 0 {
-            return Err(MemoryError::MisalignedAccess {
-                address,
-                expected_alignment: 4,
-            });
-        }
+        Self::alignment_check(address, 4)?;
 
         let mut dst = [0u8; 4];
-        let (local_start, local_end) =
-            Self::translate_address(address, dst.len(), matching_segment);
-        let src = &matching_segment.as_bytes()[local_start..local_end];
+        let (seg_start, seg_end) = to_segment_offs(address, dst.len(), segment);
+        let src = &segment.as_bytes()[seg_start..seg_end];
         dst.copy_from_slice(src);
 
-        Ok(InstructionVal::from_le_bytes(dst))
+        Ok(InstrVal::from_le_bytes(dst))
     }
 
-    fn translate_address(
-        address: RegisterVal,
-        len: usize,
-        matching_segment: &MemorySegment,
-    ) -> (usize, usize) {
-        let local_start = (address - matching_segment.offset) as usize;
-        let local_end = local_start + len;
+    pub fn find_segment(&self, address: RegVal) -> Result<&MemorySegment> {
+        self.segments
+            .iter()
+            .find(|x| x.contains_address(address))
+            .ok_or(MemoryError::AddressOutOfRange { address })
+    }
 
-        (local_start, local_end)
+    /// Issue a wirtte request to the memory. The contents of `src` will be
+    /// written to the appropriate memory segment.
+    ///
+    /// # Errors
+    ///
+    /// The following scenarios will read to memory errors:
+    /// * `address` not belonging to any segment
+    /// * the segment responsible for `address` does not allow writes
+    /// * alignment enforcement is enabled and `address` is not properly aligned
+    pub fn write(&mut self, address: RegVal, src: &[u8]) -> Result<()> {
+        let segment = self.find_segment_mut(address)?;
+        if !segment.is_write {
+            return Err(MemoryError::AddressNotWritable { address });
+        }
+        Self::alignment_check(address, src.len())?;
+
+        let (seg_start, seg_end) = to_segment_offs(address, src.len(), segment);
+        let dst = &mut segment.as_mut_bytes()[seg_start..seg_end];
+        dst.copy_from_slice(src);
+
+        Ok(())
+    }
+
+    fn find_segment_mut(&mut self, address: RegVal) -> Result<&mut MemorySegment> {
+        self.segments
+            .iter_mut()
+            .find(|x| x.contains_address(address))
+            .ok_or(MemoryError::AddressOutOfRange { address })
     }
 
     /// Get all memory segments. You can't get a mutable access
@@ -188,6 +173,34 @@ impl Memory {
     pub fn set_segment_execute(&mut self, idx: usize, is_execute: bool) {
         self.segments[idx].is_execute = is_execute
     }
+
+    fn alignment_check(address: RegVal, expected_alignment: usize) -> Result<()> {
+        if address as usize % expected_alignment == 0 {
+            return Ok(());
+        }
+        Err(MemoryError::MisalignedAccess { address, expected_alignment })
+    }
+}
+
+impl Default for Memory {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Convert a pair of offsets desribing a byte range into
+/// offsets local to a segment. The function does not do
+/// any validation, so you will have to make sure that
+/// the global offsets properly fit into the segment.
+fn to_segment_offs(
+    address: RegVal,
+    len: usize,
+    segment: &MemorySegment,
+) -> (usize, usize) {
+    let local_start = (address - segment.off) as usize;
+    let local_end = local_start + len;
+
+    (local_start, local_end)
 }
 
 /// The memory segment structure. A memory segment consists of:
@@ -209,7 +222,7 @@ pub struct MemorySegment {
     /// to execute instructions from the segment.
     pub is_execute: bool,
     /// Segment's global offset within the memory.
-    pub offset: RegisterVal,
+    pub off: RegVal,
     /// Segment's buffer.
     pub mem: Box<[u8]>,
 }
@@ -221,20 +234,18 @@ impl MemorySegment {
         is_read: bool,
         is_write: bool,
         is_execute: bool,
-        offset: RegisterVal,
-        len: RegisterVal,
+        off: RegVal,
+        len: RegVal,
     ) -> Self {
-        Self {
-            is_read,
-            is_write,
-            is_execute,
-            offset,
-            mem: vec![0; len as usize].into_boxed_slice(),
-        }
+        let mem = vec![0; len as usize].into_boxed_slice();
+        Self { is_read, is_write, is_execute, off, mem }
     }
 
-    pub fn len(&self) -> RegisterVal {
-        self.as_bytes().len() as RegisterVal
+    // MemorySegment is not a container it is okay to not
+    // have an `is_empty`.
+    #[allow(clippy::len_without_is_empty)]
+    pub fn len(&self) -> RegVal {
+        self.as_bytes().len() as RegVal
     }
 
     pub fn as_bytes(&self) -> &[u8] {
@@ -246,46 +257,22 @@ impl MemorySegment {
     }
 
     /// Checks if the segment contains `address`.
-    pub fn contains_address(&self, address: RegisterVal) -> bool {
-        match address.checked_sub(self.offset) {
-            Some(local_offset) => local_offset < self.mem.len() as RegisterVal,
+    pub fn contains_address(&self, address: RegVal) -> bool {
+        match address.checked_sub(self.off) {
+            Some(local_off) => local_off < self.mem.len() as RegVal,
             None => false,
         }
     }
 
     /// Checks if the segment overlaps an other segment specified by its offset
     /// and length.
-    pub fn overlaps_segment(&self, other_offset: RegisterVal, other_len: RegisterVal) -> bool {
-        if other_offset < self.offset {
-            other_offset + other_len > self.offset
+    pub fn overlaps_segment(&self, other_off: RegVal, other_len: RegVal) -> bool {
+        if other_off < self.off {
+            other_off + other_len > self.off
         } else {
-            self.offset + self.len() > other_offset
+            self.off + self.len() > other_off
         }
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
-pub enum MemoryError {
-    #[error("Address {address:#x} is not mapped")]
-    AddressOutOfRange { address: RegisterVal },
-    #[error("Address {address:#x} does not have read permissions")]
-    AddressNotReadable { address: RegisterVal },
-    #[error("Address {address:#x} does not have write permissions")]
-    AddressNotWritable { address: RegisterVal },
-    #[error("Address {address:#x} does not have execute permissions")]
-    AddressNotExecutable { address: RegisterVal },
-    #[error("Expected {address:#x} to {expected_alignment}-aligned")]
-    MisalignedAccess {
-        address: RegisterVal,
-        expected_alignment: usize,
-    },
-    #[error("Added segment {added_segment_offset:#x}:{added_segment_len:#x}) already overlaps with previously added one {existing_segment_offset:#x}:{existing_segment_len:#x}")]
-    AddingOverlappingSegment {
-        existing_segment_offset: RegisterVal,
-        existing_segment_len: RegisterVal,
-        added_segment_offset: RegisterVal,
-        added_segment_len: RegisterVal,
-    },
 }
 
 #[cfg(test)]
@@ -294,7 +281,7 @@ mod tests {
 
     use crate::kernel::{
         memory::{Memory, MemorySegment},
-        RegisterVal,
+        RegVal,
     };
 
     const SEGMENT_SAMPLING_COUNT: usize = 1_000;
@@ -310,7 +297,7 @@ mod tests {
                 assert!(
                     !segment.contains_address(address),
                     "Empty segment at {} shouldn't contain {address}",
-                    segment.offset
+                    segment.off
                 );
             }
         }
@@ -319,42 +306,42 @@ mod tests {
     #[test]
     fn test_segment_contains() {
         for _ in 0..SEGMENT_SAMPLING_COUNT {
-            let offset = random_range(0..0x0800_0000);
+            let off = random_range(0..0x0800_0000);
             let len = random_range(1..0x0800_0000);
 
-            let segment = MemorySegment::new_zeroed(true, true, true, offset, len);
+            let segment = MemorySegment::new_zeroed(true, true, true, off, len);
 
             assert!(
-                segment.contains_address(offset),
-                "segment {offset}:{len} must contain {offset}"
+                segment.contains_address(off),
+                "segment {off}:{len} must contain {off}"
             );
             assert!(
-                segment.contains_address(offset + len - 1),
-                "segment {offset}:{len} must contain {}",
-                offset + len - 1
+                segment.contains_address(off + len - 1),
+                "segment {off}:{len} must contain {}",
+                off + len - 1
             );
 
             for _ in 0..ADDRESS_SAMPLING_COUNT {
-                let address = random_range(offset..offset + len);
+                let address = random_range(off..off + len);
                 assert!(
                     segment.contains_address(address),
-                    "segment {offset}:{len} must contain {address}"
+                    "segment {off}:{len} must contain {address}"
                 );
             }
 
             for _ in 0..ADDRESS_SAMPLING_COUNT {
-                let address = random_range(0..offset);
+                let address = random_range(0..off);
                 assert!(
                     !segment.contains_address(address),
-                    "segment {offset}:{len} must not contain {address}"
+                    "segment {off}:{len} must not contain {address}"
                 );
             }
 
             for _ in 0..ADDRESS_SAMPLING_COUNT {
-                let address = random_range(offset + len..=RegisterVal::MAX);
+                let address = random_range(off + len..=RegVal::MAX);
                 assert!(
                     !segment.contains_address(address),
-                    "segment {offset}:{len} must not contain {address}"
+                    "segment {off}:{len} must not contain {address}"
                 );
             }
         }
@@ -364,31 +351,31 @@ mod tests {
     fn test_segment_overlaps_positive() {
         for _ in 0..SEGMENT_SAMPLING_COUNT {
             for _ in 0..ADDRESS_SAMPLING_COUNT {
-                let offset1 = random_range(0..0x0800_0000);
+                let off1 = random_range(0..0x0800_0000);
                 let len1 = random_range(1..0x0800_0000);
-                let segment1 = MemorySegment::new_zeroed(false, false, false, offset1, len1);
+                let segment1 = MemorySegment::new_zeroed(false, false, false, off1, len1);
 
-                let offset2 = offset1 + random_range(0..len1 - 1);
+                let off2 = off1 + random_range(0..len1 - 1);
                 let len2 = random_range(1..0x0800_0000);
 
                 assert!(
-                    segment1.overlaps_segment(offset2, len2),
-                    "segment {offset1}:{len1} must overlap {offset2}:{len2}"
+                    segment1.overlaps_segment(off2, len2),
+                    "segment {off1}:{len1} must overlap {off2}:{len2}"
                 )
             }
 
             for _ in 0..ADDRESS_SAMPLING_COUNT {
-                let offset1 = random_range(0..0x0800_0000);
+                let off1 = random_range(0..0x0800_0000);
                 let len1 = random_range(1..0x0800_0000);
-                let segment1 = MemorySegment::new_zeroed(false, false, false, offset1, len1);
+                let segment1 = MemorySegment::new_zeroed(false, false, false, off1, len1);
 
-                let end2 = offset1 + random_range(1..len1 - 1);
-                let offset2 = random_range(0..end2);
-                let len2 = end2 - offset2;
+                let end2 = off1 + random_range(1..len1 - 1);
+                let off2 = random_range(0..end2);
+                let len2 = end2 - off2;
 
                 assert!(
-                    segment1.overlaps_segment(offset2, len2),
-                    "segment {offset1}:{len1} must overlap {offset2}:{len2}"
+                    segment1.overlaps_segment(off2, len2),
+                    "segment {off1}:{len1} must overlap {off2}:{len2}"
                 )
             }
         }
@@ -398,31 +385,31 @@ mod tests {
     fn test_segment_overlaps_negative() {
         for _ in 0..SEGMENT_SAMPLING_COUNT {
             for _ in 0..ADDRESS_SAMPLING_COUNT {
-                let offset1 = random_range(0..0x0800_0000);
+                let off1 = random_range(0..0x0800_0000);
                 let len1 = random_range(1..0x0800_0000);
-                let segment1 = MemorySegment::new_zeroed(false, false, false, offset1, len1);
+                let segment1 = MemorySegment::new_zeroed(false, false, false, off1, len1);
 
-                let offset2 = offset1 + len1 + random_range(0..0x0800_0000);
+                let off2 = off1 + len1 + random_range(0..0x0800_0000);
                 let len2 = random_range(1..0x0800_0000);
 
                 assert!(
-                    !segment1.overlaps_segment(offset2, len2),
-                    "segment {offset1}:{len1} must not overlap {offset2}:{len2}"
+                    !segment1.overlaps_segment(off2, len2),
+                    "segment {off1}:{len1} must not overlap {off2}:{len2}"
                 )
             }
 
             for _ in 0..ADDRESS_SAMPLING_COUNT {
-                let offset1 = random_range(0..0x0800_0000);
+                let off1 = random_range(0..0x0800_0000);
                 let len1 = random_range(1..0x0800_0000);
-                let segment1 = MemorySegment::new_zeroed(false, false, false, offset1, len1);
+                let segment1 = MemorySegment::new_zeroed(false, false, false, off1, len1);
 
-                let end2 = random_range(0..offset1);
-                let offset2 = random_range(0..end2);
-                let len2 = end2 - offset2;
+                let end2 = random_range(0..off1);
+                let off2 = random_range(0..end2);
+                let len2 = end2 - off2;
 
                 assert!(
-                    !segment1.overlaps_segment(offset2, len2),
-                    "segment {offset1}:{len1} must not overlap {offset2}:{len2}"
+                    !segment1.overlaps_segment(off2, len2),
+                    "segment {off1}:{len1} must not overlap {off2}:{len2}"
                 )
             }
         }
@@ -447,13 +434,13 @@ mod tests {
             is_read: false,
             is_write: false,
             is_execute: true,
-            offset: 0,
+            off: 0,
             mem: segment_mem,
         })
         .unwrap();
 
         for (idx, target) in sample_instructions.into_iter().enumerate() {
-            let address = idx as RegisterVal * 4;
+            let address = idx as RegVal * 4;
             let instr = mem.fetch_instruction(address).unwrap();
 
             assert_eq!(target, instr);

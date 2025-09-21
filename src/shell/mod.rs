@@ -5,8 +5,8 @@ use elf::ElfBytes;
 use thiserror::Error;
 
 use crate::kernel::{
-    InstructionDecodeError, InstructionVal, KernelError, Memory, MemoryError, MemorySegment,
-    Program, RegisterVal,
+    InstrVal, InstructionDecodeError, KernelError, Memory, MemoryError, MemorySegment,
+    Program, RegVal,
 };
 
 #[derive(Debug, Error)]
@@ -54,8 +54,8 @@ pub enum ShellError {
 #[derive(Debug, Clone)]
 pub struct ProgramInfo {
     pub program: Program,
-    pub entry: RegisterVal,
-    pub load_address: RegisterVal,
+    pub entry: RegVal,
+    pub load_address: RegVal,
 }
 
 impl ProgramInfo {
@@ -72,7 +72,7 @@ impl ProgramInfo {
             is_read,
             is_write,
             is_execute: true,
-            offset: self.load_address,
+            off: self.load_address,
             mem: program_bytes,
         })
     }
@@ -107,9 +107,9 @@ pub fn load_program_from_elf(data: &[u8]) -> Result<ProgramInfo, ShellError> {
     let raw_stream = text
         .chunks(4)
         .map(|x| <[u8; 4]>::try_from(x).unwrap())
-        .map(InstructionVal::from_le_bytes);
-    let program =
-        Program::from_raw_instructions(raw_stream).map_err(ShellError::InstructionDecoderError)?;
+        .map(InstrVal::from_le_bytes);
+    let program = Program::from_raw_instructions(raw_stream)
+        .map_err(ShellError::InstructionDecoderError)?;
 
     Ok(ProgramInfo {
         program,
