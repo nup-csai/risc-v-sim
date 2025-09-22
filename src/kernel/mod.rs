@@ -154,54 +154,47 @@ pub enum KernelError {
 #[cfg(test)]
 mod tests {
     use crate::kernel::MemorySegment;
-    use crate::program;
     use crate::util::bit;
 
-    use super::{InstrVal, Instruction, Kernel, Program, RegVal};
+    use super::{InstrVal, Instruction, Kernel, Program, RegId, RegVal};
 
     const MEM_OFFSET: RegVal = 0x100;
     const MEM_LEN: RegVal = 0x1000;
 
+    const THE_BASIC_PROG: [Instruction; 4] = [
+        Instruction::Xor(RegId::RA, RegId::SP, RegId::T0),
+        Instruction::Add(RegId::RA, RegId::SP, RegId::T0),
+        Instruction::Sub(RegId::RA, RegId::SP, RegId::T0),
+        Instruction::Addi(RegId::RA, RegId::SP, bit(234)),
+    ];
+
     #[test]
     fn basic() {
-        let program = program![
-            xor RA, SP, T0;
-            add RA, SP, T0;
-            sub RA, SP, T0;
-            addi RA, SP, 234;
-        ];
+        let program = THE_BASIC_PROG;
         assert_trace(0, 0, program.into(), vec![0, 1, 2]);
     }
 
     #[test]
     fn basic_with_offset() {
-        let program = program![
-            xor RA, SP, T0;
-            add RA, SP, T0;
-            sub RA, SP, T0;
-            addi RA, SP, 234;
-        ];
+        let program = THE_BASIC_PROG;
         assert_trace(32, 32, program.into(), vec![0, 1, 2]);
     }
 
     #[test]
     fn basic_tricky_offset() {
-        let program = program![
-            xor RA, SP, T0;
-            add RA, SP, T0;
-            sub RA, SP, T0;
-            addi RA, SP, 234;
-        ];
+        let program = THE_BASIC_PROG;
         assert_trace(36, 32, program.into(), vec![1, 2, 3]);
     }
 
     #[test]
     fn basic_loop() {
-        let program = program![
-            xor RA, SP, T0;
-            add RA, SP, T0;
-            sub RA, SP, T0;
-            jal ZERO, 0xF_FFFA;
+        use Instruction::*;
+
+        let program = vec![
+            Xor(RegId::RA, RegId::SP, RegId::T0),
+            Add(RegId::RA, RegId::SP, RegId::T0),
+            Sub(RegId::RA, RegId::SP, RegId::T0),
+            Jal(RegId::ZERO, bit(0xF_FFFA)),
         ];
         #[rustfmt::skip]
         let expected_trace = vec![
@@ -209,7 +202,7 @@ mod tests {
             0, 1, 2, 3,
             0, 1, 2, 3,
         ];
-        assert_trace(0, 0, program.into(), expected_trace);
+        assert_trace(0, 0, program, expected_trace);
     }
 
     /// Test storing a message byte-by-byte.
@@ -260,16 +253,20 @@ mod tests {
     }
 
     fn byte_store((idx, val): (usize, &u8)) -> impl IntoIterator<Item = Instruction> {
-        program![
-            add T0, ZERO, ZERO;
-            addi T0, ZERO, {bit(*val as RegVal)};
-            sb ZERO, T0, {bit(MEM_OFFSET + idx as RegVal)};
+        use Instruction::*;
+
+        [
+            Add(RegId::T0, RegId::ZERO, RegId::ZERO),
+            Addi(RegId::T0, RegId::ZERO, bit(*val as RegVal)),
+            Sb(RegId::ZERO, RegId::T0, bit(MEM_OFFSET + idx as RegVal)),
         ]
     }
 
     fn word_store(
         (idx, val): (usize, &[u8; 4]),
     ) -> impl IntoIterator<Item = Instruction> {
+        use Instruction::*;
+
         let off = MEM_OFFSET + (4 * idx) as RegVal;
         let val = u32::from_le_bytes(*val);
         let lower_part = (val & 0x0000_0FFF) as RegVal;
@@ -281,10 +278,10 @@ mod tests {
             higher_part &= 0xF_FFFF;
         }
 
-        program![
-            lui T0, {bit(higher_part)};
-            addi T0, T0, {bit(lower_part)};
-            sw ZERO, T0, {bit(off)};
+        [
+            Lui(RegId::T0, bit(higher_part)),
+            Addi(RegId::T0, RegId::T0, bit(lower_part)),
+            Sw(RegId::ZERO, RegId::T0, bit(off)),
         ]
     }
 
