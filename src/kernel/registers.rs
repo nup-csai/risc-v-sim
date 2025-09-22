@@ -1,5 +1,8 @@
+use std::fmt;
+
 /// The type of the values the CPU works with.
 pub type RegVal = u64;
+pub type RegValSigned = i64;
 /// The type used to store CPU instructions.
 pub type InstrVal = u32;
 
@@ -127,6 +130,45 @@ impl RegId {
     pub const T6: RegId = Self::new(31).unwrap();
 }
 
+impl fmt::Display for RegId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            Self::ZERO => write!(f, "zero"),
+            Self::RA => write!(f, "ra"),
+            Self::SP => write!(f, "sp"),
+            Self::GP => write!(f, "gp"),
+            Self::TP => write!(f, "tp"),
+            Self::T0 => write!(f, "t0"),
+            Self::T1 => write!(f, "t1"),
+            Self::T2 => write!(f, "t2"),
+            Self::FP => write!(f, "fp"),
+            Self::A0 => write!(f, "a0"),
+            Self::A1 => write!(f, "a1"),
+            Self::A2 => write!(f, "a2"),
+            Self::A3 => write!(f, "a3"),
+            Self::A4 => write!(f, "a4"),
+            Self::A5 => write!(f, "a5"),
+            Self::A6 => write!(f, "a6"),
+            Self::A7 => write!(f, "a7"),
+            Self::S2 => write!(f, "s2"),
+            Self::S3 => write!(f, "s3"),
+            Self::S4 => write!(f, "s4"),
+            Self::S5 => write!(f, "s5"),
+            Self::S6 => write!(f, "s6"),
+            Self::S7 => write!(f, "s7"),
+            Self::S8 => write!(f, "s8"),
+            Self::S9 => write!(f, "s9"),
+            Self::S10 => write!(f, "s10"),
+            Self::S11 => write!(f, "s11"),
+            Self::T3 => write!(f, "t3"),
+            Self::T4 => write!(f, "t4"),
+            Self::T5 => write!(f, "t5"),
+            Self::T6 => write!(f, "t6"),
+            _ => write!(f, "N/A"),
+        }
+    }
+}
+
 impl Registers {
     /// Create a new `Processor` instance
     pub const fn new() -> Registers {
@@ -160,5 +202,15 @@ impl Registers {
 impl Default for Registers {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::kernel::{RegVal, RegValSigned};
+
+    #[test]
+    fn signed_unsigned_regval_same_size() {
+        assert_eq!(RegVal::BITS, RegValSigned::BITS);
     }
 }

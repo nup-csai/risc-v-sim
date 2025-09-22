@@ -1,18 +1,22 @@
 //! This module contains the type-safe internal representation
 //! of a RiscV instruction and other related types related to it.
 
-use std::ops::{Shl, Shr};
+use std::{
+    fmt,
+    ops::{Shl, Shr},
+};
 
 use thiserror::Error;
+
+use crate::kernel::RegValSigned;
 
 use super::{Memory, MemoryError, RegId, RegVal, Registers};
 
 /// Error returned by [Instruction::execute].
 #[derive(Clone, Copy, PartialEq, Eq, Error, Debug)]
 pub enum InstructionError {
-    #[error("Failed to execute instruction {instruction:?} at {instruction_address:#x}: {memory_error}")]
+    #[error("instruction `{instruction}`: {memory_error}")]
     MemoryError {
-        instruction_address: RegVal,
         instruction: Instruction,
         #[source]
         memory_error: MemoryError,
@@ -156,7 +160,7 @@ impl Instruction {
                 let rs1 = registers.get(rs1);
                 let address = rs1.wrapping_add(imm.get_sext());
                 let mut dst = [0u8; std::mem::size_of::<RegVal>()];
-                self.mem_read(memory, old_pc, address, &mut dst[0..1])?;
+                self.mem_read(memory, address, &mut dst[0..1])?;
                 registers.set(rd, sext_regval::<8>(RegVal::from_le_bytes(dst)));
                 Ok(())
             }
@@ -164,7 +168,7 @@ impl Instruction {
                 let rs1 = registers.get(rs1);
                 let address = rs1.wrapping_add(imm.get_sext());
                 let mut dst = [0u8; std::mem::size_of::<RegVal>()];
-                self.mem_read(memory, old_pc, address, &mut dst[0..2])?;
+                self.mem_read(memory, address, &mut dst[0..2])?;
                 registers.set(rd, sext_regval::<16>(RegVal::from_le_bytes(dst)));
                 Ok(())
             }
@@ -172,7 +176,7 @@ impl Instruction {
                 let rs1 = registers.get(rs1);
                 let address = rs1.wrapping_add(imm.get_sext());
                 let mut dst = [0u8; std::mem::size_of::<RegVal>()];
-                self.mem_read(memory, old_pc, address, &mut dst[0..4])?;
+                self.mem_read(memory, address, &mut dst[0..4])?;
                 // TODO: remove the sext when we migrate to RV32
                 registers.set(rd, sext_regval::<32>(RegVal::from_le_bytes(dst)));
                 Ok(())
@@ -181,7 +185,7 @@ impl Instruction {
                 let rs1 = registers.get(rs1);
                 let address = rs1.wrapping_add(imm.get_sext());
                 let mut dst = [0u8; std::mem::size_of::<RegVal>()];
-                self.mem_read(memory, old_pc, address, &mut dst[0..1])?;
+                self.mem_read(memory, address, &mut dst[0..1])?;
                 registers.set(rd, RegVal::from_le_bytes(dst));
                 Ok(())
             }
@@ -189,7 +193,7 @@ impl Instruction {
                 let rs1 = registers.get(rs1);
                 let address = rs1.wrapping_add(imm.get_sext());
                 let mut dst = [0u8; std::mem::size_of::<RegVal>()];
-                self.mem_read(memory, old_pc, address, &mut dst[0..2])?;
+                self.mem_read(memory, address, &mut dst[0..2])?;
                 registers.set(rd, RegVal::from_le_bytes(dst));
                 Ok(())
             }
@@ -198,7 +202,7 @@ impl Instruction {
                 let rs2 = registers.get(rs2);
                 let address = rs1.wrapping_add(imm.get_sext());
                 let src = rs2.to_le_bytes();
-                self.mem_write(memory, old_pc, address, &src[0..1])?;
+                self.mem_write(memory, address, &src[0..1])?;
                 Ok(())
             }
             Instruction::Sh(rs1, rs2, imm) => {
@@ -206,7 +210,7 @@ impl Instruction {
                 let rs2 = registers.get(rs2);
                 let address = rs1.wrapping_add(imm.get_sext());
                 let src = rs2.to_le_bytes();
-                self.mem_write(memory, old_pc, address, &src[0..2])?;
+                self.mem_write(memory, address, &src[0..2])?;
                 Ok(())
             }
             Instruction::Sw(rs1, rs2, imm) => {
@@ -214,7 +218,7 @@ impl Instruction {
                 let rs2 = registers.get(rs2);
                 let address = rs1.wrapping_add(imm.get_sext());
                 let src = rs2.to_le_bytes();
-                self.mem_write(memory, old_pc, address, &src[0..4])?;
+                self.mem_write(memory, address, &src[0..4])?;
                 Ok(())
             }
         }
@@ -223,7 +227,6 @@ impl Instruction {
     fn mem_read(
         self,
         memory: &Memory,
-        instruction_address: RegVal,
         address: RegVal,
         dst: &mut [u8],
     ) -> Result<(), InstructionError> {
@@ -231,7 +234,6 @@ impl Instruction {
             .read(address, dst)
             .map_err(|memory_error| InstructionError::MemoryError {
                 instruction: self,
-                instruction_address,
                 memory_error,
             })
     }
@@ -239,7 +241,6 @@ impl Instruction {
     fn mem_write(
         self,
         memory: &mut Memory,
-        instruction_address: RegVal,
         address: RegVal,
         src: &[u8],
     ) -> Result<(), InstructionError> {
@@ -247,9 +248,41 @@ impl Instruction {
             .write(address, src)
             .map_err(|memory_error| InstructionError::MemoryError {
                 instruction: self,
-                instruction_address,
                 memory_error,
             })
+    }
+}
+
+impl fmt::Display for Instruction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use Instruction::*;
+
+        match *self {
+            Jal(rd, imm) => write!(f, "jal {rd} {:#x}", imm.get_zext() << 1),
+            Add(rd, rs1, rs2) => write!(f, "add {rd} {rs1} {rs2}"),
+            Sub(rd, rs1, rs2) => write!(f, "sub {rd} {rs1} {rs2}"),
+            Xor(rd, rs1, rs2) => write!(f, "xor {rd} {rs1} {rs2}"),
+            Lui(rd, imm) => write!(f, "lui {rd} {:#x}", imm.get_zext()),
+            Auipc(rd, imm) => write!(f, "auipc {rd} {:#x}", imm.get_zext()),
+            Addi(rd, rs1, imm) => write!(f, "addi {rd} {rs1} {}", imm.get_signed()),
+            Slli(rd, rs1, imm) => write!(f, "slli {rd} {rs1} {}", imm.get_signed()),
+            Slti(rd, rs1, imm) => write!(f, "slti {rd} {rs1} {}", imm.get_signed()),
+            Sltiu(rd, rs1, imm) => write!(f, "sltiu {rd} {rs1} {}", imm.get_signed()),
+            Xori(rd, rs1, imm) => write!(f, "xori {rd} {rs1} {}", imm.get_signed()),
+            Srli(rd, rs1, imm) => write!(f, "srli {rd} {rs1} {}", imm.get_signed()),
+            Srai(rd, rs1, imm) => write!(f, "srai {rd} {rs1} {}", imm.get_signed()),
+            Ori(rd, rs1, imm) => write!(f, "ori {rd} {rs1} {}", imm.get_signed()),
+            Andi(rd, rs1, imm) => write!(f, "andi {rd} {rs1} {}", imm.get_signed()),
+            Jalr(rd, rs1, imm) => write!(f, "jalr {rd} {rs1} {}", imm.get_signed()),
+            Lb(rd, rs1, imm) => write!(f, "lb {rd} {rs1} {}", imm.get_signed()),
+            Lh(rd, rs1, imm) => write!(f, "lh {rd} {rs1} {}", imm.get_signed()),
+            Lw(rd, rs1, imm) => write!(f, "lw {rd} {rs1} {}", imm.get_signed()),
+            Lbu(rd, rs1, imm) => write!(f, "lbu {rd} {rs1} {}", imm.get_signed()),
+            Lhu(rd, rs1, imm) => write!(f, "lhu {rd} {rs1} {}", imm.get_signed()),
+            Sb(rs1, rs2, imm) => write!(f, "sb {rs2} {}({rs1})", imm.get_signed()),
+            Sh(rs1, rs2, imm) => write!(f, "sh {rs2} {}({rs1})", imm.get_signed()),
+            Sw(rs1, rs2, imm) => write!(f, "sw {rs2} {}({rs1})", imm.get_signed()),
+        }
     }
 }
 
@@ -259,9 +292,6 @@ fn sext_regval<const N: usize>(x: RegVal) -> RegVal {
 
 /// Does an arithmetic shift on a regval.
 fn shra_regval(x: RegVal, amount: RegVal) -> RegVal {
-    // Sanity check for making migration seemless.
-    // If this is true, it will be NOOP in release.
-    assert_eq!(i64::BITS, RegVal::BITS);
     // Converting between i64 and RegVal is just
     // a bit reinterpretation.
     // When doing a sihft to the left on a signed
@@ -271,9 +301,6 @@ fn shra_regval(x: RegVal, amount: RegVal) -> RegVal {
 
 /// Check if x < y, treating both as signed values.
 fn lts_regval(x: RegVal, y: RegVal) -> bool {
-    // Sanity check for making migration seemless.
-    // If this is true, it will be NOOP in release.
-    assert_eq!(i64::BITS, RegVal::BITS);
     (x as i64) < (y as i64)
 }
 
@@ -313,6 +340,10 @@ impl<const N: usize> Bit<N> {
             result |= Self::EXTENSION;
         }
         result
+    }
+
+    pub const fn get_signed(self) -> RegValSigned {
+        self.get_sext() as RegValSigned
     }
 }
 
