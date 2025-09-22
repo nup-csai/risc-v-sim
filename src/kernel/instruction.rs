@@ -1,18 +1,22 @@
 //! This module contains the type-safe internal representation
 //! of a RiscV instruction and other related types related to it.
 
-use std::ops::{Shl, Shr};
+use std::{
+    fmt,
+    ops::{Shl, Shr},
+};
 
 use thiserror::Error;
+
+use crate::kernel::RegValSigned;
 
 use super::{Memory, MemoryError, RegId, RegVal, Registers};
 
 /// Error returned by [Instruction::execute].
 #[derive(Clone, Copy, PartialEq, Eq, Error, Debug)]
 pub enum InstructionError {
-    #[error("Failed to execute instruction {instruction:?} at {instruction_address:#x}: {memory_error}")]
+    #[error("instruction `{instruction}`: {memory_error}")]
     MemoryError {
-        instruction_address: RegVal,
         instruction: Instruction,
         #[source]
         memory_error: MemoryError,
@@ -21,148 +25,41 @@ pub enum InstructionError {
 
 /// [Instruction] is a type-safe representation of a CPU
 /// instruction. That means, all valid values of this type
-/// are valid RiscV instructions. Each instruction behavior is documented.
+/// are valid RiscV instructions. The order of operands in
+/// the instructions is the same as in RiscV assembly.
 ///
-/// The pseudo-code slightly differs from the documentation. This
-/// is because we assume that the immediate value is always placed
-/// in the lowest bits of [RegisterVal]. Because of that, e.g.
-/// `lui` is documented to be offsetting `imm` by 12 bits.
+/// For instruction behaviour, please consult the RiscV
+/// documentation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum Instruction {
     /* J-Type instructions */
-    /// Jal instruction. Has the following semantics
-    /// ```pic
-    /// rd = PC + 4 // Overflow
-    /// PC += sext(imm << 1) // Overflow
-    /// ```
-    Jal { rd: RegId, imm: Bit<20> },
+    Jal(RegId, Bit<20>),
     /* R-Type instructions */
-    /// Add instruction. Has the following semantics
-    /// ```pic
-    /// rd = rs1 + rs2 // Overflow
-    /// ```
-    Add { rd: RegId, rs1: RegId, rs2: RegId },
-    /// Sub instruction. Has the following semantics
-    /// ```pic
-    /// rd = rs1 - rs2 // Overflow
-    /// ```
-    Sub { rd: RegId, rs1: RegId, rs2: RegId },
-    /// Xor instruction. Has the following semantics
-    /// ```pic
-    /// rd = rs1 ^ rs2
-    /// ```
-    Xor { rd: RegId, rs1: RegId, rs2: RegId },
+    Add(RegId, RegId, RegId),
+    Sub(RegId, RegId, RegId),
+    Xor(RegId, RegId, RegId),
     /* U-Type instructions */
-    /// Lui instruction. Has the following semantics
-    /// ```pic
-    /// rd = sext(imm << 12)
-    /// ```
-    Lui { rd: RegId, imm: Bit<20> },
-    /// Auipc instruction. Has the following semantics
-    /// ```pic
-    /// rd = PC + sext(imm << 12) // Overflow
-    /// ```
-    Auipc { rd: RegId, imm: Bit<20> },
+    Lui(RegId, Bit<20>),
+    Auipc(RegId, Bit<20>),
     /* I-Type instructions */
-    /// Addi instruction. Has the following semantics
-    /// ```pic
-    /// rd = rs1 + sext(imm) // Overflow
-    /// ```
-    Addi { rd: RegId, rs1: RegId, imm: Bit<12> },
-    /// Jalr instruction. Has the following semantics
-    /// ```pic
-    /// rd = PC + 4 // Overflow
-    /// PC = rs1 + sext(imm) // Overflow
-    /// ```
-    Slli { rd: RegId, rs1: RegId, imm: Bit<12> },
-    /// Jalr instruction. Has the following semantics
-    /// ```pic
-    /// rd = PC + 4 // Overflow
-    /// PC = rs1 + sext(imm) // Overflow
-    /// ```
-    Slti { rd: RegId, rs1: RegId, imm: Bit<12> },
-    /// Jalr instruction. Has the following semantics
-    /// ```pic
-    /// rd = PC + 4 // Overflow
-    /// PC = rs1 + sext(imm) // Overflow
-    /// ```
-    Sltiu { rd: RegId, rs1: RegId, imm: Bit<12> },
-    /// Xori instruction. Has the following semantics
-    /// ```pic
-    /// rd = rs1 ^ sext(rs2)
-    /// ```
-    Xori { rd: RegId, rs1: RegId, imm: Bit<12> },
-    /// Jalr instruction. Has the following semantics
-    /// ```pic
-    /// rd = PC + 4 // Overflow
-    /// PC = rs1 + sext(imm) // Overflow
-    /// ```
-    Srli { rd: RegId, rs1: RegId, imm: Bit<5> },
-    /// Jalr instruction. Has the following semantics
-    /// ```pic
-    /// rd = PC + 4 // Overflow
-    /// PC = rs1 + sext(imm) // Overflow
-    /// ```
-    Srai { rd: RegId, rs1: RegId, imm: Bit<5> },
-    /// Jalr instruction. Has the following semantics
-    /// ```pic
-    /// rd = PC + 4 // Overflow
-    /// PC = rs1 + sext(imm) // Overflow
-    /// ```
-    Ori { rd: RegId, rs1: RegId, imm: Bit<12> },
-    /// Jalr instruction. Has the following semantics
-    /// ```pic
-    /// rd = PC + 4 // Overflow
-    /// PC = rs1 + sext(imm) // Overflow
-    /// ```
-    Andi { rd: RegId, rs1: RegId, imm: Bit<12> },
-    /// Jalr instruction. Has the following semantics
-    /// ```pic
-    /// rd = PC + 4 // Overflow
-    /// PC = rs1 + sext(imm) // Overflow
-    /// ```
-    Jalr { rd: RegId, rs1: RegId, imm: Bit<12> },
-    /// Lb instruction. Has the following semantics
-    /// ```pic
-    /// rd = sext(Read(rs1 + sext(imm), 8))
-    /// ```
-    Lb { rd: RegId, rs1: RegId, imm: Bit<12> },
-    /// Lb instruction. Has the following semantics
-    /// ```pic
-    /// rd = sext(Read(rs1 + sext(imm), 16))
-    /// ```
-    Lh { rd: RegId, rs1: RegId, imm: Bit<12> },
-    /// Lb instruction. Has the following semantics
-    /// ```pic
-    /// rd = sext(Read(rs1 + sext(imm), 32))
-    /// ```
-    Lw { rd: RegId, rs1: RegId, imm: Bit<12> },
-    /// Lb instruction. Has the following semantics
-    /// ```pic
-    /// rd = sext(Read(rs1 + sext(imm), 8))
-    /// ```
-    Lbu { rd: RegId, rs1: RegId, imm: Bit<12> },
-    /// Lb instruction. Has the following semantics
-    /// ```pic
-    /// rd = sext(Read(rs1 + sext(imm), 16))
-    /// ```
-    Lhu { rd: RegId, rs1: RegId, imm: Bit<12> },
-    /* S-Type instructions */
-    /// Sw instruction. Has the followng semantics
-    /// ```pic
-    /// Write(rs1 + sext(imm), rs2[8:0])
-    /// ```
-    Sb { rs1: RegId, rs2: RegId, imm: Bit<12> },
-    /// Sh instruction. Has the followng semantics
-    /// ```pic
-    /// Write(rs1 + sext(imm)], rs2[16:0])
-    /// ```
-    Sh { rs1: RegId, rs2: RegId, imm: Bit<12> },
-    /// Sw instruction. Has the followng semantics
-    /// ```pic
-    /// Write(rs1 + sext(imm), rs2[31:0])
-    /// ```
-    Sw { rs1: RegId, rs2: RegId, imm: Bit<12> },
+    Addi(RegId, RegId, Bit<12>),
+    Slli(RegId, RegId, Bit<12>),
+    Slti(RegId, RegId, Bit<12>),
+    Sltiu(RegId, RegId, Bit<12>),
+    Xori(RegId, RegId, Bit<12>),
+    Srli(RegId, RegId, Bit<5>),
+    Srai(RegId, RegId, Bit<5>),
+    Ori(RegId, RegId, Bit<12>),
+    Andi(RegId, RegId, Bit<12>),
+    Jalr(RegId, RegId, Bit<12>),
+    Lb(RegId, RegId, Bit<12>),
+    Lh(RegId, RegId, Bit<12>),
+    Lw(RegId, RegId, Bit<12>),
+    Lbu(RegId, RegId, Bit<12>),
+    Lhu(RegId, RegId, Bit<12>),
+    Sb(RegId, RegId, Bit<12>),
+    Sh(RegId, RegId, Bit<12>),
+    Sw(RegId, RegId, Bit<12>),
 }
 
 impl Instruction {
@@ -173,155 +70,155 @@ impl Instruction {
         old_pc: RegVal,
     ) -> Result<(), InstructionError> {
         match self {
-            Instruction::Jal { rd, imm } => {
+            Instruction::Jal(rd, imm) => {
                 let new_pc = old_pc.wrapping_add(imm.get_sext() << 1);
                 registers.set(rd, old_pc + 4);
                 registers.pc = new_pc;
                 Ok(())
             }
-            Instruction::Add { rd, rs1, rs2 } => {
+            Instruction::Add(rd, rs1, rs2) => {
                 let rs1 = registers.get(rs1);
                 let rs2 = registers.get(rs2);
                 registers.set(rd, rs1.wrapping_add(rs2));
                 Ok(())
             }
-            Instruction::Sub { rd, rs1, rs2 } => {
+            Instruction::Sub(rd, rs1, rs2) => {
                 let rs1 = registers.get(rs1);
                 let rs2 = registers.get(rs2);
                 registers.set(rd, rs1.wrapping_sub(rs2));
                 Ok(())
             }
-            Instruction::Xor { rd, rs1, rs2 } => {
+            Instruction::Xor(rd, rs1, rs2) => {
                 let rs1 = registers.get(rs1);
                 let rs2 = registers.get(rs2);
                 registers.set(rd, rs1 ^ rs2);
                 Ok(())
             }
-            Instruction::Lui { rd, imm } => {
+            Instruction::Lui(rd, imm) => {
                 registers.set(rd, imm.get_sext() << 12);
                 Ok(())
             }
-            Instruction::Auipc { rd, imm } => {
+            Instruction::Auipc(rd, imm) => {
                 registers.set(rd, old_pc.wrapping_add(imm.get_sext() << 12));
                 Ok(())
             }
-            Instruction::Addi { rd, rs1, imm } => {
+            Instruction::Addi(rd, rs1, imm) => {
                 let rs1 = registers.get(rs1);
                 registers.set(rd, rs1.wrapping_add(imm.get_sext()));
                 Ok(())
             }
-            Instruction::Slli { rd, rs1, imm } => {
+            Instruction::Slli(rd, rs1, imm) => {
                 let rs1 = registers.get(rs1);
                 registers.set(rd, rs1.shl(imm.get_zext()));
                 Ok(())
             }
-            Instruction::Slti { rd, rs1, imm } => {
+            Instruction::Slti(rd, rs1, imm) => {
                 let rs1 = registers.get(rs1);
                 let new_rd = if lts_regval(rs1, imm.get_sext()) { 1 } else { 0 };
                 registers.set(rd, new_rd);
                 Ok(())
             }
-            Instruction::Sltiu { rd, rs1, imm } => {
+            Instruction::Sltiu(rd, rs1, imm) => {
                 let rs1 = registers.get(rs1);
                 let new_rd = if rs1 < imm.get_zext() { 1 } else { 0 };
                 registers.set(rd, new_rd);
                 Ok(())
             }
-            Instruction::Xori { rd, rs1, imm } => {
+            Instruction::Xori(rd, rs1, imm) => {
                 let rs1 = registers.get(rs1);
                 registers.set(rd, rs1 ^ imm.get_sext());
                 Ok(())
             }
-            Instruction::Srli { rd, rs1, imm } => {
+            Instruction::Srli(rd, rs1, imm) => {
                 let rs1 = registers.get(rs1);
                 registers.set(rd, rs1.shr(imm.get_zext()));
                 Ok(())
             }
-            Instruction::Srai { rd, rs1, imm } => {
+            Instruction::Srai(rd, rs1, imm) => {
                 let rs1 = registers.get(rs1);
                 registers.set(rd, shra_regval(rs1, imm.get_zext()));
                 Ok(())
             }
-            Instruction::Ori { rd, rs1, imm } => {
+            Instruction::Ori(rd, rs1, imm) => {
                 let rs1 = registers.get(rs1);
                 registers.set(rd, rs1 | imm.get_sext());
                 Ok(())
             }
-            Instruction::Andi { rd, rs1, imm } => {
+            Instruction::Andi(rd, rs1, imm) => {
                 let rs1 = registers.get(rs1);
                 registers.set(rd, rs1 & imm.get_sext());
                 Ok(())
             }
-            Instruction::Jalr { rd, rs1, imm } => {
+            Instruction::Jalr(rd, rs1, imm) => {
                 let rs1 = registers.get(rs1);
                 let new_pc = rs1.wrapping_add(imm.get_sext());
                 registers.set(rd, old_pc + 4);
                 registers.pc = new_pc;
                 Ok(())
             }
-            Instruction::Lb { rd, rs1, imm } => {
+            Instruction::Lb(rd, rs1, imm) => {
                 let rs1 = registers.get(rs1);
                 let address = rs1.wrapping_add(imm.get_sext());
                 let mut dst = [0u8; std::mem::size_of::<RegVal>()];
-                self.mem_read(memory, old_pc, address, &mut dst[0..1])?;
+                self.mem_read(memory, address, &mut dst[0..1])?;
                 registers.set(rd, sext_regval::<8>(RegVal::from_le_bytes(dst)));
                 Ok(())
             }
-            Instruction::Lh { rd, rs1, imm } => {
+            Instruction::Lh(rd, rs1, imm) => {
                 let rs1 = registers.get(rs1);
                 let address = rs1.wrapping_add(imm.get_sext());
                 let mut dst = [0u8; std::mem::size_of::<RegVal>()];
-                self.mem_read(memory, old_pc, address, &mut dst[0..2])?;
+                self.mem_read(memory, address, &mut dst[0..2])?;
                 registers.set(rd, sext_regval::<16>(RegVal::from_le_bytes(dst)));
                 Ok(())
             }
-            Instruction::Lw { rd, rs1, imm } => {
+            Instruction::Lw(rd, rs1, imm) => {
                 let rs1 = registers.get(rs1);
                 let address = rs1.wrapping_add(imm.get_sext());
                 let mut dst = [0u8; std::mem::size_of::<RegVal>()];
-                self.mem_read(memory, old_pc, address, &mut dst[0..4])?;
+                self.mem_read(memory, address, &mut dst[0..4])?;
                 // TODO: remove the sext when we migrate to RV32
                 registers.set(rd, sext_regval::<32>(RegVal::from_le_bytes(dst)));
                 Ok(())
             }
-            Instruction::Lbu { rd, rs1, imm } => {
+            Instruction::Lbu(rd, rs1, imm) => {
                 let rs1 = registers.get(rs1);
                 let address = rs1.wrapping_add(imm.get_sext());
                 let mut dst = [0u8; std::mem::size_of::<RegVal>()];
-                self.mem_read(memory, old_pc, address, &mut dst[0..1])?;
+                self.mem_read(memory, address, &mut dst[0..1])?;
                 registers.set(rd, RegVal::from_le_bytes(dst));
                 Ok(())
             }
-            Instruction::Lhu { rd, rs1, imm } => {
+            Instruction::Lhu(rd, rs1, imm) => {
                 let rs1 = registers.get(rs1);
                 let address = rs1.wrapping_add(imm.get_sext());
                 let mut dst = [0u8; std::mem::size_of::<RegVal>()];
-                self.mem_read(memory, old_pc, address, &mut dst[0..2])?;
+                self.mem_read(memory, address, &mut dst[0..2])?;
                 registers.set(rd, RegVal::from_le_bytes(dst));
                 Ok(())
             }
-            Instruction::Sb { rs1, rs2, imm } => {
+            Instruction::Sb(rs1, rs2, imm) => {
                 let rs1 = registers.get(rs1);
                 let rs2 = registers.get(rs2);
                 let address = rs1.wrapping_add(imm.get_sext());
                 let src = rs2.to_le_bytes();
-                self.mem_write(memory, old_pc, address, &src[0..1])?;
+                self.mem_write(memory, address, &src[0..1])?;
                 Ok(())
             }
-            Instruction::Sh { rs1, rs2, imm } => {
+            Instruction::Sh(rs1, rs2, imm) => {
                 let rs1 = registers.get(rs1);
                 let rs2 = registers.get(rs2);
                 let address = rs1.wrapping_add(imm.get_sext());
                 let src = rs2.to_le_bytes();
-                self.mem_write(memory, old_pc, address, &src[0..2])?;
+                self.mem_write(memory, address, &src[0..2])?;
                 Ok(())
             }
-            Instruction::Sw { rs1, rs2, imm } => {
+            Instruction::Sw(rs1, rs2, imm) => {
                 let rs1 = registers.get(rs1);
                 let rs2 = registers.get(rs2);
                 let address = rs1.wrapping_add(imm.get_sext());
                 let src = rs2.to_le_bytes();
-                self.mem_write(memory, old_pc, address, &src[0..4])?;
+                self.mem_write(memory, address, &src[0..4])?;
                 Ok(())
             }
         }
@@ -330,7 +227,6 @@ impl Instruction {
     fn mem_read(
         self,
         memory: &Memory,
-        instruction_address: RegVal,
         address: RegVal,
         dst: &mut [u8],
     ) -> Result<(), InstructionError> {
@@ -338,7 +234,6 @@ impl Instruction {
             .read(address, dst)
             .map_err(|memory_error| InstructionError::MemoryError {
                 instruction: self,
-                instruction_address,
                 memory_error,
             })
     }
@@ -346,7 +241,6 @@ impl Instruction {
     fn mem_write(
         self,
         memory: &mut Memory,
-        instruction_address: RegVal,
         address: RegVal,
         src: &[u8],
     ) -> Result<(), InstructionError> {
@@ -354,9 +248,41 @@ impl Instruction {
             .write(address, src)
             .map_err(|memory_error| InstructionError::MemoryError {
                 instruction: self,
-                instruction_address,
                 memory_error,
             })
+    }
+}
+
+impl fmt::Display for Instruction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use Instruction::*;
+
+        match *self {
+            Jal(rd, imm) => write!(f, "jal {rd} {:#x}", imm.get_zext() << 1),
+            Add(rd, rs1, rs2) => write!(f, "add {rd} {rs1} {rs2}"),
+            Sub(rd, rs1, rs2) => write!(f, "sub {rd} {rs1} {rs2}"),
+            Xor(rd, rs1, rs2) => write!(f, "xor {rd} {rs1} {rs2}"),
+            Lui(rd, imm) => write!(f, "lui {rd} {:#x}", imm.get_zext()),
+            Auipc(rd, imm) => write!(f, "auipc {rd} {:#x}", imm.get_zext()),
+            Addi(rd, rs1, imm) => write!(f, "addi {rd} {rs1} {}", imm.get_signed()),
+            Slli(rd, rs1, imm) => write!(f, "slli {rd} {rs1} {}", imm.get_signed()),
+            Slti(rd, rs1, imm) => write!(f, "slti {rd} {rs1} {}", imm.get_signed()),
+            Sltiu(rd, rs1, imm) => write!(f, "sltiu {rd} {rs1} {}", imm.get_signed()),
+            Xori(rd, rs1, imm) => write!(f, "xori {rd} {rs1} {}", imm.get_signed()),
+            Srli(rd, rs1, imm) => write!(f, "srli {rd} {rs1} {}", imm.get_signed()),
+            Srai(rd, rs1, imm) => write!(f, "srai {rd} {rs1} {}", imm.get_signed()),
+            Ori(rd, rs1, imm) => write!(f, "ori {rd} {rs1} {}", imm.get_signed()),
+            Andi(rd, rs1, imm) => write!(f, "andi {rd} {rs1} {}", imm.get_signed()),
+            Jalr(rd, rs1, imm) => write!(f, "jalr {rd} {rs1} {}", imm.get_signed()),
+            Lb(rd, rs1, imm) => write!(f, "lb {rd} {rs1} {}", imm.get_signed()),
+            Lh(rd, rs1, imm) => write!(f, "lh {rd} {rs1} {}", imm.get_signed()),
+            Lw(rd, rs1, imm) => write!(f, "lw {rd} {rs1} {}", imm.get_signed()),
+            Lbu(rd, rs1, imm) => write!(f, "lbu {rd} {rs1} {}", imm.get_signed()),
+            Lhu(rd, rs1, imm) => write!(f, "lhu {rd} {rs1} {}", imm.get_signed()),
+            Sb(rs1, rs2, imm) => write!(f, "sb {rs2} {}({rs1})", imm.get_signed()),
+            Sh(rs1, rs2, imm) => write!(f, "sh {rs2} {}({rs1})", imm.get_signed()),
+            Sw(rs1, rs2, imm) => write!(f, "sw {rs2} {}({rs1})", imm.get_signed()),
+        }
     }
 }
 
@@ -366,9 +292,6 @@ fn sext_regval<const N: usize>(x: RegVal) -> RegVal {
 
 /// Does an arithmetic shift on a regval.
 fn shra_regval(x: RegVal, amount: RegVal) -> RegVal {
-    // Sanity check for making migration seemless.
-    // If this is true, it will be NOOP in release.
-    assert_eq!(i64::BITS, RegVal::BITS);
     // Converting between i64 and RegVal is just
     // a bit reinterpretation.
     // When doing a sihft to the left on a signed
@@ -378,9 +301,6 @@ fn shra_regval(x: RegVal, amount: RegVal) -> RegVal {
 
 /// Check if x < y, treating both as signed values.
 fn lts_regval(x: RegVal, y: RegVal) -> bool {
-    // Sanity check for making migration seemless.
-    // If this is true, it will be NOOP in release.
-    assert_eq!(i64::BITS, RegVal::BITS);
     (x as i64) < (y as i64)
 }
 
@@ -421,106 +341,9 @@ impl<const N: usize> Bit<N> {
         }
         result
     }
-}
 
-/// Useful short-cut functions for constructing instructions.
-pub mod shortcodes {
-    use super::{Bit, Instruction, RegId};
-
-    pub const fn jal(rd: RegId, imm: Bit<20>) -> Instruction {
-        Instruction::Jal { rd, imm }
-    }
-
-    pub const fn add(rd: RegId, rs1: RegId, rs2: RegId) -> Instruction {
-        Instruction::Add { rd, rs1, rs2 }
-    }
-
-    pub const fn sub(rd: RegId, rs1: RegId, rs2: RegId) -> Instruction {
-        Instruction::Sub { rd, rs1, rs2 }
-    }
-
-    pub const fn xor(rd: RegId, rs1: RegId, rs2: RegId) -> Instruction {
-        Instruction::Xor { rd, rs1, rs2 }
-    }
-
-    pub const fn lui(rd: RegId, imm: Bit<20>) -> Instruction {
-        Instruction::Lui { rd, imm }
-    }
-
-    pub const fn auipc(rd: RegId, imm: Bit<20>) -> Instruction {
-        Instruction::Auipc { rd, imm }
-    }
-
-    pub const fn addi(rd: RegId, rs1: RegId, imm: Bit<12>) -> Instruction {
-        Instruction::Addi { rd, rs1, imm }
-    }
-
-    pub const fn slli(rd: RegId, rs1: RegId, imm: Bit<12>) -> Instruction {
-        Instruction::Slli { rd, rs1, imm }
-    }
-
-    pub const fn slti(rd: RegId, rs1: RegId, imm: Bit<12>) -> Instruction {
-        Instruction::Slti { rd, rs1, imm }
-    }
-
-    pub const fn sltiu(rd: RegId, rs1: RegId, imm: Bit<12>) -> Instruction {
-        Instruction::Sltiu { rd, rs1, imm }
-    }
-
-    pub const fn xori(rd: RegId, rs1: RegId, imm: Bit<12>) -> Instruction {
-        Instruction::Xori { rd, rs1, imm }
-    }
-
-    pub const fn srli(rd: RegId, rs1: RegId, imm: Bit<5>) -> Instruction {
-        Instruction::Srli { rd, rs1, imm }
-    }
-
-    pub const fn srai(rd: RegId, rs1: RegId, imm: Bit<5>) -> Instruction {
-        Instruction::Srai { rd, rs1, imm }
-    }
-
-    pub const fn ori(rd: RegId, rs1: RegId, imm: Bit<12>) -> Instruction {
-        Instruction::Ori { rd, rs1, imm }
-    }
-
-    pub const fn andi(rd: RegId, rs1: RegId, imm: Bit<12>) -> Instruction {
-        Instruction::Andi { rd, rs1, imm }
-    }
-
-    pub const fn jalr(rd: RegId, rs1: RegId, imm: Bit<12>) -> Instruction {
-        Instruction::Jalr { rd, rs1, imm }
-    }
-
-    pub const fn lb(rd: RegId, rs1: RegId, imm: Bit<12>) -> Instruction {
-        Instruction::Lb { rd, rs1, imm }
-    }
-
-    pub const fn lh(rd: RegId, rs1: RegId, imm: Bit<12>) -> Instruction {
-        Instruction::Lh { rd, rs1, imm }
-    }
-
-    pub const fn lw(rd: RegId, rs1: RegId, imm: Bit<12>) -> Instruction {
-        Instruction::Lw { rd, rs1, imm }
-    }
-
-    pub const fn lbu(rd: RegId, rs1: RegId, imm: Bit<12>) -> Instruction {
-        Instruction::Lbu { rd, rs1, imm }
-    }
-
-    pub const fn lhu(rd: RegId, rs1: RegId, imm: Bit<12>) -> Instruction {
-        Instruction::Lhu { rd, rs1, imm }
-    }
-
-    pub const fn sb(rs1: RegId, rs2: RegId, imm: Bit<12>) -> Instruction {
-        Instruction::Sb { rs1, rs2, imm }
-    }
-
-    pub const fn sh(rs1: RegId, rs2: RegId, imm: Bit<12>) -> Instruction {
-        Instruction::Sh { rs1, rs2, imm }
-    }
-
-    pub const fn sw(rs1: RegId, rs2: RegId, imm: Bit<12>) -> Instruction {
-        Instruction::Sw { rs1, rs2, imm }
+    pub const fn get_signed(self) -> RegValSigned {
+        self.get_sext() as RegValSigned
     }
 }
 

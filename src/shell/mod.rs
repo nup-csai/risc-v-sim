@@ -1,12 +1,16 @@
-use std::path::{Path, PathBuf};
+use std::{
+    io::Write,
+    path::{Path, PathBuf},
+};
 
 use elf::endian::AnyEndian;
 use elf::ElfBytes;
+use serde::Serialize;
 use thiserror::Error;
 
 use crate::kernel::{
-    InstrVal, InstructionDecodeError, KernelError, Memory, MemoryError, MemorySegment,
-    Program, RegVal,
+    InstrVal, InstructionDecodeError, Kernel, KernelError, KernelStep, Memory,
+    MemoryError, MemorySegment, Program, RegVal,
 };
 
 #[derive(Debug, Error)]
@@ -49,7 +53,22 @@ pub enum ShellError {
     },
     #[error("Kernel error: {0}")]
     KernelError(#[source] KernelError),
+    #[error("Failed to write run result: {cause}. Original result: {actual_result:?}")]
+    ResultReportError {
+        #[source]
+        cause: serde_json::Error,
+        actual_result: std::result::Result<(), Box<ShellError>>,
+    },
 }
+
+#[derive(Debug, Serialize)]
+pub struct RunResult {
+    steps: Vec<KernelStep>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    err: Option<String>,
+}
+
+type Result<T> = std::result::Result<T, ShellError>;
 
 #[derive(Debug, Clone)]
 pub struct ProgramInfo {
@@ -66,7 +85,7 @@ impl ProgramInfo {
         memory: &mut Memory,
         is_read: bool,
         is_write: bool,
-    ) -> Result<(), MemoryError> {
+    ) -> std::result::Result<(), MemoryError> {
         let program_bytes = self.program.into_bytes().into_iter().collect();
         memory.add_segment(MemorySegment {
             is_read,
@@ -78,12 +97,12 @@ impl ProgramInfo {
     }
 }
 
-pub fn load_program_from_file(path: impl AsRef<Path>) -> Result<ProgramInfo, ShellError> {
+pub fn load_program_from_file(path: impl AsRef<Path>) -> Result<ProgramInfo> {
     let file_data = std::fs::read(path).map_err(ShellError::Load)?;
     load_program_from_elf(&file_data)
 }
 
-pub fn load_program_from_elf(data: &[u8]) -> Result<ProgramInfo, ShellError> {
+pub fn load_program_from_elf(data: &[u8]) -> Result<ProgramInfo> {
     let file = ElfBytes::<AnyEndian>::minimal_parse(data).map_err(ShellError::ElfHead)?;
 
     if file.ehdr.endianness != AnyEndian::Little {
@@ -116,4 +135,40 @@ pub fn load_program_from_elf(data: &[u8]) -> Result<ProgramInfo, ShellError> {
         load_address: text_header.sh_addr,
         entry: file.ehdr.e_entry,
     })
+}
+
+pub fn run_kernel(
+    kernel: &mut Kernel,
+    step_count: usize,
+    out: &mut dyn Write,
+) -> Result<()> {
+    let mut err = None;
+    let mut steps = Vec::new();
+    for _ in 0..step_count {
+        match kernel.step() {
+            Ok(x) => steps.push(x),
+            Err(e) => {
+                err = Some(e);
+                break;
+            }
+        }
+    }
+
+    let result = match err {
+        Some(e) => Err(ShellError::KernelError(e)),
+        None => Ok(()),
+    };
+    let write_result = serde_json::to_writer(
+        out,
+        &RunResult { steps, err: err.as_ref().map(KernelError::to_string) },
+    );
+
+    if let Err(cause) = write_result {
+        return Err(ShellError::ResultReportError {
+            cause,
+            actual_result: result.map_err(Box::new),
+        });
+    }
+
+    result
 }

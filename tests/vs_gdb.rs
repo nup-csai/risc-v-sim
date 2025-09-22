@@ -30,7 +30,7 @@ fn test_vs_gdb() {
         ("jumps_hard.s", 8),
         ("calls.s", 10),
         ("basic_mem.s", 7),
-        ("all_mem.s", 19),
+        ("all_mem.s", 20),
         ("shifts.s", 21),
     ];
 

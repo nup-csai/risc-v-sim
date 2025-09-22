@@ -404,7 +404,7 @@ mod tests {
                 let segment1 = MemorySegment::new_zeroed(false, false, false, off1, len1);
 
                 let end2 = random_range(0..off1);
-                let off2 = random_range(0..end2);
+                let off2 = random_range(0..=end2);
                 let len2 = end2 - off2;
 
                 assert!(
