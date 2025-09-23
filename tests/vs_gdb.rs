@@ -33,6 +33,11 @@ fn test_vs_gdb() {
         ("all_mem.s", 20),
         ("shifts.s", 21),
         ("shifts_nonimm.s", 28),
+        ("fin_loops_1.s", 10),
+        ("fin_loops_2.s", 8),
+        ("fin_loops_3.s", 8),
+        ("fin_loops_4.s", 11),
+        ("fin_loops_5.s", 9),
     ];
 
     // Create a dir for placing the built elfs
