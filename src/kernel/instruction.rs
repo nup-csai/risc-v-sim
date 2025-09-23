@@ -57,6 +57,7 @@ pub enum Instruction {
     Lw(RegId, RegId, Bit<12>),
     Lbu(RegId, RegId, Bit<12>),
     Lhu(RegId, RegId, Bit<12>),
+    /* S-Type instructions */
     Sb(RegId, RegId, Bit<12>),
     Sh(RegId, RegId, Bit<12>),
     Sw(RegId, RegId, Bit<12>),
