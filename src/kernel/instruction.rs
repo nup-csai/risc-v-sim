@@ -43,14 +43,14 @@ pub enum Instruction {
     Auipc(RegId, Bit<20>),
     /* I-Type instructions */
     Addi(RegId, RegId, Bit<12>),
-    Slli(RegId, RegId, Bit<12>),
-    Slti(RegId, RegId, Bit<12>),
-    Sltiu(RegId, RegId, Bit<12>),
     Xori(RegId, RegId, Bit<12>),
-    Srli(RegId, RegId, Bit<5>),
-    Srai(RegId, RegId, Bit<5>),
     Ori(RegId, RegId, Bit<12>),
     Andi(RegId, RegId, Bit<12>),
+    Slli(RegId, RegId, Bit<12>),
+    Srli(RegId, RegId, Bit<5>),
+    Srai(RegId, RegId, Bit<5>),
+    Slti(RegId, RegId, Bit<12>),
+    Sltiu(RegId, RegId, Bit<12>),
     Jalr(RegId, RegId, Bit<12>),
     Lb(RegId, RegId, Bit<12>),
     Lh(RegId, RegId, Bit<12>),
@@ -108,26 +108,24 @@ impl Instruction {
                 registers.set(rd, rs1.wrapping_add(imm.get_sext()));
                 Ok(())
             }
-            Instruction::Slli(rd, rs1, imm) => {
-                let rs1 = registers.get(rs1);
-                registers.set(rd, rs1.shl(imm.get_zext()));
-                Ok(())
-            }
-            Instruction::Slti(rd, rs1, imm) => {
-                let rs1 = registers.get(rs1);
-                let new_rd = if lts_regval(rs1, imm.get_sext()) { 1 } else { 0 };
-                registers.set(rd, new_rd);
-                Ok(())
-            }
-            Instruction::Sltiu(rd, rs1, imm) => {
-                let rs1 = registers.get(rs1);
-                let new_rd = if rs1 < imm.get_zext() { 1 } else { 0 };
-                registers.set(rd, new_rd);
-                Ok(())
-            }
             Instruction::Xori(rd, rs1, imm) => {
                 let rs1 = registers.get(rs1);
                 registers.set(rd, rs1 ^ imm.get_sext());
+                Ok(())
+            }
+            Instruction::Ori(rd, rs1, imm) => {
+                let rs1 = registers.get(rs1);
+                registers.set(rd, rs1 | imm.get_sext());
+                Ok(())
+            }
+            Instruction::Andi(rd, rs1, imm) => {
+                let rs1 = registers.get(rs1);
+                registers.set(rd, rs1 & imm.get_sext());
+                Ok(())
+            }
+            Instruction::Slli(rd, rs1, imm) => {
+                let rs1 = registers.get(rs1);
+                registers.set(rd, rs1.shl(imm.get_zext()));
                 Ok(())
             }
             Instruction::Srli(rd, rs1, imm) => {
@@ -140,14 +138,16 @@ impl Instruction {
                 registers.set(rd, shra_regval(rs1, imm.get_zext()));
                 Ok(())
             }
-            Instruction::Ori(rd, rs1, imm) => {
+            Instruction::Slti(rd, rs1, imm) => {
                 let rs1 = registers.get(rs1);
-                registers.set(rd, rs1 | imm.get_sext());
+                let new_rd = if lts_regval(rs1, imm.get_sext()) { 1 } else { 0 };
+                registers.set(rd, new_rd);
                 Ok(())
             }
-            Instruction::Andi(rd, rs1, imm) => {
+            Instruction::Sltiu(rd, rs1, imm) => {
                 let rs1 = registers.get(rs1);
-                registers.set(rd, rs1 & imm.get_sext());
+                let new_rd = if rs1 < imm.get_zext() { 1 } else { 0 };
+                registers.set(rd, new_rd);
                 Ok(())
             }
             Instruction::Jalr(rd, rs1, imm) => {
@@ -266,14 +266,14 @@ impl fmt::Display for Instruction {
             Lui(rd, imm) => write!(f, "lui {rd} {:#x}", imm.get_zext()),
             Auipc(rd, imm) => write!(f, "auipc {rd} {:#x}", imm.get_zext()),
             Addi(rd, rs1, imm) => write!(f, "addi {rd} {rs1} {}", imm.get_signed()),
-            Slli(rd, rs1, imm) => write!(f, "slli {rd} {rs1} {}", imm.get_signed()),
-            Slti(rd, rs1, imm) => write!(f, "slti {rd} {rs1} {}", imm.get_signed()),
-            Sltiu(rd, rs1, imm) => write!(f, "sltiu {rd} {rs1} {}", imm.get_signed()),
             Xori(rd, rs1, imm) => write!(f, "xori {rd} {rs1} {}", imm.get_signed()),
-            Srli(rd, rs1, imm) => write!(f, "srli {rd} {rs1} {}", imm.get_signed()),
-            Srai(rd, rs1, imm) => write!(f, "srai {rd} {rs1} {}", imm.get_signed()),
             Ori(rd, rs1, imm) => write!(f, "ori {rd} {rs1} {}", imm.get_signed()),
             Andi(rd, rs1, imm) => write!(f, "andi {rd} {rs1} {}", imm.get_signed()),
+            Slli(rd, rs1, imm) => write!(f, "slli {rd} {rs1} {}", imm.get_signed()),
+            Srli(rd, rs1, imm) => write!(f, "srli {rd} {rs1} {}", imm.get_signed()),
+            Srai(rd, rs1, imm) => write!(f, "srai {rd} {rs1} {}", imm.get_signed()),
+            Slti(rd, rs1, imm) => write!(f, "slti {rd} {rs1} {}", imm.get_signed()),
+            Sltiu(rd, rs1, imm) => write!(f, "sltiu {rd} {rs1} {}", imm.get_signed()),
             Jalr(rd, rs1, imm) => write!(f, "jalr {rd} {rs1} {}", imm.get_signed()),
             Lb(rd, rs1, imm) => write!(f, "lb {rd} {rs1} {}", imm.get_signed()),
             Lh(rd, rs1, imm) => write!(f, "lh {rd} {rs1} {}", imm.get_signed()),

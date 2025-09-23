@@ -192,6 +192,13 @@ pub mod opcodes {
     /// Opcode of the following instructions:
     /// * [Instruction::Addi]
     /// * [Instruction::Xori]
+    /// * [Instruction::Ori]
+    /// * [Instruction::Andi]
+    /// * [Instruction::Slli]
+    /// * [Instruction::Srli]
+    /// * [Instruction::Srai]
+    /// * [Instruction::Slti]
+    /// * [Instruction::Sltiu]
     ///
     /// To figure out what instruction it is,
     /// you need to look at funct3.
@@ -255,10 +262,10 @@ pub mod op_imm {
     use super::InstrVal;
 
     pub const FUNCT3_ADDI: InstrVal = 0b000;
-    pub const FUNCT3_SLLI: InstrVal = 0b001;
-    pub const FUNCT3_SLTI: InstrVal = 0b010;
-    pub const FUNCT3_SLTIU: InstrVal = 0b011;
     pub const FUNCT3_XORI: InstrVal = 0b100;
+    pub const FUNCT3_ORI: InstrVal = 0b110;
+    pub const FUNCT3_ANDI: InstrVal = 0b111;
+    pub const FUNCT3_SLLI: InstrVal = 0b001;
     /// This funct3 represents two operations. SRLI and SRAI
     /// are special as their immediate value is actualy split
     /// into two values known as "shtyp" and "shamt".
@@ -266,18 +273,18 @@ pub mod op_imm {
     /// To figure out which one is it, consult values in
     /// [srli_srai_shtyp].
     pub const FUNCT3_SRLI_SRAI: InstrVal = 0b101;
-    pub const FUNCT3_ORI: InstrVal = 0b110;
-    pub const FUNCT3_ANDI: InstrVal = 0b111;
+    pub const FUNCT3_SLTI: InstrVal = 0b010;
+    pub const FUNCT3_SLTIU: InstrVal = 0b011;
 
     pub const ALL_FUNCT3: [InstrVal; 8] = [
         FUNCT3_ADDI,
+        FUNCT3_XORI,
+        FUNCT3_ANDI,
+        FUNCT3_ORI,
         FUNCT3_SLLI,
+        FUNCT3_SRLI_SRAI,
         FUNCT3_SLTI,
         FUNCT3_SLTIU,
-        FUNCT3_XORI,
-        FUNCT3_SRLI_SRAI,
-        FUNCT3_ORI,
-        FUNCT3_ANDI,
     ];
 }
 
@@ -375,13 +382,13 @@ const fn decode_op_imm(instruction: InstrVal) -> Result<Instruction> {
 
     let instruction = match funct3 {
         op_imm::FUNCT3_ADDI => Addi(rd, rs1, imm),
+        op_imm::FUNCT3_XORI => Xori(rd, rs1, imm),
+        op_imm::FUNCT3_ANDI => Andi(rd, rs1, imm),
+        op_imm::FUNCT3_ORI => Ori(rd, rs1, imm),
         op_imm::FUNCT3_SLLI => Slli(rd, rs1, imm),
+        op_imm::FUNCT3_SRLI_SRAI => c_try!(decode_srli_srai(instruction)),
         op_imm::FUNCT3_SLTI => Slti(rd, rs1, imm),
         op_imm::FUNCT3_SLTIU => Sltiu(rd, rs1, imm),
-        op_imm::FUNCT3_XORI => Xori(rd, rs1, imm),
-        op_imm::FUNCT3_SRLI_SRAI => c_try!(decode_srli_srai(instruction)),
-        op_imm::FUNCT3_ORI => Ori(rd, rs1, imm),
-        op_imm::FUNCT3_ANDI => Andi(rd, rs1, imm),
         funct3 => return Err(DecodeError::UnknownIAluOp { funct3 }),
     };
 
@@ -577,17 +584,17 @@ pub const fn encode_instruction(instruction: Instruction) -> InstrVal {
         Lui(rd, imm) => encode_u_instr(opcodes::LUI, rd, imm),
         Auipc(rd, imm) => encode_u_instr(opcodes::AUIPC, rd, imm),
         Addi(rd, rs1, imm) => encode_op_imm(rd, op_imm::FUNCT3_ADDI, rs1, imm),
+        Xori(rd, rs1, imm) => encode_op_imm(rd, op_imm::FUNCT3_XORI, rs1, imm),
+        Ori(rd, rs1, imm) => encode_op_imm(rd, op_imm::FUNCT3_ORI, rs1, imm),
+        Andi(rd, rs1, imm) => encode_op_imm(rd, op_imm::FUNCT3_ANDI, rs1, imm),
         Slli(rd, rs1, imm) => {
             encode_op_imm(rd, op_imm::FUNCT3_SLLI, rs1, bit(imm.get_zext()))
         }
-        Slti(rd, rs1, imm) => encode_op_imm(rd, op_imm::FUNCT3_SLTI, rs1, imm),
-        Sltiu(rd, rs1, imm) => encode_op_imm(rd, op_imm::FUNCT3_SLTIU, rs1, imm),
-        Xori(rd, rs1, imm) => encode_op_imm(rd, op_imm::FUNCT3_XORI, rs1, imm),
-        Jalr(rd, rs1, imm) => encode_jalr(rd, rs1, imm),
         Srli(rd, rs1, imm) => encode_shift(rd, rs1, imm, srli_srai_shtyp::SHTYP_SRLI),
         Srai(rd, rs1, imm) => encode_shift(rd, rs1, imm, srli_srai_shtyp::SHTYP_SRAI),
-        Ori(rd, rs1, imm) => encode_op_imm(rd, op_imm::FUNCT3_ORI, rs1, imm),
-        Andi(rd, rs1, imm) => encode_op_imm(rd, op_imm::FUNCT3_ANDI, rs1, imm),
+        Slti(rd, rs1, imm) => encode_op_imm(rd, op_imm::FUNCT3_SLTI, rs1, imm),
+        Sltiu(rd, rs1, imm) => encode_op_imm(rd, op_imm::FUNCT3_SLTIU, rs1, imm),
+        Jalr(rd, rs1, imm) => encode_jalr(rd, rs1, imm),
         Lb(rd, rs1, imm) => encode_load(rd, load::FUNCT3_LB, rs1, imm),
         Lh(rd, rs1, imm) => encode_load(rd, load::FUNCT3_LH, rs1, imm),
         Lw(rd, rs1, imm) => encode_load(rd, load::FUNCT3_LW, rs1, imm),
