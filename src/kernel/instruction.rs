@@ -68,6 +68,13 @@ pub enum Instruction {
     Sb(RegId, RegId, Bit<12>),
     Sh(RegId, RegId, Bit<12>),
     Sw(RegId, RegId, Bit<12>),
+    /* B-Type instructions */
+    Beq(RegId, RegId, Bit<12>),
+    Bne(RegId, RegId, Bit<12>),
+    Blt(RegId, RegId, Bit<12>),
+    Bge(RegId, RegId, Bit<12>),
+    Bltu(RegId, RegId, Bit<12>),
+    Bgeu(RegId, RegId, Bit<12>),
 }
 
 impl Instruction {
@@ -273,6 +280,54 @@ impl Instruction {
                 self.mem_write(memory, address, &src[0..4])?;
                 Ok(())
             }
+            Instruction::Beq(rs1, rs2, imm) => {
+                let rs1 = registers.get(rs1);
+                let rs2 = registers.get(rs2);
+                if rs1 == rs2 {
+                    registers.pc = old_pc.wrapping_add(imm.get_sext() << 1);
+                }
+                Ok(())
+            }
+            Instruction::Bne(rs1, rs2, imm) => {
+                let rs1 = registers.get(rs1);
+                let rs2 = registers.get(rs2);
+                if rs1 != rs2 {
+                    registers.pc = old_pc.wrapping_add(imm.get_sext() << 1);
+                }
+                Ok(())
+            }
+            Instruction::Blt(rs1, rs2, imm) => {
+                let rs1 = registers.get(rs1);
+                let rs2 = registers.get(rs2);
+                if lts_regval(rs1, rs2) {
+                    registers.pc = old_pc.wrapping_add(imm.get_sext() << 1);
+                }
+                Ok(())
+            }
+            Instruction::Bge(rs1, rs2, imm) => {
+                let rs1 = registers.get(rs1);
+                let rs2 = registers.get(rs2);
+                if ge_regval(rs1, rs2) {
+                    registers.pc = old_pc.wrapping_add(imm.get_sext() << 1);
+                }
+                Ok(())
+            }
+            Instruction::Bltu(rs1, rs2, imm) => {
+                let rs1 = registers.get(rs1);
+                let rs2 = registers.get(rs2);
+                if rs1 < rs2 {
+                    registers.pc = old_pc.wrapping_add(imm.get_sext() << 1);
+                }
+                Ok(())
+            }
+            Instruction::Bgeu(rs1, rs2, imm) => {
+                let rs1 = registers.get(rs1);
+                let rs2 = registers.get(rs2);
+                if rs1 >= rs2 {
+                    registers.pc = old_pc.wrapping_add(imm.get_sext() << 1);
+                }
+                Ok(())
+            }
         }
     }
 
@@ -341,6 +396,12 @@ impl fmt::Display for Instruction {
             Sb(rs1, rs2, imm) => write!(f, "sb {rs2} {}({rs1})", imm.get_signed()),
             Sh(rs1, rs2, imm) => write!(f, "sh {rs2} {}({rs1})", imm.get_signed()),
             Sw(rs1, rs2, imm) => write!(f, "sw {rs2} {}({rs1})", imm.get_signed()),
+            Beq(rs1, rs2, imm) => write!(f, "beq {rs1} {rs2} {}", imm.get_sext() << 1),
+            Bne(rs1, rs2, imm) => write!(f, "bne {rs1} {rs2} {}", imm.get_sext() << 1),
+            Blt(rs1, rs2, imm) => write!(f, "blt {rs1} {rs2} {}", imm.get_sext() << 1),
+            Bge(rs1, rs2, imm) => write!(f, "bge {rs1} {rs2} {}", imm.get_sext() << 1),
+            Bltu(rs1, rs2, imm) => write!(f, "bltu {rs1} {rs2} {}", imm.get_sext() << 1),
+            Bgeu(rs1, rs2, imm) => write!(f, "bgeu {rs1} {rs2} {}", imm.get_sext() << 1),
         }
     }
 }
@@ -361,6 +422,11 @@ fn shra_regval(x: RegVal, amount: RegVal) -> RegVal {
 /// Check if x < y, treating both as signed values.
 fn lts_regval(x: RegVal, y: RegVal) -> bool {
     (x as i64) < (y as i64)
+}
+
+/// Check if x >= y, treating both as signed values.
+fn ge_regval(x: RegVal, y: RegVal) -> bool {
+    (x as i64) >= (y as i64)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]

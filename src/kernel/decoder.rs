@@ -157,6 +157,8 @@ pub enum DecodeError {
     UnknownStoreOp { funct3: InstrVal },
     #[error("Unknown bitwise shift type: {shtyp:#x}")]
     UnknownShtyp { shtyp: InstrVal },
+    #[error("Unknown branch funct3 value: {funct3:#x}")]
+    UnknownBranch { funct3: InstrVal },
 }
 
 type Result<T> = std::result::Result<T, DecodeError>;
@@ -232,6 +234,19 @@ pub mod opcodes {
     /// To figure out what instruction it is,
     /// you need to look at funct3.
     pub const STORE: InstrVal = 0b0100011;
+
+    /* B-type instructions */
+    /// Opcode of the following instructions
+    /// * [Instruction::Beq]
+    /// * [Instruction::Bne]
+    /// * [Instruction::Blt]
+    /// * [Instruction::Bge]
+    /// * [Instruction::Bltu]
+    /// * [Instruction::Bgeu]
+    ///
+    /// To figure out what instruction it is,
+    /// you need to look at funct3.
+    pub const BRANCH: InstrVal = 0b1100011;
 
     pub const ALL_OPCODES: [InstrVal; 8] =
         [JAL, OP, LUI, AUIPC, OP_IMM, JALR, LOAD, STORE];
@@ -372,6 +387,20 @@ pub mod store {
     pub const ALL_FUNCT3: [InstrVal; 3] = [FUNCT3_SB, FUNCT3_SH, FUNCT3_SW];
 }
 
+/// [branch] contains `funct3` values
+/// for instructions with opcode [opcodes::BRANCH].
+/// For more information, see the comment above that constant.
+pub mod branch {
+    use super::InstrVal;
+
+    pub const FUNCT3_BEQ: InstrVal = 0b000;
+    pub const FUNCT3_BNE: InstrVal = 0b001;
+    pub const FUNCT3_BLT: InstrVal = 0b100;
+    pub const FUNCT3_BGE: InstrVal = 0b101;
+    pub const FUNCT3_BLTU: InstrVal = 0b110;
+    pub const FUNCT3_BGEU: InstrVal = 0b111;
+}
+
 const REGISTER_MASK: InstrVal = 0b11111;
 
 /// [offsets] contains all the bit offsets for parts of an
@@ -394,6 +423,10 @@ pub mod offsets {
     pub const J_TYPE_IMM_19: InstrVal = 31;
     pub const S_TYPE_IMM_0_4: InstrVal = 7;
     pub const S_TYPE_IMM_5_11: InstrVal = 25;
+    pub const B_TYPE_IMM_0_3: InstrVal = 8;
+    pub const B_TYPE_IMM_4_9: InstrVal = 25;
+    pub const B_TYPE_IMM_10: InstrVal = 7;
+    pub const B_TYPE_IMM_11: InstrVal = 31;
 }
 
 /// Decode a RiscV instruction.
@@ -409,6 +442,7 @@ pub const fn decode_instruction(code: InstrVal) -> Result<Instruction> {
         opcodes::JALR => Jalr(get_rd(code), get_rs1(code), get_i_imm(code)),
         opcodes::LOAD => c_try!(decode_load(code)),
         opcodes::STORE => c_try!(decode_store(code)),
+        opcodes::BRANCH => c_try!(decode_branch(code)),
         opcode => return Err(DecodeError::UnknownOpcode(opcode)),
     };
 
@@ -522,6 +556,28 @@ const fn decode_store(code: InstrVal) -> Result<Instruction> {
     Ok(instruction)
 }
 
+/// Decode an instruction with opcode [opcodes::BRANCH].
+const fn decode_branch(code: InstrVal) -> Result<Instruction> {
+    use Instruction::*;
+
+    let funct3 = get_funct3(code);
+    let rs1 = get_rs1(code);
+    let rs2 = get_rs2(code);
+    let imm = get_b_imm(code);
+
+    let instruction = match funct3 {
+        branch::FUNCT3_BEQ => Beq(rs1, rs2, imm),
+        branch::FUNCT3_BNE => Bne(rs1, rs2, imm),
+        branch::FUNCT3_BLT => Blt(rs1, rs2, imm),
+        branch::FUNCT3_BGE => Bge(rs1, rs2, imm),
+        branch::FUNCT3_BLTU => Bltu(rs1, rs2, imm),
+        branch::FUNCT3_BGEU => Bgeu(rs1, rs2, imm),
+        _ => return Err(DecodeError::UnknownBranch { funct3 }),
+    };
+
+    Ok(instruction)
+}
+
 /// Get the opcode field.
 /// This field is present in all instruction types.
 const fn get_opcode(code: InstrVal) -> InstrVal {
@@ -620,6 +676,15 @@ const fn get_s_imm(code: InstrVal) -> Bit<12> {
     Bit::new(raw as RegVal).unwrap()
 }
 
+const fn get_b_imm(code: InstrVal) -> Bit<12> {
+    let imm_0_3 = (code & 0x0000_0F00) >> offsets::B_TYPE_IMM_0_3;
+    let imm_4_9 = (code & 0x7E00_0000) >> offsets::B_TYPE_IMM_4_9;
+    let imm_10 = (code & 0x0000_0080) >> offsets::B_TYPE_IMM_10;
+    let imm_11 = (code & 0x8000_0000) >> offsets::B_TYPE_IMM_11;
+    let raw = imm_0_3 | (imm_4_9 << 4) | (imm_10 << 10) | (imm_11 << 11);
+    Bit::new(raw as RegVal).unwrap()
+}
+
 /// Encode an instruction back into its [InstrVal] representation.
 /// The returned value is guaranteed to be parseable back into [Instruction]
 /// and is also a valid RiscV instruction.
@@ -661,6 +726,12 @@ pub const fn encode_instruction(instruction: Instruction) -> InstrVal {
         Sb(rs1, rs2, imm) => encode_store(store::FUNCT3_SB, rs1, rs2, imm),
         Sh(rs1, rs2, imm) => encode_store(store::FUNCT3_SH, rs1, rs2, imm),
         Sw(rs1, rs2, imm) => encode_store(store::FUNCT3_SW, rs1, rs2, imm),
+        Beq(rs1, rs2, imm) => encode_branch(branch::FUNCT3_BEQ, rs1, rs2, imm),
+        Bne(rs1, rs2, imm) => encode_branch(branch::FUNCT3_BNE, rs1, rs2, imm),
+        Blt(rs1, rs2, imm) => encode_branch(branch::FUNCT3_BLT, rs1, rs2, imm),
+        Bge(rs1, rs2, imm) => encode_branch(branch::FUNCT3_BGE, rs1, rs2, imm),
+        Bltu(rs1, rs2, imm) => encode_branch(branch::FUNCT3_BLTU, rs1, rs2, imm),
+        Bgeu(rs1, rs2, imm) => encode_branch(branch::FUNCT3_BGEU, rs1, rs2, imm),
     }
 }
 
@@ -773,9 +844,33 @@ const fn encode_store(
     out
 }
 
+const fn encode_branch(
+    funct3: InstrVal,
+    rs1: RegId,
+    rs2: RegId,
+    imm: Bit<12>,
+) -> InstrVal {
+    let imm = imm.get_zext() as InstrVal;
+    let imm_0_3 = imm & 0x0000_000F;
+    let imm_4_9 = (imm & 0x0000_03F0) >> 4;
+    let imm_10 = (imm & 0x0000_0400) >> 10;
+    let imm_11 = (imm & 0x8000_0800) >> 11;
+
+    let mut out = 0;
+    out |= opcodes::BRANCH;
+    out |= imm_10 << offsets::B_TYPE_IMM_10;
+    out |= imm_0_3 << offsets::B_TYPE_IMM_0_3;
+    out |= funct3 << offsets::FUNCT3;
+    out |= rs1.get() << offsets::RS1;
+    out |= rs2.get() << offsets::RS2;
+    out |= imm_4_9 << offsets::B_TYPE_IMM_4_9;
+    out |= imm_11 << offsets::B_TYPE_IMM_11;
+    out
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::kernel::{decode_instruction, encode_instruction, InstrVal};
+    use crate::kernel::{decode_instruction, encode_instruction, InstrVal, RegId};
     use crate::util::{bit, reg_x};
 
     use super::DecodeError;
@@ -785,6 +880,14 @@ mod tests {
     struct ParseTest {
         input: InstrVal,
         expected: Result<Instruction, DecodeError>,
+    }
+
+    #[test]
+    fn lol() {
+        let instr = Instruction::Bge(RegId::A0, RegId::A1, bit(0xFFC));
+        let enc = encode_instruction(instr);
+        println!("{enc:#x}");
+        assert_eq!(decode_instruction(enc).unwrap(), instr);
     }
 
     #[test]
