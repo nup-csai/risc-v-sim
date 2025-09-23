@@ -176,6 +176,12 @@ pub mod opcodes {
     /// * [Instruction::Add]
     /// * [Instruction::Sub]
     /// * [Instruction::Xor]
+    /// * [Instruction::And]
+    /// * [Instruction::Sll]
+    /// * [Instruction::Srl]
+    /// * [Instruction::Sra]
+    /// * [Instruction::Slt]
+    /// * [Instruction::Sltu]
     ///
     /// To figure our what instruction it is,
     /// you need to look at funct3 and funct7.
@@ -249,8 +255,46 @@ pub mod op {
     pub const FUNCT3_XOR: InstrVal = 0b100;
     pub const FUNCT7_XOR: InstrVal = 0b0000000;
 
-    pub const ALL_FUNCT37: [(InstrVal, InstrVal); 3] =
-        [(FUNCT3_ADD, FUNCT7_ADD), (FUNCT3_SUB, FUNCT7_SUB), (FUNCT3_XOR, FUNCT7_XOR)];
+    /* Codes for OR */
+    pub const FUNCT3_OR: InstrVal = 0b110;
+    pub const FUNCT7_OR: InstrVal = 0b0000000;
+
+    /* Codes for AND */
+    pub const FUNCT3_AND: InstrVal = 0b111;
+    pub const FUNCT7_AND: InstrVal = 0b0000000;
+
+    /* Codes for SLL */
+    pub const FUNCT3_SLL: InstrVal = 0b001;
+    pub const FUNCT7_SLL: InstrVal = 0b0000000;
+
+    /* Codes for SRL */
+    pub const FUNCT3_SRL: InstrVal = 0b101;
+    pub const FUNCT7_SRL: InstrVal = 0b0000000;
+
+    /* Codes for SRA */
+    pub const FUNCT3_SRA: InstrVal = 0b101;
+    pub const FUNCT7_SRA: InstrVal = 0b0100000;
+
+    /* Codes for SLT */
+    pub const FUNCT3_SLT: InstrVal = 0b010;
+    pub const FUNCT7_SLT: InstrVal = 0b0000000;
+
+    /* Codes for SLTU */
+    pub const FUNCT3_SLTU: InstrVal = 0b011;
+    pub const FUNCT7_SLTU: InstrVal = 0b0000000;
+
+    pub const ALL_FUNCT37: [(InstrVal, InstrVal); 10] = [
+        (FUNCT3_ADD, FUNCT7_ADD),
+        (FUNCT3_SUB, FUNCT7_SUB),
+        (FUNCT3_XOR, FUNCT7_XOR),
+        (FUNCT3_OR, FUNCT7_OR),
+        (FUNCT3_AND, FUNCT7_AND),
+        (FUNCT3_SLL, FUNCT7_SLL),
+        (FUNCT3_SRL, FUNCT7_SRL),
+        (FUNCT3_SRA, FUNCT7_SRA),
+        (FUNCT3_SLT, FUNCT7_SLT),
+        (FUNCT3_SLTU, FUNCT7_SLTU),
+    ];
 }
 
 /// [op_imm] contains `funct3` values
@@ -425,6 +469,13 @@ const fn decode_op(instruction: InstrVal) -> Result<Instruction> {
         (op::FUNCT3_ADD, op::FUNCT7_ADD) => Add(rd, rs1, rs2),
         (op::FUNCT3_SUB, op::FUNCT7_SUB) => Sub(rd, rs1, rs2),
         (op::FUNCT3_XOR, op::FUNCT7_XOR) => Xor(rd, rs1, rs2),
+        (op::FUNCT3_OR, op::FUNCT7_OR) => Or(rd, rs1, rs2),
+        (op::FUNCT3_AND, op::FUNCT7_AND) => And(rd, rs1, rs2),
+        (op::FUNCT3_SLL, op::FUNCT7_SLL) => Sll(rd, rs1, rs2),
+        (op::FUNCT3_SRL, op::FUNCT7_SRL) => Srl(rd, rs1, rs2),
+        (op::FUNCT3_SRA, op::FUNCT7_SRA) => Sra(rd, rs1, rs2),
+        (op::FUNCT3_SLT, op::FUNCT7_SLT) => Slt(rd, rs1, rs2),
+        (op::FUNCT3_SLTU, op::FUNCT7_SLTU) => Sltu(rd, rs1, rs2),
         (funct3, funct7) => return Err(DecodeError::UnknownRAluOp { funct3, funct7 }),
     };
 
@@ -581,6 +632,13 @@ pub const fn encode_instruction(instruction: Instruction) -> InstrVal {
         Add(rd, rs1, rs2) => encode_op(rd, op::FUNCT3_ADD, rs1, rs2, op::FUNCT7_ADD),
         Sub(rd, rs1, rs2) => encode_op(rd, op::FUNCT3_SUB, rs1, rs2, op::FUNCT7_SUB),
         Xor(rd, rs1, rs2) => encode_op(rd, op::FUNCT3_XOR, rs1, rs2, op::FUNCT7_XOR),
+        Or(rd, rs1, rs2) => encode_op(rd, op::FUNCT3_OR, rs1, rs2, op::FUNCT7_OR),
+        And(rd, rs1, rs2) => encode_op(rd, op::FUNCT3_AND, rs1, rs2, op::FUNCT7_AND),
+        Sll(rd, rs1, rs2) => encode_op(rd, op::FUNCT3_SLL, rs1, rs2, op::FUNCT7_SLL),
+        Srl(rd, rs1, rs2) => encode_op(rd, op::FUNCT3_SRL, rs1, rs2, op::FUNCT7_SRL),
+        Sra(rd, rs1, rs2) => encode_op(rd, op::FUNCT3_SRA, rs1, rs2, op::FUNCT7_SRA),
+        Slt(rd, rs1, rs2) => encode_op(rd, op::FUNCT3_SLT, rs1, rs2, op::FUNCT7_SLT),
+        Sltu(rd, rs1, rs2) => encode_op(rd, op::FUNCT3_SLTU, rs1, rs2, op::FUNCT7_SLTU),
         Lui(rd, imm) => encode_u_instr(opcodes::LUI, rd, imm),
         Auipc(rd, imm) => encode_u_instr(opcodes::AUIPC, rd, imm),
         Addi(rd, rs1, imm) => encode_op_imm(rd, op_imm::FUNCT3_ADDI, rs1, imm),

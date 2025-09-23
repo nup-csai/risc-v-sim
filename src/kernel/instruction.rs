@@ -8,7 +8,7 @@ use std::{
 
 use thiserror::Error;
 
-use crate::kernel::RegValSigned;
+use crate::kernel::{RegValSigned, REGVAL_SIZE_MASK};
 
 use super::{Memory, MemoryError, RegId, RegVal, Registers};
 
@@ -38,6 +38,13 @@ pub enum Instruction {
     Add(RegId, RegId, RegId),
     Sub(RegId, RegId, RegId),
     Xor(RegId, RegId, RegId),
+    Or(RegId, RegId, RegId),
+    And(RegId, RegId, RegId),
+    Sll(RegId, RegId, RegId),
+    Srl(RegId, RegId, RegId),
+    Sra(RegId, RegId, RegId),
+    Slt(RegId, RegId, RegId),
+    Sltu(RegId, RegId, RegId),
     /* U-Type instructions */
     Lui(RegId, Bit<20>),
     Auipc(RegId, Bit<20>),
@@ -93,6 +100,50 @@ impl Instruction {
                 let rs1 = registers.get(rs1);
                 let rs2 = registers.get(rs2);
                 registers.set(rd, rs1 ^ rs2);
+                Ok(())
+            }
+            Instruction::Or(rd, rs1, rs2) => {
+                let rs1 = registers.get(rs1);
+                let rs2 = registers.get(rs2);
+                registers.set(rd, rs1 | rs2);
+                Ok(())
+            }
+            Instruction::And(rd, rs1, rs2) => {
+                let rs1 = registers.get(rs1);
+                let rs2 = registers.get(rs2);
+                registers.set(rd, rs1 & rs2);
+                Ok(())
+            }
+            Instruction::Sll(rd, rs1, rs2) => {
+                let rs1 = registers.get(rs1);
+                let rs2 = registers.get(rs2) & REGVAL_SIZE_MASK;
+                registers.set(rd, rs1 << rs2);
+                Ok(())
+            }
+            Instruction::Srl(rd, rs1, rs2) => {
+                let rs1 = registers.get(rs1);
+                let rs2 = registers.get(rs2) & REGVAL_SIZE_MASK;
+                registers.set(rd, rs1 >> rs2);
+                Ok(())
+            }
+            Instruction::Sra(rd, rs1, rs2) => {
+                let rs1 = registers.get(rs1);
+                let rs2 = registers.get(rs2) & REGVAL_SIZE_MASK;
+                registers.set(rd, shra_regval(rs1, rs2));
+                Ok(())
+            }
+            Instruction::Slt(rd, rs1, rs2) => {
+                let rs1 = registers.get(rs1);
+                let rs2 = registers.get(rs2);
+                let new_rd = if lts_regval(rs1, rs2) { 1 } else { 0 };
+                registers.set(rd, new_rd);
+                Ok(())
+            }
+            Instruction::Sltu(rd, rs1, rs2) => {
+                let rs1 = registers.get(rs1);
+                let rs2 = registers.get(rs2);
+                let new_rd = if rs1 < rs2 { 1 } else { 0 };
+                registers.set(rd, new_rd);
                 Ok(())
             }
             Instruction::Lui(rd, imm) => {
@@ -263,6 +314,13 @@ impl fmt::Display for Instruction {
             Add(rd, rs1, rs2) => write!(f, "add {rd} {rs1} {rs2}"),
             Sub(rd, rs1, rs2) => write!(f, "sub {rd} {rs1} {rs2}"),
             Xor(rd, rs1, rs2) => write!(f, "xor {rd} {rs1} {rs2}"),
+            Or(rd, rs1, rs2) => write!(f, "or {rd} {rs1} {rs2}"),
+            And(rd, rs1, rs2) => write!(f, "and {rd} {rs1} {rs2}"),
+            Sll(rd, rs1, rs2) => write!(f, "sll {rd} {rs1} {rs2}"),
+            Srl(rd, rs1, rs2) => write!(f, "srl {rd} {rs1} {rs2}"),
+            Sra(rd, rs1, rs2) => write!(f, "sra {rd} {rs1} {rs2}"),
+            Slt(rd, rs1, rs2) => write!(f, "slt {rd} {rs1} {rs2}"),
+            Sltu(rd, rs1, rs2) => write!(f, "sltu {rd} {rs1} {rs2}"),
             Lui(rd, imm) => write!(f, "lui {rd} {:#x}", imm.get_zext()),
             Auipc(rd, imm) => write!(f, "auipc {rd} {:#x}", imm.get_zext()),
             Addi(rd, rs1, imm) => write!(f, "addi {rd} {rs1} {}", imm.get_signed()),
