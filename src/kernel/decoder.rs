@@ -176,6 +176,12 @@ pub mod opcodes {
     /// * [Instruction::Add]
     /// * [Instruction::Sub]
     /// * [Instruction::Xor]
+    /// * [Instruction::And]
+    /// * [Instruction::Sll]
+    /// * [Instruction::Srl]
+    /// * [Instruction::Sra]
+    /// * [Instruction::Slt]
+    /// * [Instruction::Sltu]
     ///
     /// To figure our what instruction it is,
     /// you need to look at funct3 and funct7.
@@ -192,6 +198,13 @@ pub mod opcodes {
     /// Opcode of the following instructions:
     /// * [Instruction::Addi]
     /// * [Instruction::Xori]
+    /// * [Instruction::Ori]
+    /// * [Instruction::Andi]
+    /// * [Instruction::Slli]
+    /// * [Instruction::Srli]
+    /// * [Instruction::Srai]
+    /// * [Instruction::Slti]
+    /// * [Instruction::Sltiu]
     ///
     /// To figure out what instruction it is,
     /// you need to look at funct3.
@@ -242,8 +255,46 @@ pub mod op {
     pub const FUNCT3_XOR: InstrVal = 0b100;
     pub const FUNCT7_XOR: InstrVal = 0b0000000;
 
-    pub const ALL_FUNCT37: [(InstrVal, InstrVal); 3] =
-        [(FUNCT3_ADD, FUNCT7_ADD), (FUNCT3_SUB, FUNCT7_SUB), (FUNCT3_XOR, FUNCT7_XOR)];
+    /* Codes for OR */
+    pub const FUNCT3_OR: InstrVal = 0b110;
+    pub const FUNCT7_OR: InstrVal = 0b0000000;
+
+    /* Codes for AND */
+    pub const FUNCT3_AND: InstrVal = 0b111;
+    pub const FUNCT7_AND: InstrVal = 0b0000000;
+
+    /* Codes for SLL */
+    pub const FUNCT3_SLL: InstrVal = 0b001;
+    pub const FUNCT7_SLL: InstrVal = 0b0000000;
+
+    /* Codes for SRL */
+    pub const FUNCT3_SRL: InstrVal = 0b101;
+    pub const FUNCT7_SRL: InstrVal = 0b0000000;
+
+    /* Codes for SRA */
+    pub const FUNCT3_SRA: InstrVal = 0b101;
+    pub const FUNCT7_SRA: InstrVal = 0b0100000;
+
+    /* Codes for SLT */
+    pub const FUNCT3_SLT: InstrVal = 0b010;
+    pub const FUNCT7_SLT: InstrVal = 0b0000000;
+
+    /* Codes for SLTU */
+    pub const FUNCT3_SLTU: InstrVal = 0b011;
+    pub const FUNCT7_SLTU: InstrVal = 0b0000000;
+
+    pub const ALL_FUNCT37: [(InstrVal, InstrVal); 10] = [
+        (FUNCT3_ADD, FUNCT7_ADD),
+        (FUNCT3_SUB, FUNCT7_SUB),
+        (FUNCT3_XOR, FUNCT7_XOR),
+        (FUNCT3_OR, FUNCT7_OR),
+        (FUNCT3_AND, FUNCT7_AND),
+        (FUNCT3_SLL, FUNCT7_SLL),
+        (FUNCT3_SRL, FUNCT7_SRL),
+        (FUNCT3_SRA, FUNCT7_SRA),
+        (FUNCT3_SLT, FUNCT7_SLT),
+        (FUNCT3_SLTU, FUNCT7_SLTU),
+    ];
 }
 
 /// [op_imm] contains `funct3` values
@@ -255,10 +306,10 @@ pub mod op_imm {
     use super::InstrVal;
 
     pub const FUNCT3_ADDI: InstrVal = 0b000;
-    pub const FUNCT3_SLLI: InstrVal = 0b001;
-    pub const FUNCT3_SLTI: InstrVal = 0b010;
-    pub const FUNCT3_SLTIU: InstrVal = 0b011;
     pub const FUNCT3_XORI: InstrVal = 0b100;
+    pub const FUNCT3_ORI: InstrVal = 0b110;
+    pub const FUNCT3_ANDI: InstrVal = 0b111;
+    pub const FUNCT3_SLLI: InstrVal = 0b001;
     /// This funct3 represents two operations. SRLI and SRAI
     /// are special as their immediate value is actualy split
     /// into two values known as "shtyp" and "shamt".
@@ -266,18 +317,18 @@ pub mod op_imm {
     /// To figure out which one is it, consult values in
     /// [srli_srai_shtyp].
     pub const FUNCT3_SRLI_SRAI: InstrVal = 0b101;
-    pub const FUNCT3_ORI: InstrVal = 0b110;
-    pub const FUNCT3_ANDI: InstrVal = 0b111;
+    pub const FUNCT3_SLTI: InstrVal = 0b010;
+    pub const FUNCT3_SLTIU: InstrVal = 0b011;
 
     pub const ALL_FUNCT3: [InstrVal; 8] = [
         FUNCT3_ADDI,
+        FUNCT3_XORI,
+        FUNCT3_ANDI,
+        FUNCT3_ORI,
         FUNCT3_SLLI,
+        FUNCT3_SRLI_SRAI,
         FUNCT3_SLTI,
         FUNCT3_SLTIU,
-        FUNCT3_XORI,
-        FUNCT3_SRLI_SRAI,
-        FUNCT3_ORI,
-        FUNCT3_ANDI,
     ];
 }
 
@@ -375,13 +426,13 @@ const fn decode_op_imm(instruction: InstrVal) -> Result<Instruction> {
 
     let instruction = match funct3 {
         op_imm::FUNCT3_ADDI => Addi(rd, rs1, imm),
+        op_imm::FUNCT3_XORI => Xori(rd, rs1, imm),
+        op_imm::FUNCT3_ANDI => Andi(rd, rs1, imm),
+        op_imm::FUNCT3_ORI => Ori(rd, rs1, imm),
         op_imm::FUNCT3_SLLI => Slli(rd, rs1, imm),
+        op_imm::FUNCT3_SRLI_SRAI => c_try!(decode_srli_srai(instruction)),
         op_imm::FUNCT3_SLTI => Slti(rd, rs1, imm),
         op_imm::FUNCT3_SLTIU => Sltiu(rd, rs1, imm),
-        op_imm::FUNCT3_XORI => Xori(rd, rs1, imm),
-        op_imm::FUNCT3_SRLI_SRAI => c_try!(decode_srli_srai(instruction)),
-        op_imm::FUNCT3_ORI => Ori(rd, rs1, imm),
-        op_imm::FUNCT3_ANDI => Andi(rd, rs1, imm),
         funct3 => return Err(DecodeError::UnknownIAluOp { funct3 }),
     };
 
@@ -418,6 +469,13 @@ const fn decode_op(instruction: InstrVal) -> Result<Instruction> {
         (op::FUNCT3_ADD, op::FUNCT7_ADD) => Add(rd, rs1, rs2),
         (op::FUNCT3_SUB, op::FUNCT7_SUB) => Sub(rd, rs1, rs2),
         (op::FUNCT3_XOR, op::FUNCT7_XOR) => Xor(rd, rs1, rs2),
+        (op::FUNCT3_OR, op::FUNCT7_OR) => Or(rd, rs1, rs2),
+        (op::FUNCT3_AND, op::FUNCT7_AND) => And(rd, rs1, rs2),
+        (op::FUNCT3_SLL, op::FUNCT7_SLL) => Sll(rd, rs1, rs2),
+        (op::FUNCT3_SRL, op::FUNCT7_SRL) => Srl(rd, rs1, rs2),
+        (op::FUNCT3_SRA, op::FUNCT7_SRA) => Sra(rd, rs1, rs2),
+        (op::FUNCT3_SLT, op::FUNCT7_SLT) => Slt(rd, rs1, rs2),
+        (op::FUNCT3_SLTU, op::FUNCT7_SLTU) => Sltu(rd, rs1, rs2),
         (funct3, funct7) => return Err(DecodeError::UnknownRAluOp { funct3, funct7 }),
     };
 
@@ -574,20 +632,27 @@ pub const fn encode_instruction(instruction: Instruction) -> InstrVal {
         Add(rd, rs1, rs2) => encode_op(rd, op::FUNCT3_ADD, rs1, rs2, op::FUNCT7_ADD),
         Sub(rd, rs1, rs2) => encode_op(rd, op::FUNCT3_SUB, rs1, rs2, op::FUNCT7_SUB),
         Xor(rd, rs1, rs2) => encode_op(rd, op::FUNCT3_XOR, rs1, rs2, op::FUNCT7_XOR),
+        Or(rd, rs1, rs2) => encode_op(rd, op::FUNCT3_OR, rs1, rs2, op::FUNCT7_OR),
+        And(rd, rs1, rs2) => encode_op(rd, op::FUNCT3_AND, rs1, rs2, op::FUNCT7_AND),
+        Sll(rd, rs1, rs2) => encode_op(rd, op::FUNCT3_SLL, rs1, rs2, op::FUNCT7_SLL),
+        Srl(rd, rs1, rs2) => encode_op(rd, op::FUNCT3_SRL, rs1, rs2, op::FUNCT7_SRL),
+        Sra(rd, rs1, rs2) => encode_op(rd, op::FUNCT3_SRA, rs1, rs2, op::FUNCT7_SRA),
+        Slt(rd, rs1, rs2) => encode_op(rd, op::FUNCT3_SLT, rs1, rs2, op::FUNCT7_SLT),
+        Sltu(rd, rs1, rs2) => encode_op(rd, op::FUNCT3_SLTU, rs1, rs2, op::FUNCT7_SLTU),
         Lui(rd, imm) => encode_u_instr(opcodes::LUI, rd, imm),
         Auipc(rd, imm) => encode_u_instr(opcodes::AUIPC, rd, imm),
         Addi(rd, rs1, imm) => encode_op_imm(rd, op_imm::FUNCT3_ADDI, rs1, imm),
+        Xori(rd, rs1, imm) => encode_op_imm(rd, op_imm::FUNCT3_XORI, rs1, imm),
+        Ori(rd, rs1, imm) => encode_op_imm(rd, op_imm::FUNCT3_ORI, rs1, imm),
+        Andi(rd, rs1, imm) => encode_op_imm(rd, op_imm::FUNCT3_ANDI, rs1, imm),
         Slli(rd, rs1, imm) => {
             encode_op_imm(rd, op_imm::FUNCT3_SLLI, rs1, bit(imm.get_zext()))
         }
-        Slti(rd, rs1, imm) => encode_op_imm(rd, op_imm::FUNCT3_SLTI, rs1, imm),
-        Sltiu(rd, rs1, imm) => encode_op_imm(rd, op_imm::FUNCT3_SLTIU, rs1, imm),
-        Xori(rd, rs1, imm) => encode_op_imm(rd, op_imm::FUNCT3_XORI, rs1, imm),
-        Jalr(rd, rs1, imm) => encode_jalr(rd, rs1, imm),
         Srli(rd, rs1, imm) => encode_shift(rd, rs1, imm, srli_srai_shtyp::SHTYP_SRLI),
         Srai(rd, rs1, imm) => encode_shift(rd, rs1, imm, srli_srai_shtyp::SHTYP_SRAI),
-        Ori(rd, rs1, imm) => encode_op_imm(rd, op_imm::FUNCT3_ORI, rs1, imm),
-        Andi(rd, rs1, imm) => encode_op_imm(rd, op_imm::FUNCT3_ANDI, rs1, imm),
+        Slti(rd, rs1, imm) => encode_op_imm(rd, op_imm::FUNCT3_SLTI, rs1, imm),
+        Sltiu(rd, rs1, imm) => encode_op_imm(rd, op_imm::FUNCT3_SLTIU, rs1, imm),
+        Jalr(rd, rs1, imm) => encode_jalr(rd, rs1, imm),
         Lb(rd, rs1, imm) => encode_load(rd, load::FUNCT3_LB, rs1, imm),
         Lh(rd, rs1, imm) => encode_load(rd, load::FUNCT3_LH, rs1, imm),
         Lw(rd, rs1, imm) => encode_load(rd, load::FUNCT3_LW, rs1, imm),

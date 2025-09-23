@@ -6,6 +6,8 @@ pub type RegValSigned = i64;
 /// The type used to store CPU instructions.
 pub type InstrVal = u32;
 
+/// Masks the bits required to index bits of [RegVal].
+pub const REGVAL_SIZE_MASK: RegVal = 0b111111;
 pub const GENERAL_REGISTER_COUNT: usize = 32;
 
 /// The [Registers] struct contains all Rv64i registers.
@@ -207,10 +209,16 @@ impl Default for Registers {
 
 #[cfg(test)]
 mod tests {
-    use crate::kernel::{RegVal, RegValSigned};
+    use crate::kernel::{RegVal, RegValSigned, REGVAL_SIZE_MASK};
 
     #[test]
     fn signed_unsigned_regval_same_size() {
         assert_eq!(RegVal::BITS, RegValSigned::BITS);
+    }
+
+    #[test]
+    fn size_mask_correct() {
+        let regval_bits_log2 = REGVAL_SIZE_MASK.count_ones();
+        assert_eq!((2 as RegVal).pow(regval_bits_log2), RegVal::BITS as RegVal);
     }
 }

@@ -8,7 +8,7 @@ use std::{
 
 use thiserror::Error;
 
-use crate::kernel::RegValSigned;
+use crate::kernel::{RegValSigned, REGVAL_SIZE_MASK};
 
 use super::{Memory, MemoryError, RegId, RegVal, Registers};
 
@@ -38,25 +38,33 @@ pub enum Instruction {
     Add(RegId, RegId, RegId),
     Sub(RegId, RegId, RegId),
     Xor(RegId, RegId, RegId),
+    Or(RegId, RegId, RegId),
+    And(RegId, RegId, RegId),
+    Sll(RegId, RegId, RegId),
+    Srl(RegId, RegId, RegId),
+    Sra(RegId, RegId, RegId),
+    Slt(RegId, RegId, RegId),
+    Sltu(RegId, RegId, RegId),
     /* U-Type instructions */
     Lui(RegId, Bit<20>),
     Auipc(RegId, Bit<20>),
     /* I-Type instructions */
     Addi(RegId, RegId, Bit<12>),
-    Slli(RegId, RegId, Bit<12>),
-    Slti(RegId, RegId, Bit<12>),
-    Sltiu(RegId, RegId, Bit<12>),
     Xori(RegId, RegId, Bit<12>),
-    Srli(RegId, RegId, Bit<5>),
-    Srai(RegId, RegId, Bit<5>),
     Ori(RegId, RegId, Bit<12>),
     Andi(RegId, RegId, Bit<12>),
+    Slli(RegId, RegId, Bit<12>),
+    Srli(RegId, RegId, Bit<5>),
+    Srai(RegId, RegId, Bit<5>),
+    Slti(RegId, RegId, Bit<12>),
+    Sltiu(RegId, RegId, Bit<12>),
     Jalr(RegId, RegId, Bit<12>),
     Lb(RegId, RegId, Bit<12>),
     Lh(RegId, RegId, Bit<12>),
     Lw(RegId, RegId, Bit<12>),
     Lbu(RegId, RegId, Bit<12>),
     Lhu(RegId, RegId, Bit<12>),
+    /* S-Type instructions */
     Sb(RegId, RegId, Bit<12>),
     Sh(RegId, RegId, Bit<12>),
     Sw(RegId, RegId, Bit<12>),
@@ -94,6 +102,50 @@ impl Instruction {
                 registers.set(rd, rs1 ^ rs2);
                 Ok(())
             }
+            Instruction::Or(rd, rs1, rs2) => {
+                let rs1 = registers.get(rs1);
+                let rs2 = registers.get(rs2);
+                registers.set(rd, rs1 | rs2);
+                Ok(())
+            }
+            Instruction::And(rd, rs1, rs2) => {
+                let rs1 = registers.get(rs1);
+                let rs2 = registers.get(rs2);
+                registers.set(rd, rs1 & rs2);
+                Ok(())
+            }
+            Instruction::Sll(rd, rs1, rs2) => {
+                let rs1 = registers.get(rs1);
+                let rs2 = registers.get(rs2) & REGVAL_SIZE_MASK;
+                registers.set(rd, rs1 << rs2);
+                Ok(())
+            }
+            Instruction::Srl(rd, rs1, rs2) => {
+                let rs1 = registers.get(rs1);
+                let rs2 = registers.get(rs2) & REGVAL_SIZE_MASK;
+                registers.set(rd, rs1 >> rs2);
+                Ok(())
+            }
+            Instruction::Sra(rd, rs1, rs2) => {
+                let rs1 = registers.get(rs1);
+                let rs2 = registers.get(rs2) & REGVAL_SIZE_MASK;
+                registers.set(rd, shra_regval(rs1, rs2));
+                Ok(())
+            }
+            Instruction::Slt(rd, rs1, rs2) => {
+                let rs1 = registers.get(rs1);
+                let rs2 = registers.get(rs2);
+                let new_rd = if lts_regval(rs1, rs2) { 1 } else { 0 };
+                registers.set(rd, new_rd);
+                Ok(())
+            }
+            Instruction::Sltu(rd, rs1, rs2) => {
+                let rs1 = registers.get(rs1);
+                let rs2 = registers.get(rs2);
+                let new_rd = if rs1 < rs2 { 1 } else { 0 };
+                registers.set(rd, new_rd);
+                Ok(())
+            }
             Instruction::Lui(rd, imm) => {
                 registers.set(rd, imm.get_sext() << 12);
                 Ok(())
@@ -107,26 +159,24 @@ impl Instruction {
                 registers.set(rd, rs1.wrapping_add(imm.get_sext()));
                 Ok(())
             }
-            Instruction::Slli(rd, rs1, imm) => {
-                let rs1 = registers.get(rs1);
-                registers.set(rd, rs1.shl(imm.get_zext()));
-                Ok(())
-            }
-            Instruction::Slti(rd, rs1, imm) => {
-                let rs1 = registers.get(rs1);
-                let new_rd = if lts_regval(rs1, imm.get_sext()) { 1 } else { 0 };
-                registers.set(rd, new_rd);
-                Ok(())
-            }
-            Instruction::Sltiu(rd, rs1, imm) => {
-                let rs1 = registers.get(rs1);
-                let new_rd = if rs1 < imm.get_zext() { 1 } else { 0 };
-                registers.set(rd, new_rd);
-                Ok(())
-            }
             Instruction::Xori(rd, rs1, imm) => {
                 let rs1 = registers.get(rs1);
                 registers.set(rd, rs1 ^ imm.get_sext());
+                Ok(())
+            }
+            Instruction::Ori(rd, rs1, imm) => {
+                let rs1 = registers.get(rs1);
+                registers.set(rd, rs1 | imm.get_sext());
+                Ok(())
+            }
+            Instruction::Andi(rd, rs1, imm) => {
+                let rs1 = registers.get(rs1);
+                registers.set(rd, rs1 & imm.get_sext());
+                Ok(())
+            }
+            Instruction::Slli(rd, rs1, imm) => {
+                let rs1 = registers.get(rs1);
+                registers.set(rd, rs1.shl(imm.get_zext()));
                 Ok(())
             }
             Instruction::Srli(rd, rs1, imm) => {
@@ -139,14 +189,16 @@ impl Instruction {
                 registers.set(rd, shra_regval(rs1, imm.get_zext()));
                 Ok(())
             }
-            Instruction::Ori(rd, rs1, imm) => {
+            Instruction::Slti(rd, rs1, imm) => {
                 let rs1 = registers.get(rs1);
-                registers.set(rd, rs1 | imm.get_sext());
+                let new_rd = if lts_regval(rs1, imm.get_sext()) { 1 } else { 0 };
+                registers.set(rd, new_rd);
                 Ok(())
             }
-            Instruction::Andi(rd, rs1, imm) => {
+            Instruction::Sltiu(rd, rs1, imm) => {
                 let rs1 = registers.get(rs1);
-                registers.set(rd, rs1 & imm.get_sext());
+                let new_rd = if rs1 < imm.get_zext() { 1 } else { 0 };
+                registers.set(rd, new_rd);
                 Ok(())
             }
             Instruction::Jalr(rd, rs1, imm) => {
@@ -262,17 +314,24 @@ impl fmt::Display for Instruction {
             Add(rd, rs1, rs2) => write!(f, "add {rd} {rs1} {rs2}"),
             Sub(rd, rs1, rs2) => write!(f, "sub {rd} {rs1} {rs2}"),
             Xor(rd, rs1, rs2) => write!(f, "xor {rd} {rs1} {rs2}"),
+            Or(rd, rs1, rs2) => write!(f, "or {rd} {rs1} {rs2}"),
+            And(rd, rs1, rs2) => write!(f, "and {rd} {rs1} {rs2}"),
+            Sll(rd, rs1, rs2) => write!(f, "sll {rd} {rs1} {rs2}"),
+            Srl(rd, rs1, rs2) => write!(f, "srl {rd} {rs1} {rs2}"),
+            Sra(rd, rs1, rs2) => write!(f, "sra {rd} {rs1} {rs2}"),
+            Slt(rd, rs1, rs2) => write!(f, "slt {rd} {rs1} {rs2}"),
+            Sltu(rd, rs1, rs2) => write!(f, "sltu {rd} {rs1} {rs2}"),
             Lui(rd, imm) => write!(f, "lui {rd} {:#x}", imm.get_zext()),
             Auipc(rd, imm) => write!(f, "auipc {rd} {:#x}", imm.get_zext()),
             Addi(rd, rs1, imm) => write!(f, "addi {rd} {rs1} {}", imm.get_signed()),
-            Slli(rd, rs1, imm) => write!(f, "slli {rd} {rs1} {}", imm.get_signed()),
-            Slti(rd, rs1, imm) => write!(f, "slti {rd} {rs1} {}", imm.get_signed()),
-            Sltiu(rd, rs1, imm) => write!(f, "sltiu {rd} {rs1} {}", imm.get_signed()),
             Xori(rd, rs1, imm) => write!(f, "xori {rd} {rs1} {}", imm.get_signed()),
-            Srli(rd, rs1, imm) => write!(f, "srli {rd} {rs1} {}", imm.get_signed()),
-            Srai(rd, rs1, imm) => write!(f, "srai {rd} {rs1} {}", imm.get_signed()),
             Ori(rd, rs1, imm) => write!(f, "ori {rd} {rs1} {}", imm.get_signed()),
             Andi(rd, rs1, imm) => write!(f, "andi {rd} {rs1} {}", imm.get_signed()),
+            Slli(rd, rs1, imm) => write!(f, "slli {rd} {rs1} {}", imm.get_signed()),
+            Srli(rd, rs1, imm) => write!(f, "srli {rd} {rs1} {}", imm.get_signed()),
+            Srai(rd, rs1, imm) => write!(f, "srai {rd} {rs1} {}", imm.get_signed()),
+            Slti(rd, rs1, imm) => write!(f, "slti {rd} {rs1} {}", imm.get_signed()),
+            Sltiu(rd, rs1, imm) => write!(f, "sltiu {rd} {rs1} {}", imm.get_signed()),
             Jalr(rd, rs1, imm) => write!(f, "jalr {rd} {rs1} {}", imm.get_signed()),
             Lb(rd, rs1, imm) => write!(f, "lb {rd} {rs1} {}", imm.get_signed()),
             Lh(rd, rs1, imm) => write!(f, "lh {rd} {rs1} {}", imm.get_signed()),
