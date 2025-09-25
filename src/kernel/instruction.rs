@@ -412,21 +412,21 @@ fn sext_regval<const N: usize>(x: RegVal) -> RegVal {
 
 /// Does an arithmetic shift on a regval.
 fn shra_regval(x: RegVal, amount: RegVal) -> RegVal {
-    // Converting between i64 and RegVal is just
+    // Converting between RegValSigned and RegVal is just
     // a bit reinterpretation.
     // When doing a sihft to the left on a signed
     // integer, rust does an arithmetic shift.
-    ((x as i64) >> amount) as RegVal
+    ((x as RegValSigned) >> amount) as RegVal
 }
 
 /// Check if x < y, treating both as signed values.
 fn lts_regval(x: RegVal, y: RegVal) -> bool {
-    (x as i64) < (y as i64)
+    (x as RegValSigned) < (y as RegValSigned)
 }
 
 /// Check if x >= y, treating both as signed values.
 fn ge_regval(x: RegVal, y: RegVal) -> bool {
-    (x as i64) >= (y as i64)
+    (x as RegValSigned) >= (y as RegValSigned)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
