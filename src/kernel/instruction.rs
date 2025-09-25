@@ -86,9 +86,8 @@ impl Instruction {
     ) -> Result<(), InstructionError> {
         match self {
             Instruction::Jal(rd, imm) => {
-                let new_pc = old_pc.wrapping_add(imm.get_sext() << 1);
                 registers.set(rd, old_pc + 4);
-                registers.pc = new_pc;
+                registers.pc = old_pc.wrapping_add(imm.get_sext() << 1);
             }
             Instruction::Add(rd, rs1, rs2) => {
                 let rs1 = registers.get(rs1);
@@ -184,9 +183,8 @@ impl Instruction {
             }
             Instruction::Jalr(rd, rs1, imm) => {
                 let rs1 = registers.get(rs1);
-                let new_pc = rs1.wrapping_add(imm.get_sext());
                 registers.set(rd, old_pc + 4);
-                registers.pc = new_pc;
+                registers.pc = rs1.wrapping_add(imm.get_sext());
             }
             Instruction::Lb(rd, rs1, imm) => {
                 let rs1 = registers.get(rs1);
