@@ -218,66 +218,58 @@ impl Instruction {
             Instruction::Lb(rd, rs1, imm) => {
                 let rs1 = registers.get(rs1);
                 let address = rs1.wrapping_add(imm.get_sext());
-                let mut dst = [0u8; std::mem::size_of::<RegVal>()];
-                self.mem_read(memory, address, &mut dst[0..1])?;
-                registers.set(rd, sext_regval::<8>(RegVal::from_le_bytes(dst)));
+                let val = self.mem_read(memory, address, 1)?;
+                registers.set(rd, sext_regval::<8>(val));
                 Ok(())
             }
             Instruction::Lh(rd, rs1, imm) => {
                 let rs1 = registers.get(rs1);
                 let address = rs1.wrapping_add(imm.get_sext());
-                let mut dst = [0u8; std::mem::size_of::<RegVal>()];
-                self.mem_read(memory, address, &mut dst[0..2])?;
-                registers.set(rd, sext_regval::<16>(RegVal::from_le_bytes(dst)));
+                let val = self.mem_read(memory, address, 2)?;
+                registers.set(rd, sext_regval::<16>(val));
                 Ok(())
             }
             Instruction::Lw(rd, rs1, imm) => {
                 let rs1 = registers.get(rs1);
                 let address = rs1.wrapping_add(imm.get_sext());
-                let mut dst = [0u8; std::mem::size_of::<RegVal>()];
-                self.mem_read(memory, address, &mut dst[0..4])?;
+                let val = self.mem_read(memory, address, 4)?;
                 // TODO: remove the sext when we migrate to RV32
-                registers.set(rd, sext_regval::<32>(RegVal::from_le_bytes(dst)));
+                registers.set(rd, sext_regval::<32>(val));
                 Ok(())
             }
             Instruction::Lbu(rd, rs1, imm) => {
                 let rs1 = registers.get(rs1);
                 let address = rs1.wrapping_add(imm.get_sext());
-                let mut dst = [0u8; std::mem::size_of::<RegVal>()];
-                self.mem_read(memory, address, &mut dst[0..1])?;
-                registers.set(rd, RegVal::from_le_bytes(dst));
+                let val = self.mem_read(memory, address, 1)?;
+                registers.set(rd, val);
                 Ok(())
             }
             Instruction::Lhu(rd, rs1, imm) => {
                 let rs1 = registers.get(rs1);
                 let address = rs1.wrapping_add(imm.get_sext());
-                let mut dst = [0u8; std::mem::size_of::<RegVal>()];
-                self.mem_read(memory, address, &mut dst[0..2])?;
-                registers.set(rd, RegVal::from_le_bytes(dst));
+                let val = self.mem_read(memory, address, 2)?;
+                registers.set(rd, val);
                 Ok(())
             }
             Instruction::Sb(rs1, rs2, imm) => {
                 let rs1 = registers.get(rs1);
                 let rs2 = registers.get(rs2);
                 let address = rs1.wrapping_add(imm.get_sext());
-                let src = rs2.to_le_bytes();
-                self.mem_write(memory, address, &src[0..1])?;
+                self.mem_write(memory, address, rs2, 1)?;
                 Ok(())
             }
             Instruction::Sh(rs1, rs2, imm) => {
                 let rs1 = registers.get(rs1);
                 let rs2 = registers.get(rs2);
                 let address = rs1.wrapping_add(imm.get_sext());
-                let src = rs2.to_le_bytes();
-                self.mem_write(memory, address, &src[0..2])?;
+                self.mem_write(memory, address, rs2, 2)?;
                 Ok(())
             }
             Instruction::Sw(rs1, rs2, imm) => {
                 let rs1 = registers.get(rs1);
                 let rs2 = registers.get(rs2);
                 let address = rs1.wrapping_add(imm.get_sext());
-                let src = rs2.to_le_bytes();
-                self.mem_write(memory, address, &src[0..4])?;
+                self.mem_write(memory, address, rs2, 4)?;
                 Ok(())
             }
             Instruction::Beq(rs1, rs2, imm) => {
@@ -335,22 +327,26 @@ impl Instruction {
         self,
         memory: &Memory,
         address: RegVal,
-        dst: &mut [u8],
-    ) -> Result<(), InstructionError> {
+        sz: usize,
+    ) -> Result<RegVal, InstructionError> {
+        let mut dst = [0u8; std::mem::size_of::<RegVal>()];
         memory
-            .read(address, dst)
+            .read(address, &mut dst[0..sz])
             .map_err(|memory_error| InstructionError::MemoryError {
                 instruction: self,
                 memory_error,
-            })
+            })?;
+        Ok(RegVal::from_le_bytes(dst))
     }
 
     fn mem_write(
         self,
         memory: &mut Memory,
         address: RegVal,
-        src: &[u8],
+        val: RegVal,
+        sz: usize,
     ) -> Result<(), InstructionError> {
+        let src = &val.to_le_bytes()[0..sz];
         memory
             .write(address, src)
             .map_err(|memory_error| InstructionError::MemoryError {
