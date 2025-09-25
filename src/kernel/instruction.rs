@@ -142,15 +142,13 @@ impl Instruction {
             Instruction::Slt(rd, rs1, rs2) => {
                 let rs1 = registers.get(rs1);
                 let rs2 = registers.get(rs2);
-                let new_rd = if lts_regval(rs1, rs2) { 1 } else { 0 };
-                registers.set(rd, new_rd);
+                registers.set(rd, RegVal::from(lts_regval(rs1, rs2)));
                 Ok(())
             }
             Instruction::Sltu(rd, rs1, rs2) => {
                 let rs1 = registers.get(rs1);
                 let rs2 = registers.get(rs2);
-                let new_rd = if rs1 < rs2 { 1 } else { 0 };
-                registers.set(rd, new_rd);
+                registers.set(rd, RegVal::from(rs1 < rs2));
                 Ok(())
             }
             Instruction::Lui(rd, imm) => {
@@ -198,14 +196,12 @@ impl Instruction {
             }
             Instruction::Slti(rd, rs1, imm) => {
                 let rs1 = registers.get(rs1);
-                let new_rd = if lts_regval(rs1, imm.get_sext()) { 1 } else { 0 };
-                registers.set(rd, new_rd);
+                registers.set(rd, RegVal::from(lts_regval(rs1, imm.get_sext())));
                 Ok(())
             }
             Instruction::Sltiu(rd, rs1, imm) => {
                 let rs1 = registers.get(rs1);
-                let new_rd = if rs1 < imm.get_zext() { 1 } else { 0 };
-                registers.set(rd, new_rd);
+                registers.set(rd, RegVal::from(rs1 < imm.get_zext()));
                 Ok(())
             }
             Instruction::Jalr(rd, rs1, imm) => {
