@@ -123,20 +123,20 @@ impl Instruction {
             }
             Instruction::Sll(rd, rs1, rs2) => {
                 let rs1 = registers.get(rs1);
-                let rs2 = registers.get(rs2) & REGVAL_SIZE_MASK;
-                registers.set(rd, rs1 << rs2);
+                let rs2 = registers.get(rs2);
+                registers.set(rd, rs1 << (rs2 & REGVAL_SIZE_MASK));
                 Ok(())
             }
             Instruction::Srl(rd, rs1, rs2) => {
                 let rs1 = registers.get(rs1);
-                let rs2 = registers.get(rs2) & REGVAL_SIZE_MASK;
-                registers.set(rd, rs1 >> rs2);
+                let rs2 = registers.get(rs2);
+                registers.set(rd, rs1 >> (rs2 & REGVAL_SIZE_MASK));
                 Ok(())
             }
             Instruction::Sra(rd, rs1, rs2) => {
                 let rs1 = registers.get(rs1);
-                let rs2 = registers.get(rs2) & REGVAL_SIZE_MASK;
-                registers.set(rd, shra_regval(rs1, rs2));
+                let rs2 = registers.get(rs2);
+                registers.set(rd, shra_regval(rs1, rs2 & REGVAL_SIZE_MASK));
                 Ok(())
             }
             Instruction::Slt(rd, rs1, rs2) => {
