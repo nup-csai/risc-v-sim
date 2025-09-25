@@ -248,8 +248,7 @@ pub mod opcodes {
     /// you need to look at funct3.
     pub const BRANCH: InstrVal = 0b1100011;
 
-    pub const ALL_OPCODES: [InstrVal; 8] =
-        [JAL, OP, LUI, AUIPC, OP_IMM, JALR, LOAD, STORE];
+    pub const ALL_OPCODES: [InstrVal; 8] = [JAL, OP, LUI, AUIPC, OP_IMM, JALR, LOAD, STORE];
 }
 
 /// [op] contains `funct3` and `funct7` values
@@ -370,8 +369,7 @@ pub mod load {
     pub const FUNCT3_LBU: InstrVal = 0b100;
     pub const FUNCT3_LHU: InstrVal = 0b101;
 
-    pub const ALL_FUNCT3: [InstrVal; 5] =
-        [FUNCT3_LB, FUNCT3_LH, FUNCT3_LW, FUNCT3_LBU, FUNCT3_LHU];
+    pub const ALL_FUNCT3: [InstrVal; 5] = [FUNCT3_LB, FUNCT3_LH, FUNCT3_LW, FUNCT3_LBU, FUNCT3_LHU];
 }
 
 /// [store] contains `funct3` values
@@ -710,9 +708,7 @@ pub const fn encode_instruction(instruction: Instruction) -> InstrVal {
         Xori(rd, rs1, imm) => encode_op_imm(rd, op_imm::FUNCT3_XORI, rs1, imm),
         Ori(rd, rs1, imm) => encode_op_imm(rd, op_imm::FUNCT3_ORI, rs1, imm),
         Andi(rd, rs1, imm) => encode_op_imm(rd, op_imm::FUNCT3_ANDI, rs1, imm),
-        Slli(rd, rs1, imm) => {
-            encode_op_imm(rd, op_imm::FUNCT3_SLLI, rs1, bit(imm.get_zext()))
-        }
+        Slli(rd, rs1, imm) => encode_op_imm(rd, op_imm::FUNCT3_SLLI, rs1, bit(imm.get_zext())),
         Srli(rd, rs1, imm) => encode_shift(rd, rs1, imm, srli_srai_shtyp::SHTYP_SRLI),
         Srai(rd, rs1, imm) => encode_shift(rd, rs1, imm, srli_srai_shtyp::SHTYP_SRAI),
         Slti(rd, rs1, imm) => encode_op_imm(rd, op_imm::FUNCT3_SLTI, rs1, imm),
@@ -777,12 +773,7 @@ const fn encode_u_instr(opcode: InstrVal, rd: RegId, imm: Bit<20>) -> InstrVal {
     out
 }
 
-const fn encode_shift(
-    rd: RegId,
-    rs1: RegId,
-    amount: Bit<5>,
-    shtyp: InstrVal,
-) -> InstrVal {
+const fn encode_shift(rd: RegId, rs1: RegId, amount: Bit<5>, shtyp: InstrVal) -> InstrVal {
     let amount_local_off = offsets::I_TYPE_SHIFT_TYPE - offsets::I_TYPE_SHIFT_AMOUNT;
     let mut imm = 0;
     imm |= amount.get_zext();
@@ -790,12 +781,7 @@ const fn encode_shift(
     encode_op_imm(rd, op_imm::FUNCT3_SRLI_SRAI, rs1, Bit::new(imm).unwrap())
 }
 
-const fn encode_op_imm(
-    rd: RegId,
-    funct3: InstrVal,
-    rs1: RegId,
-    imm: Bit<12>,
-) -> InstrVal {
+const fn encode_op_imm(rd: RegId, funct3: InstrVal, rs1: RegId, imm: Bit<12>) -> InstrVal {
     let mut out = 0;
     out |= opcodes::OP_IMM;
     out |= rd.get() << offsets::RD;
@@ -824,12 +810,7 @@ const fn encode_load(rd: RegId, funct3: InstrVal, rs1: RegId, imm: Bit<12>) -> I
     out
 }
 
-const fn encode_store(
-    funct3: InstrVal,
-    rs1: RegId,
-    rs2: RegId,
-    imm: Bit<12>,
-) -> InstrVal {
+const fn encode_store(funct3: InstrVal, rs1: RegId, rs2: RegId, imm: Bit<12>) -> InstrVal {
     let imm = imm.get_zext() as InstrVal;
     let imm_0_4 = imm & 0x0000_001F;
     let imm_5_11 = (imm & 0x0000_0FE0) >> 5;
@@ -844,12 +825,7 @@ const fn encode_store(
     out
 }
 
-const fn encode_branch(
-    funct3: InstrVal,
-    rs1: RegId,
-    rs2: RegId,
-    imm: Bit<12>,
-) -> InstrVal {
+const fn encode_branch(funct3: InstrVal, rs1: RegId, rs2: RegId, imm: Bit<12>) -> InstrVal {
     let imm = imm.get_zext() as InstrVal;
     let imm_0_3 = imm & 0x0000_000F;
     let imm_4_9 = (imm & 0x0000_03F0) >> 4;

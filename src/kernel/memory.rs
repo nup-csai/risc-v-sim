@@ -14,9 +14,7 @@ pub enum MemoryError {
     AddressNotExecutable { address: RegVal },
     #[error("Expected {address:#x} to {expected_alignment}-aligned")]
     MisalignedAccess { address: RegVal, expected_alignment: usize },
-    #[error(
-        "Segment {off:#x}:{len:#x}) overlaps existing: {found_off:#x}:{found_len:#x}"
-    )]
+    #[error("Segment {off:#x}:{len:#x}) overlaps existing: {found_off:#x}:{found_len:#x}")]
     SegmentOverlap { found_off: RegVal, found_len: RegVal, off: RegVal, len: RegVal },
 }
 
@@ -192,11 +190,7 @@ impl Default for Memory {
 /// offsets local to a segment. The function does not do
 /// any validation, so you will have to make sure that
 /// the global offsets properly fit into the segment.
-fn to_segment_offs(
-    address: RegVal,
-    len: usize,
-    segment: &MemorySegment,
-) -> (usize, usize) {
+fn to_segment_offs(address: RegVal, len: usize, segment: &MemorySegment) -> (usize, usize) {
     let local_start = (address - segment.off) as usize;
     let local_end = local_start + len;
 

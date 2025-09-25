@@ -9,8 +9,8 @@ use serde::Serialize;
 use thiserror::Error;
 
 use crate::kernel::{
-    InstrVal, InstructionDecodeError, Kernel, KernelError, KernelStep, Memory,
-    MemoryError, MemorySegment, Program, RegVal,
+    InstrVal, InstructionDecodeError, Kernel, KernelError, KernelStep, Memory, MemoryError,
+    MemorySegment, Program, RegVal,
 };
 
 #[derive(Debug, Error)]
@@ -127,21 +127,13 @@ pub fn load_program_from_elf(data: &[u8]) -> Result<ProgramInfo> {
         .chunks(4)
         .map(|x| <[u8; 4]>::try_from(x).unwrap())
         .map(InstrVal::from_le_bytes);
-    let program = Program::from_raw_instructions(raw_stream)
-        .map_err(ShellError::InstructionDecoderError)?;
+    let program =
+        Program::from_raw_instructions(raw_stream).map_err(ShellError::InstructionDecoderError)?;
 
-    Ok(ProgramInfo {
-        program,
-        load_address: text_header.sh_addr,
-        entry: file.ehdr.e_entry,
-    })
+    Ok(ProgramInfo { program, load_address: text_header.sh_addr, entry: file.ehdr.e_entry })
 }
 
-pub fn run_kernel(
-    kernel: &mut Kernel,
-    step_count: usize,
-    out: &mut dyn Write,
-) -> Result<()> {
+pub fn run_kernel(kernel: &mut Kernel, step_count: usize, out: &mut dyn Write) -> Result<()> {
     let mut err = None;
     let mut steps = Vec::new();
     for _ in 0..step_count {

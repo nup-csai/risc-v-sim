@@ -15,13 +15,15 @@ use super::{Memory, MemoryError, RegId, RegVal, Registers};
 /// Error returned by [Instruction::execute].
 #[derive(Clone, Copy, PartialEq, Eq, Error, Debug)]
 pub enum InstructionError {
-    #[error("instruction `{instruction}`: {memory_error}")]
+    #[error("instruction `{instruction}`: {cause}")]
     MemoryError {
         instruction: Instruction,
         #[source]
-        memory_error: MemoryError,
+        cause: MemoryError,
     },
 }
+
+type Result<T> = std::result::Result<T, InstructionError>;
 
 /// [Instruction] is a type-safe representation of a CPU
 /// instruction. That means, all valid values of this type
@@ -78,203 +80,198 @@ pub enum Instruction {
 }
 
 impl Instruction {
-    pub fn execute(
-        self,
-        registers: &mut Registers,
-        memory: &mut Memory,
-        old_pc: RegVal,
-    ) -> Result<(), InstructionError> {
+    pub fn execute(self, regs: &mut Registers, mem: &mut Memory, old_pc: RegVal) -> Result<()> {
         match self {
             Instruction::Jal(rd, imm) => {
-                registers.set(rd, old_pc + 4);
-                registers.pc = old_pc.wrapping_add(imm.get_sext() << 1);
+                regs.set(rd, old_pc + 4);
+                regs.pc = old_pc.wrapping_add(imm.get_sext() << 1);
             }
             Instruction::Add(rd, rs1, rs2) => {
-                let rs1 = registers.get(rs1);
-                let rs2 = registers.get(rs2);
-                registers.set(rd, rs1.wrapping_add(rs2));
+                let rs1 = regs.get(rs1);
+                let rs2 = regs.get(rs2);
+                regs.set(rd, rs1.wrapping_add(rs2));
             }
             Instruction::Sub(rd, rs1, rs2) => {
-                let rs1 = registers.get(rs1);
-                let rs2 = registers.get(rs2);
-                registers.set(rd, rs1.wrapping_sub(rs2));
+                let rs1 = regs.get(rs1);
+                let rs2 = regs.get(rs2);
+                regs.set(rd, rs1.wrapping_sub(rs2));
             }
             Instruction::Xor(rd, rs1, rs2) => {
-                let rs1 = registers.get(rs1);
-                let rs2 = registers.get(rs2);
-                registers.set(rd, rs1 ^ rs2);
+                let rs1 = regs.get(rs1);
+                let rs2 = regs.get(rs2);
+                regs.set(rd, rs1 ^ rs2);
             }
             Instruction::Or(rd, rs1, rs2) => {
-                let rs1 = registers.get(rs1);
-                let rs2 = registers.get(rs2);
-                registers.set(rd, rs1 | rs2);
+                let rs1 = regs.get(rs1);
+                let rs2 = regs.get(rs2);
+                regs.set(rd, rs1 | rs2);
             }
             Instruction::And(rd, rs1, rs2) => {
-                let rs1 = registers.get(rs1);
-                let rs2 = registers.get(rs2);
-                registers.set(rd, rs1 & rs2);
+                let rs1 = regs.get(rs1);
+                let rs2 = regs.get(rs2);
+                regs.set(rd, rs1 & rs2);
             }
             Instruction::Sll(rd, rs1, rs2) => {
-                let rs1 = registers.get(rs1);
-                let rs2 = registers.get(rs2);
-                registers.set(rd, rs1 << (rs2 & REGVAL_SIZE_MASK));
+                let rs1 = regs.get(rs1);
+                let rs2 = regs.get(rs2);
+                regs.set(rd, rs1 << (rs2 & REGVAL_SIZE_MASK));
             }
             Instruction::Srl(rd, rs1, rs2) => {
-                let rs1 = registers.get(rs1);
-                let rs2 = registers.get(rs2);
-                registers.set(rd, rs1 >> (rs2 & REGVAL_SIZE_MASK));
+                let rs1 = regs.get(rs1);
+                let rs2 = regs.get(rs2);
+                regs.set(rd, rs1 >> (rs2 & REGVAL_SIZE_MASK));
             }
             Instruction::Sra(rd, rs1, rs2) => {
-                let rs1 = registers.get(rs1);
-                let rs2 = registers.get(rs2);
-                registers.set(rd, shra_regval(rs1, rs2 & REGVAL_SIZE_MASK));
+                let rs1 = regs.get(rs1);
+                let rs2 = regs.get(rs2);
+                regs.set(rd, shra_regval(rs1, rs2 & REGVAL_SIZE_MASK));
             }
             Instruction::Slt(rd, rs1, rs2) => {
-                let rs1 = registers.get(rs1);
-                let rs2 = registers.get(rs2);
-                registers.set(rd, RegVal::from(lts_regval(rs1, rs2)));
+                let rs1 = regs.get(rs1);
+                let rs2 = regs.get(rs2);
+                regs.set(rd, RegVal::from(lts_regval(rs1, rs2)));
             }
             Instruction::Sltu(rd, rs1, rs2) => {
-                let rs1 = registers.get(rs1);
-                let rs2 = registers.get(rs2);
-                registers.set(rd, RegVal::from(rs1 < rs2));
+                let rs1 = regs.get(rs1);
+                let rs2 = regs.get(rs2);
+                regs.set(rd, RegVal::from(rs1 < rs2));
             }
             Instruction::Lui(rd, imm) => {
-                registers.set(rd, imm.get_sext() << 12);
+                regs.set(rd, imm.get_sext() << 12);
             }
             Instruction::Auipc(rd, imm) => {
-                registers.set(rd, old_pc.wrapping_add(imm.get_sext() << 12));
+                regs.set(rd, old_pc.wrapping_add(imm.get_sext() << 12));
             }
             Instruction::Addi(rd, rs1, imm) => {
-                let rs1 = registers.get(rs1);
-                registers.set(rd, rs1.wrapping_add(imm.get_sext()));
+                let rs1 = regs.get(rs1);
+                regs.set(rd, rs1.wrapping_add(imm.get_sext()));
             }
             Instruction::Xori(rd, rs1, imm) => {
-                let rs1 = registers.get(rs1);
-                registers.set(rd, rs1 ^ imm.get_sext());
+                let rs1 = regs.get(rs1);
+                regs.set(rd, rs1 ^ imm.get_sext());
             }
             Instruction::Ori(rd, rs1, imm) => {
-                let rs1 = registers.get(rs1);
-                registers.set(rd, rs1 | imm.get_sext());
+                let rs1 = regs.get(rs1);
+                regs.set(rd, rs1 | imm.get_sext());
             }
             Instruction::Andi(rd, rs1, imm) => {
-                let rs1 = registers.get(rs1);
-                registers.set(rd, rs1 & imm.get_sext());
+                let rs1 = regs.get(rs1);
+                regs.set(rd, rs1 & imm.get_sext());
             }
             Instruction::Slli(rd, rs1, imm) => {
-                let rs1 = registers.get(rs1);
-                registers.set(rd, rs1.shl(imm.get_zext()));
+                let rs1 = regs.get(rs1);
+                regs.set(rd, rs1.shl(imm.get_zext()));
             }
             Instruction::Srli(rd, rs1, imm) => {
-                let rs1 = registers.get(rs1);
-                registers.set(rd, rs1.shr(imm.get_zext()));
+                let rs1 = regs.get(rs1);
+                regs.set(rd, rs1.shr(imm.get_zext()));
             }
             Instruction::Srai(rd, rs1, imm) => {
-                let rs1 = registers.get(rs1);
-                registers.set(rd, shra_regval(rs1, imm.get_zext()));
+                let rs1 = regs.get(rs1);
+                regs.set(rd, shra_regval(rs1, imm.get_zext()));
             }
             Instruction::Slti(rd, rs1, imm) => {
-                let rs1 = registers.get(rs1);
-                registers.set(rd, RegVal::from(lts_regval(rs1, imm.get_sext())));
+                let rs1 = regs.get(rs1);
+                regs.set(rd, RegVal::from(lts_regval(rs1, imm.get_sext())));
             }
             Instruction::Sltiu(rd, rs1, imm) => {
-                let rs1 = registers.get(rs1);
-                registers.set(rd, RegVal::from(rs1 < imm.get_zext()));
+                let rs1 = regs.get(rs1);
+                regs.set(rd, RegVal::from(rs1 < imm.get_zext()));
             }
             Instruction::Jalr(rd, rs1, imm) => {
-                let rs1 = registers.get(rs1);
-                registers.set(rd, old_pc + 4);
-                registers.pc = rs1.wrapping_add(imm.get_sext());
+                let rs1 = regs.get(rs1);
+                regs.set(rd, old_pc + 4);
+                regs.pc = rs1.wrapping_add(imm.get_sext());
             }
             Instruction::Lb(rd, rs1, imm) => {
-                let rs1 = registers.get(rs1);
+                let rs1 = regs.get(rs1);
                 let address = rs1.wrapping_add(imm.get_sext());
-                let val = self.mem_read(memory, address, 1)?;
-                registers.set(rd, sext_regval::<8>(val));
+                let val = self.load(mem, address, 1)?;
+                regs.set(rd, sext_regval::<8>(val));
             }
             Instruction::Lh(rd, rs1, imm) => {
-                let rs1 = registers.get(rs1);
-                let address = rs1.wrapping_add(imm.get_sext());
-                let val = self.mem_read(memory, address, 2)?;
-                registers.set(rd, sext_regval::<16>(val));
+                let rs1 = regs.get(rs1);
+                let addr = rs1.wrapping_add(imm.get_sext());
+                let val = self.load(mem, addr, 2)?;
+                regs.set(rd, sext_regval::<16>(val));
             }
             Instruction::Lw(rd, rs1, imm) => {
-                let rs1 = registers.get(rs1);
-                let address = rs1.wrapping_add(imm.get_sext());
-                let val = self.mem_read(memory, address, 4)?;
+                let rs1 = regs.get(rs1);
+                let addr = rs1.wrapping_add(imm.get_sext());
+                let val = self.load(mem, addr, 4)?;
                 // TODO: remove the sext when we migrate to RV32
-                registers.set(rd, sext_regval::<32>(val));
+                regs.set(rd, sext_regval::<32>(val));
             }
             Instruction::Lbu(rd, rs1, imm) => {
-                let rs1 = registers.get(rs1);
-                let address = rs1.wrapping_add(imm.get_sext());
-                let val = self.mem_read(memory, address, 1)?;
-                registers.set(rd, val);
+                let rs1 = regs.get(rs1);
+                let addr = rs1.wrapping_add(imm.get_sext());
+                let val = self.load(mem, addr, 1)?;
+                regs.set(rd, val);
             }
             Instruction::Lhu(rd, rs1, imm) => {
-                let rs1 = registers.get(rs1);
-                let address = rs1.wrapping_add(imm.get_sext());
-                let val = self.mem_read(memory, address, 2)?;
-                registers.set(rd, val);
+                let rs1 = regs.get(rs1);
+                let addr = rs1.wrapping_add(imm.get_sext());
+                let val = self.load(mem, addr, 2)?;
+                regs.set(rd, val);
             }
             Instruction::Sb(rs1, rs2, imm) => {
-                let rs1 = registers.get(rs1);
-                let rs2 = registers.get(rs2);
-                let address = rs1.wrapping_add(imm.get_sext());
-                self.mem_write(memory, address, rs2, 1)?;
+                let rs1 = regs.get(rs1);
+                let rs2 = regs.get(rs2);
+                let addr = rs1.wrapping_add(imm.get_sext());
+                self.store(mem, addr, rs2, 1)?;
             }
             Instruction::Sh(rs1, rs2, imm) => {
-                let rs1 = registers.get(rs1);
-                let rs2 = registers.get(rs2);
-                let address = rs1.wrapping_add(imm.get_sext());
-                self.mem_write(memory, address, rs2, 2)?;
+                let rs1 = regs.get(rs1);
+                let rs2 = regs.get(rs2);
+                let addr = rs1.wrapping_add(imm.get_sext());
+                self.store(mem, addr, rs2, 2)?;
             }
             Instruction::Sw(rs1, rs2, imm) => {
-                let rs1 = registers.get(rs1);
-                let rs2 = registers.get(rs2);
-                let address = rs1.wrapping_add(imm.get_sext());
-                self.mem_write(memory, address, rs2, 4)?;
+                let rs1 = regs.get(rs1);
+                let rs2 = regs.get(rs2);
+                let addr = rs1.wrapping_add(imm.get_sext());
+                self.store(mem, addr, rs2, 4)?;
             }
             Instruction::Beq(rs1, rs2, imm) => {
-                let rs1 = registers.get(rs1);
-                let rs2 = registers.get(rs2);
+                let rs1 = regs.get(rs1);
+                let rs2 = regs.get(rs2);
                 if rs1 == rs2 {
-                    registers.pc = old_pc.wrapping_add(imm.get_sext() << 1);
+                    regs.pc = old_pc.wrapping_add(imm.get_sext() << 1);
                 }
             }
             Instruction::Bne(rs1, rs2, imm) => {
-                let rs1 = registers.get(rs1);
-                let rs2 = registers.get(rs2);
+                let rs1 = regs.get(rs1);
+                let rs2 = regs.get(rs2);
                 if rs1 != rs2 {
-                    registers.pc = old_pc.wrapping_add(imm.get_sext() << 1);
+                    regs.pc = old_pc.wrapping_add(imm.get_sext() << 1);
                 }
             }
             Instruction::Blt(rs1, rs2, imm) => {
-                let rs1 = registers.get(rs1);
-                let rs2 = registers.get(rs2);
+                let rs1 = regs.get(rs1);
+                let rs2 = regs.get(rs2);
                 if lts_regval(rs1, rs2) {
-                    registers.pc = old_pc.wrapping_add(imm.get_sext() << 1);
+                    regs.pc = old_pc.wrapping_add(imm.get_sext() << 1);
                 }
             }
             Instruction::Bge(rs1, rs2, imm) => {
-                let rs1 = registers.get(rs1);
-                let rs2 = registers.get(rs2);
+                let rs1 = regs.get(rs1);
+                let rs2 = regs.get(rs2);
                 if ge_regval(rs1, rs2) {
-                    registers.pc = old_pc.wrapping_add(imm.get_sext() << 1);
+                    regs.pc = old_pc.wrapping_add(imm.get_sext() << 1);
                 }
             }
             Instruction::Bltu(rs1, rs2, imm) => {
-                let rs1 = registers.get(rs1);
-                let rs2 = registers.get(rs2);
+                let rs1 = regs.get(rs1);
+                let rs2 = regs.get(rs2);
                 if rs1 < rs2 {
-                    registers.pc = old_pc.wrapping_add(imm.get_sext() << 1);
+                    regs.pc = old_pc.wrapping_add(imm.get_sext() << 1);
                 }
             }
             Instruction::Bgeu(rs1, rs2, imm) => {
-                let rs1 = registers.get(rs1);
-                let rs2 = registers.get(rs2);
+                let rs1 = regs.get(rs1);
+                let rs2 = regs.get(rs2);
                 if rs1 >= rs2 {
-                    registers.pc = old_pc.wrapping_add(imm.get_sext() << 1);
+                    regs.pc = old_pc.wrapping_add(imm.get_sext() << 1);
                 }
             }
         }
@@ -282,36 +279,18 @@ impl Instruction {
         Ok(())
     }
 
-    fn mem_read(
-        self,
-        memory: &Memory,
-        address: RegVal,
-        sz: usize,
-    ) -> Result<RegVal, InstructionError> {
+    fn load(self, mem: &Memory, addr: RegVal, sz: usize) -> Result<RegVal> {
         let mut dst = [0u8; std::mem::size_of::<RegVal>()];
-        memory
-            .read(address, &mut dst[0..sz])
-            .map_err(|memory_error| InstructionError::MemoryError {
-                instruction: self,
-                memory_error,
-            })?;
+        mem.read(addr, &mut dst[0..sz])
+            .map_err(|cause| InstructionError::MemoryError { instruction: self, cause })?;
         Ok(RegVal::from_le_bytes(dst))
     }
 
-    fn mem_write(
-        self,
-        memory: &mut Memory,
-        address: RegVal,
-        val: RegVal,
-        sz: usize,
-    ) -> Result<(), InstructionError> {
+    fn store(self, mem: &mut Memory, addr: RegVal, val: RegVal, sz: usize) -> Result<()> {
         let src = &val.to_le_bytes()[0..sz];
-        memory
-            .write(address, src)
-            .map_err(|memory_error| InstructionError::MemoryError {
-                instruction: self,
-                memory_error,
-            })
+        mem.write(addr, src)
+            .map_err(|cause| InstructionError::MemoryError { instruction: self, cause })?;
+        Ok(())
     }
 }
 

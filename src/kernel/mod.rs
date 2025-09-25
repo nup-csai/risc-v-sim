@@ -24,11 +24,7 @@ impl Kernel {
         Kernel { registers, memory }
     }
 
-    pub fn from_program(
-        program: Program,
-        entry_point: RegVal,
-        program_off: RegVal,
-    ) -> Self {
+    pub fn from_program(program: Program, entry_point: RegVal, program_off: RegVal) -> Self {
         let mut memory = Memory::new();
         let program_bytes = program.into_bytes().into_iter().collect();
         memory
@@ -62,20 +58,18 @@ impl Kernel {
 
     fn fetch_instruction(&self) -> Result<Instruction, KernelError> {
         let instruction_address = self.registers.pc;
-        let instruction_code = self
-            .memory
-            .fetch_instruction(instruction_address)
-            .map_err(|memory_error| KernelError::FetchError {
-                instruction_address,
-                memory_error,
-            })?;
+        let instruction_code =
+            self.memory
+                .fetch_instruction(instruction_address)
+                .map_err(|memory_error| KernelError::FetchError {
+                    instruction_address,
+                    memory_error,
+                })?;
 
-        decode_instruction(instruction_code).map_err(|decode_error| {
-            KernelError::DecodeError {
-                instruction_address,
-                instruction_code,
-                decode_error,
-            }
+        decode_instruction(instruction_code).map_err(|decode_error| KernelError::DecodeError {
+            instruction_address,
+            instruction_code,
+            decode_error,
         })
     }
 }
@@ -95,8 +89,10 @@ impl Program {
     ) -> Result<Self, InstructionDecodeError> {
         let instructions = instructions.into_iter().collect::<Vec<_>>();
         for (idx, instruction_code) in instructions.iter().copied().enumerate() {
-            decode_instruction(instruction_code).map_err(|error| {
-                InstructionDecodeError { instruction_idx: idx, instruction_code, error }
+            decode_instruction(instruction_code).map_err(|error| InstructionDecodeError {
+                instruction_idx: idx,
+                instruction_code,
+                error,
             })?;
         }
 
@@ -126,9 +122,7 @@ pub struct KernelStep {
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Error)]
 pub enum KernelError {
-    #[error(
-        "Failed to execute instruction at {instruction_address:#x}: {instruction_error}"
-    )]
+    #[error("Failed to execute instruction at {instruction_address:#x}: {instruction_error}")]
     InstructionError {
         instruction_address: RegVal,
         #[source]
@@ -262,9 +256,7 @@ mod tests {
         ]
     }
 
-    fn word_store(
-        (idx, val): (usize, &[u8; 4]),
-    ) -> impl IntoIterator<Item = Instruction> {
+    fn word_store((idx, val): (usize, &[u8; 4])) -> impl IntoIterator<Item = Instruction> {
         use Instruction::*;
 
         let off = MEM_OFFSET + (4 * idx) as RegVal;
@@ -302,11 +294,7 @@ mod tests {
         assert_eq!(expected_trace, actual_trace);
     }
 
-    fn new_kernel(
-        program: Vec<Instruction>,
-        entry_point: RegVal,
-        program_off: RegVal,
-    ) -> Kernel {
+    fn new_kernel(program: Vec<Instruction>, entry_point: RegVal, program_off: RegVal) -> Kernel {
         let program = Program::from_instructions(program);
         Kernel::from_program(program, entry_point, program_off)
     }
