@@ -14,9 +14,7 @@ pub enum MemoryError {
     AddressNotExecutable { address: RegVal },
     #[error("Expected {address:#x} to {expected_alignment}-aligned")]
     MisalignedAccess { address: RegVal, expected_alignment: usize },
-    #[error(
-        "Segment {off:#x}:{len:#x}) overlaps existing: {found_off:#x}:{found_len:#x}"
-    )]
+    #[error("Segment {off:#x}:{len:#x}) overlaps existing: {found_off:#x}:{found_len:#x}")]
     SegmentOverlap { found_off: RegVal, found_len: RegVal, off: RegVal, len: RegVal },
 }
 
@@ -27,19 +25,24 @@ type Result<T> = std::result::Result<T, MemoryError>;
 /// N **noverlapping** segments. The no-overlap part is important
 /// as it allows an unambigious mapping of addresses to segments.
 /// Segments are just chunks of plain bytes with permission control.
-/// For more information, see [MemorySegment].
+/// For more information, see [`MemorySegment`].
 #[derive(Debug)]
 pub struct Memory {
     segments: Vec<MemorySegment>,
 }
 
 impl Memory {
+    #[must_use]
     pub fn new() -> Self {
         Self { segments: Vec::new() }
     }
 
-    /// Adds a segment ot the memory. If the segment turns out to be overlapping,
-    /// [MemoryError::AddingOverlappingSegment] is returned.
+    /// Adds a segment ot the memory.
+    ///
+    /// # Errors
+    ///
+    /// If the segment turns out to be overlapping,
+    /// [`MemoryError::SegmentOverlap`] is returned.
     pub fn add_segment(&mut self, added_segment: MemorySegment) -> Result<()> {
         let conflicting_segment = self
             .segments
@@ -67,7 +70,7 @@ impl Memory {
     /// * `address` not belonging to any segment
     /// * the segment responsible for `address` does not allow reads
     /// * alignment enforcement is enabled and `address` is not properly aligned
-    pub fn read(&self, address: RegVal, dst: &mut [u8]) -> Result<()> {
+    pub fn load(&self, address: RegVal, dst: &mut [u8]) -> Result<()> {
         let segment = self.find_segment(address)?;
         if !segment.is_read {
             return Err(MemoryError::AddressNotReadable { address });
@@ -105,6 +108,12 @@ impl Memory {
         Ok(InstrVal::from_le_bytes(dst))
     }
 
+    /// Finds a segment that contains `address`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MemoryError::AddressOutOfRange`] if there is no segment
+    /// containing `adress`.
     pub fn find_segment(&self, address: RegVal) -> Result<&MemorySegment> {
         self.segments
             .iter()
@@ -121,7 +130,7 @@ impl Memory {
     /// * `address` not belonging to any segment
     /// * the segment responsible for `address` does not allow writes
     /// * alignment enforcement is enabled and `address` is not properly aligned
-    pub fn write(&mut self, address: RegVal, src: &[u8]) -> Result<()> {
+    pub fn store(&mut self, address: RegVal, src: &[u8]) -> Result<()> {
         let segment = self.find_segment_mut(address)?;
         if !segment.is_write {
             return Err(MemoryError::AddressNotWritable { address });
@@ -146,10 +155,10 @@ impl Memory {
     /// to the segments as that would violate the structure's gurantees.
     /// If you need modify segment's data or permissions, please see the
     /// following methods:
-    /// * [Memory::segment_data_mut]
-    /// * [Memory::set_segment_read]
-    /// * [Memory::set_segment_write]
-    /// * [Memory::set_segment_execute]
+    /// * [`Memory::segment_data_mut`]
+    /// * [`Memory::set_segment_read`]
+    /// * [`Memory::set_segment_write`]
+    /// * [`Memory::set_segment_execute`]
     pub fn segments(&self) -> &[MemorySegment] {
         &self.segments
     }
@@ -161,17 +170,17 @@ impl Memory {
 
     /// Set `is_read` flag for segment specified by `idx`.
     pub fn set_segment_read(&mut self, idx: usize, is_read: bool) {
-        self.segments[idx].is_read = is_read
+        self.segments[idx].is_read = is_read;
     }
 
     /// Set `is_write` flag for segment specified by `idx`.
     pub fn set_segment_write(&mut self, idx: usize, is_write: bool) {
-        self.segments[idx].is_write = is_write
+        self.segments[idx].is_write = is_write;
     }
 
     /// Set `is_execute` flag for segment specified by `idx`.
     pub fn set_segment_execute(&mut self, idx: usize, is_execute: bool) {
-        self.segments[idx].is_execute = is_execute
+        self.segments[idx].is_execute = is_execute;
     }
 
     fn alignment_check(address: RegVal, expected_alignment: usize) -> Result<()> {
@@ -192,11 +201,7 @@ impl Default for Memory {
 /// offsets local to a segment. The function does not do
 /// any validation, so you will have to make sure that
 /// the global offsets properly fit into the segment.
-fn to_segment_offs(
-    address: RegVal,
-    len: usize,
-    segment: &MemorySegment,
-) -> (usize, usize) {
+fn to_segment_offs(address: RegVal, len: usize, segment: &MemorySegment) -> (usize, usize) {
     let local_start = (address - segment.off) as usize;
     let local_end = local_start + len;
 
@@ -208,7 +213,7 @@ fn to_segment_offs(
 /// * constant-size data buffer
 /// * permission flags
 ///
-/// The permission flags act similarly to RiscV's permission flags from
+/// The permission flags act similarly to `RiscV`'s permission flags from
 /// PMP (Physical Memory Protection). Do note however that this is not
 /// an implementation of PMP as they can only be set by the kernel.
 #[derive(Debug, Clone)]
@@ -218,7 +223,7 @@ pub struct MemorySegment {
     /// Flag for allowing write operations to the segment.
     pub is_write: bool,
     /// Flag for allowing instruction fetches from the segment.
-    /// Note, that like in RiscV's PMP, you do not need read access
+    /// Note, that like in `RiscV`'s PMP, you do not need read access
     /// to execute instructions from the segment.
     pub is_execute: bool,
     /// Segment's global offset within the memory.
@@ -230,6 +235,7 @@ pub struct MemorySegment {
 impl MemorySegment {
     /// Create a segment with specified offset, size and permissions
     /// with all of its bytes zeroed.
+    #[must_use]
     pub fn new_zeroed(
         is_read: bool,
         is_write: bool,
@@ -361,7 +367,7 @@ mod tests {
                 assert!(
                     segment1.overlaps_segment(off2, len2),
                     "segment {off1}:{len1} must overlap {off2}:{len2}"
-                )
+                );
             }
 
             for _ in 0..ADDRESS_SAMPLING_COUNT {
@@ -376,7 +382,7 @@ mod tests {
                 assert!(
                     segment1.overlaps_segment(off2, len2),
                     "segment {off1}:{len1} must overlap {off2}:{len2}"
-                )
+                );
             }
         }
     }
@@ -395,7 +401,7 @@ mod tests {
                 assert!(
                     !segment1.overlaps_segment(off2, len2),
                     "segment {off1}:{len1} must not overlap {off2}:{len2}"
-                )
+                );
             }
 
             for _ in 0..ADDRESS_SAMPLING_COUNT {
@@ -410,7 +416,7 @@ mod tests {
                 assert!(
                     !segment1.overlaps_segment(off2, len2),
                     "segment {off1}:{len1} must not overlap {off2}:{len2}"
-                )
+                );
             }
         }
     }

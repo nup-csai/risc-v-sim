@@ -9,8 +9,8 @@ use serde::Serialize;
 use thiserror::Error;
 
 use crate::kernel::{
-    InstrVal, InstructionDecodeError, Kernel, KernelError, KernelStep, Memory,
-    MemoryError, MemorySegment, Program, RegVal,
+    InstrVal, InstructionDecodeError, Kernel, KernelError, KernelStep, Memory, MemoryError,
+    MemorySegment, Program, RegVal,
 };
 
 #[derive(Debug, Error)]
@@ -61,13 +61,6 @@ pub enum ShellError {
     },
 }
 
-#[derive(Debug, Serialize)]
-pub struct RunResult {
-    steps: Vec<KernelStep>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    err: Option<String>,
-}
-
 type Result<T> = std::result::Result<T, ShellError>;
 
 #[derive(Debug, Clone)]
@@ -80,6 +73,12 @@ pub struct ProgramInfo {
 impl ProgramInfo {
     /// Adds the program to the memory with specified extra
     /// permissions.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err` if adding the program segment to memory
+    /// leads to a memory error. For more information, see
+    /// [`Memory::add_segment`].
     pub fn load_into_memory(
         self,
         memory: &mut Memory,
@@ -97,11 +96,29 @@ impl ProgramInfo {
     }
 }
 
+/// Reads progra info from an `.elf` file.
+///
+/// # Errors
+///
+/// Returns [`ShellError::Load`] if an IO error happens during program load.
+/// Returns same errors as [`load_program_from_elf`].
 pub fn load_program_from_file(path: impl AsRef<Path>) -> Result<ProgramInfo> {
     let file_data = std::fs::read(path).map_err(ShellError::Load)?;
     load_program_from_elf(&file_data)
 }
 
+/// Reads progra info from bytes, that represent an `.elf` file.
+/// The elf file must satisfy the following constraints:
+/// * The elf file must be for a little-endian architecture
+/// * The elf file must have .text section
+/// * The .text section offset must be aligned to 4 bytes
+/// * The .text section is not compressed
+/// * The .text section must contain supported `RiscV` instructions
+///
+/// # Errors
+///
+/// Returns `Err` if `data` doesn't contain valid elf file bytes
+/// or the elf file doesn't satisfy the constraints
 pub fn load_program_from_elf(data: &[u8]) -> Result<ProgramInfo> {
     let file = ElfBytes::<AnyEndian>::minimal_parse(data).map_err(ShellError::ElfHead)?;
 
@@ -119,29 +136,37 @@ pub fn load_program_from_elf(data: &[u8]) -> Result<ProgramInfo> {
     if compression_header.is_some() {
         return Err(ShellError::CompressedText);
     }
-    if text.len() % 4 != 0 {
+
+    let (chunks, tail) = text.as_chunks::<4>();
+    if !tail.is_empty() {
         return Err(ShellError::UnalignedText);
     }
 
-    let raw_stream = text
-        .chunks(4)
-        .map(|x| <[u8; 4]>::try_from(x).unwrap())
-        .map(InstrVal::from_le_bytes);
-    let program = Program::from_raw_instructions(raw_stream)
-        .map_err(ShellError::InstructionDecoderError)?;
+    let raw_stream = chunks.iter().copied().map(InstrVal::from_le_bytes);
+    let program =
+        Program::from_raw_instructions(raw_stream).map_err(ShellError::InstructionDecoderError)?;
 
-    Ok(ProgramInfo {
-        program,
-        load_address: text_header.sh_addr,
-        entry: file.ehdr.e_entry,
-    })
+    Ok(ProgramInfo { program, load_address: text_header.sh_addr, entry: file.ehdr.e_entry })
 }
 
-pub fn run_kernel(
-    kernel: &mut Kernel,
-    step_count: usize,
-    out: &mut dyn Write,
-) -> Result<()> {
+/// Status of a kernel run. Contains a trace with an error
+/// if one happened during execution.
+#[derive(Debug, Serialize)]
+pub struct RunResult {
+    pub steps: Vec<KernelStep>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub err: Option<String>,
+}
+
+/// Runs a kernel for `step_count` steps, writing the trace to `out` together
+/// with the status.
+///
+/// # Errors
+///
+/// Returns an error if an IO error happens or if an error during kernel stepping happens.
+/// If the execution is unfortunate enough to have both kernel and IO error, the two
+/// errors are bundled with [`ShellError::ResultReportError`].
+pub fn run_kernel(kernel: &mut Kernel, step_count: usize, out: &mut dyn Write) -> Result<()> {
     let mut err = None;
     let mut steps = Vec::new();
     for _ in 0..step_count {

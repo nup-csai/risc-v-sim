@@ -5,13 +5,13 @@
 //! docker run
 //!  --rm
 //!  -a STDOUT
-//!  --name trace_capture
+//!  --name `trace_capture`
 //!  --tmpfs /tmp
 //!  --mount type=bind,src=./tests/samples/,dst=/ws,ro
 //!  --mount type=bind,src=./tests/elfs/,dst=/elfs
 //!  krinkin/rv64-toolchain
 //!  /usr/bin/bash
-//!   /ws/capture_trace.sh /ws/ASM.s TICKCOUNT
+//!   /`ws/capture_trace.sh` /ws/ASM.s TICKCOUNT
 
 use std::{fs, io, path::PathBuf, process};
 
@@ -111,7 +111,7 @@ fn run_qemu_command(filename: &str, tick_count: usize) -> process::Output {
         .args(["--mount", "type=bind,src=./tests/samples/,dst=/ws,ro"])
         .args(["--mount", "type=bind,src=./tests/elfs/,dst=/elfs"])
         .arg("krinkin/rv64-toolchain")
-        .args(["/usr/bin/bash", "/ws/capture_trace.sh", &filename, &tick_count])
+        .args(["/usr/bin/bash", "/ws/capture_trace.sh", filename, &tick_count])
         .output()
         .unwrap();
 

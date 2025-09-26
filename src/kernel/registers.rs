@@ -6,13 +6,13 @@ pub type RegValSigned = i64;
 /// The type used to store CPU instructions.
 pub type InstrVal = u32;
 
-/// Masks the bits required to index bits of [RegVal].
-pub const REGVAL_SIZE_MASK: RegVal = 0b111111;
+/// Masks the bits required to index bits of [`RegVal`].
+pub const REGVAL_SIZE_MASK: RegVal = 0x3F;
 pub const GENERAL_REGISTER_COUNT: usize = 32;
 
 /// The [Registers] struct contains all Rv64i registers.
-/// You can manipulate them with [Registers::get] and
-/// [Registers::set]. The [RegId::ZERO] registers is guaranteed
+/// You can manipulate them with [`Registers::get`] and
+/// [`Registers::set`]. The [`RegId::ZERO`] registers is guaranteed
 /// to always return `0` wil be unaffected by sets.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 pub struct Registers {
@@ -20,7 +20,7 @@ pub struct Registers {
     pub pc: RegVal,
 }
 
-/// [RegId] represents a validated general purpose register index.
+/// [`RegId`] represents a validated general purpose register index.
 /// In baseline Rv64i there are 32 general purpose registers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[repr(transparent)]
@@ -40,96 +40,96 @@ impl RegId {
     }
 
     /// Hardwired zero. Always zero on the processor.
-    pub const ZERO: RegId = Self::new(0).unwrap();
+    pub const ZERO: RegId = Self(0);
     /// Return address.
     /// Saved by caller.
-    pub const RA: RegId = Self::new(1).unwrap();
+    pub const RA: RegId = Self(1);
     /// Stack pointer.
     /// Saved by callee.
-    pub const SP: RegId = Self::new(2).unwrap();
+    pub const SP: RegId = Self(2);
     /// Global pointer
-    pub const GP: RegId = Self::new(3).unwrap();
+    pub const GP: RegId = Self(3);
     /// Thread pointer
-    pub const TP: RegId = Self::new(4).unwrap();
+    pub const TP: RegId = Self(4);
     /// Temporary / alternate return address.
     /// Saved by caller.
-    pub const T0: RegId = Self::new(5).unwrap();
+    pub const T0: RegId = Self(5);
     /// Temporary.
     /// Saved by caller.
-    pub const T1: RegId = Self::new(6).unwrap();
+    pub const T1: RegId = Self(6);
     /// Temporary.
     /// Saved by caller.
-    pub const T2: RegId = Self::new(7).unwrap();
+    pub const T2: RegId = Self(7);
     /// Saved register / frame pointer.
     /// Sometimes called S0.
     /// Saved by callee.
-    pub const FP: RegId = Self::new(8).unwrap();
+    pub const FP: RegId = Self(8);
     /// Saved register.
     /// Saved by callee.
-    pub const S1: RegId = Self::new(9).unwrap();
+    pub const S1: RegId = Self(9);
     /// Function argument / return value.
-    pub const A0: RegId = Self::new(10).unwrap();
+    pub const A0: RegId = Self(10);
     /// Function argument / return value.
-    pub const A1: RegId = Self::new(11).unwrap();
+    pub const A1: RegId = Self(11);
     /// Function argument.
-    pub const A2: RegId = Self::new(12).unwrap();
-    /// Function argument.
-    /// Saved by caller.
-    pub const A3: RegId = Self::new(13).unwrap();
+    pub const A2: RegId = Self(12);
     /// Function argument.
     /// Saved by caller.
-    pub const A4: RegId = Self::new(14).unwrap();
+    pub const A3: RegId = Self(13);
     /// Function argument.
     /// Saved by caller.
-    pub const A5: RegId = Self::new(15).unwrap();
+    pub const A4: RegId = Self(14);
     /// Function argument.
     /// Saved by caller.
-    pub const A6: RegId = Self::new(16).unwrap();
+    pub const A5: RegId = Self(15);
     /// Function argument.
     /// Saved by caller.
-    pub const A7: RegId = Self::new(17).unwrap();
+    pub const A6: RegId = Self(16);
+    /// Function argument.
+    /// Saved by caller.
+    pub const A7: RegId = Self(17);
     /// Saved register.
     /// Saved by callee.
-    pub const S2: RegId = Self::new(18).unwrap();
+    pub const S2: RegId = Self(18);
     /// Saved register.
     /// Saved by callee.
-    pub const S3: RegId = Self::new(19).unwrap();
+    pub const S3: RegId = Self(19);
     /// Saved register.
     /// Saved by callee.
-    pub const S4: RegId = Self::new(20).unwrap();
+    pub const S4: RegId = Self(20);
     /// Saved register.
     /// Saved by callee.
-    pub const S5: RegId = Self::new(21).unwrap();
+    pub const S5: RegId = Self(21);
     /// Saved register.
     /// Saved by callee.
-    pub const S6: RegId = Self::new(22).unwrap();
+    pub const S6: RegId = Self(22);
     /// Saved register.
     /// Saved by callee.
-    pub const S7: RegId = Self::new(23).unwrap();
+    pub const S7: RegId = Self(23);
     /// Saved register.
     /// Saved by callee.
-    pub const S8: RegId = Self::new(24).unwrap();
+    pub const S8: RegId = Self(24);
     /// Saved register.
     /// Saved by callee.
-    pub const S9: RegId = Self::new(25).unwrap();
+    pub const S9: RegId = Self(25);
     /// Saved register.
     /// Saved by callee.
-    pub const S10: RegId = Self::new(26).unwrap();
+    pub const S10: RegId = Self(26);
     /// Saved register.
     /// Saved by callee.
-    pub const S11: RegId = Self::new(27).unwrap();
+    pub const S11: RegId = Self(27);
     /// Temporary.
     /// Saved by caller.
-    pub const T3: RegId = Self::new(28).unwrap();
+    pub const T3: RegId = Self(28);
     /// Temporary.
     /// Saved by caller.
-    pub const T4: RegId = Self::new(29).unwrap();
+    pub const T4: RegId = Self(29);
     /// Temporary.
     /// Saved by caller.
-    pub const T5: RegId = Self::new(30).unwrap();
+    pub const T5: RegId = Self(30);
     /// Temporary.
     /// Saved by caller.
-    pub const T6: RegId = Self::new(31).unwrap();
+    pub const T6: RegId = Self(31);
 }
 
 impl fmt::Display for RegId {

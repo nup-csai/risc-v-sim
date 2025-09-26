@@ -16,7 +16,7 @@ use crate::shell::run_kernel;
 
 pub type ErrBox = Box<dyn Error + Send + Sync>;
 
-/// Emulates RiscV programs. The result is a JSON object printed
+/// Emulates `RiscV` programs. The result is a JSON object printed
 /// into stdout. The JSON object is guaranteed to always be printed
 /// to stdout and will have the same shape. The user may freely pipe
 /// the output into a JSON-parsing program.
@@ -53,7 +53,7 @@ pub struct Args {
     input: Vec<(MemorySegmentDef, PathBuf)>,
     /// Mounts `FILE` into program's memory as output. The program will get a
     /// specified segment filled with zeros. At the end of program execution
-    /// the contents of the segment will be written into `FILE``.
+    /// the contents of the segment will be written into `FILE`.
     ///
     /// `FLAGS` is an optional argument that controls the permissions for the
     /// region the file is mounted into:
@@ -130,8 +130,9 @@ fn parse_segment_number(s: &str) -> Result<RegVal, ErrBox> {
         to_parse = &to_parse[2..];
     }
 
-    let res = RegVal::from_str_radix(to_parse, radix)
-        .map_err(|_| format!("`{s}` must be a valid decimal number or a hexadecimal nummber prefixed with `0x`"))?;
+    let res = RegVal::from_str_radix(to_parse, radix).map_err(|_| {
+        format!("`{s}` must be a valid decimal number or a hexadecimal nummber prefixed with `0x`")
+    })?;
     Ok(res)
 }
 
@@ -147,8 +148,8 @@ fn parse_segment_flags(s: &str) -> Result<(bool, bool, bool), ErrBox> {
             'x' => is_execute = true,
             _ => {
                 return Err(format!(
-                "`{ch}` is not a valid permission flag. Available flags are: r, w and x"
-            )
+                    "`{ch}` is not a valid permission flag. Available flags are: r, w and x"
+                )
                 .into())
             }
         }
@@ -157,7 +158,12 @@ fn parse_segment_flags(s: &str) -> Result<(bool, bool, bool), ErrBox> {
     Ok((is_read, is_write, is_execute))
 }
 
-pub fn run_cli(args: Args) -> Result<(), ShellError> {
+/// Run the CLI according to specified `args`.
+///
+/// # Errors
+///
+/// If something goes wrong, [`ShellError`] is returned.
+pub fn run_cli(args: &Args) -> Result<(), ShellError> {
     let info = load_program_from_file(&args.path)?;
     let entry_point = info.entry;
     let mut memory = Memory::new();
@@ -166,9 +172,8 @@ pub fn run_cli(args: Args) -> Result<(), ShellError> {
         .map_err(ShellError::LoadingProramIntoMemory)?;
 
     for (def, file) in &args.input {
-        let bytes = std::fs::read(file).map_err(|error| {
-            ShellError::LoadingInputSegment { file: file.clone(), error }
-        })?;
+        let bytes = std::fs::read(file)
+            .map_err(|error| ShellError::LoadingInputSegment { file: file.clone(), error })?;
 
         memory
             .add_segment(MemorySegment {
@@ -203,10 +208,9 @@ pub fn run_cli(args: Args) -> Result<(), ShellError> {
             .segments()
             .iter()
             .find(|s| s.contains_address(def.off))
-            .unwrap();
-        std::fs::write(file.clone(), segment.as_bytes()).map_err(|error| {
-            ShellError::WritingOutputSegment { file: file.clone(), error }
-        })?;
+            .expect("memory segment disappeared");
+        std::fs::write(file.clone(), segment.as_bytes())
+            .map_err(|error| ShellError::WritingOutputSegment { file: file.clone(), error })?;
     }
 
     Ok(())

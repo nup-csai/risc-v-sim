@@ -1,9 +1,9 @@
-//! This module contains the decoder of the RiscV instructions.
+//! This module contains the decoder of the `RiscV` instructions.
 //! It does not support the compressed instructions. For a list
 //! of the supported instructions, please consult the [Instruction]
 //! type.
 //!
-//! # RiscV instructions
+//! # `RiscV` instructions
 //!
 //! This section lists instruction types and their bit representation.
 //! This bits are going from highest to lowest from left to right.
@@ -140,6 +140,7 @@
 use thiserror::Error;
 
 use crate::c_try;
+use crate::util::{bit, reg_x};
 
 use super::{Bit, InstrVal, Instruction, RegId, RegVal};
 
@@ -170,133 +171,132 @@ pub mod opcodes {
     use super::Instruction;
 
     /* J-type instructions */
-    /// Opcode of [Instruction::Jal]
-    pub const JAL: InstrVal = 0b1101111;
+    /// Opcode of [`Instruction::Jal`]
+    pub const JAL: InstrVal = 0b110_1111;
 
     /* R-type instructions */
     /// Opcode for register-register integer operations:
-    /// * [Instruction::Add]
-    /// * [Instruction::Sub]
-    /// * [Instruction::Xor]
-    /// * [Instruction::And]
-    /// * [Instruction::Sll]
-    /// * [Instruction::Srl]
-    /// * [Instruction::Sra]
-    /// * [Instruction::Slt]
-    /// * [Instruction::Sltu]
+    /// * [`Instruction::Add`]
+    /// * [`Instruction::Sub`]
+    /// * [`Instruction::Xor`]
+    /// * [`Instruction::And`]
+    /// * [`Instruction::Sll`]
+    /// * [`Instruction::Srl`]
+    /// * [`Instruction::Sra`]
+    /// * [`Instruction::Slt`]
+    /// * [`Instruction::Sltu`]
     ///
     /// To figure our what instruction it is,
     /// you need to look at funct3 and funct7.
-    /// The name has been taken from RiscV book.
-    pub const OP: InstrVal = 0b0110011;
+    /// The name has been taken from `RiscV` book.
+    pub const OP: InstrVal = 0b011_0011;
 
     /* U-type instructions */
-    /// Opcode of [Instruction::Lui]
-    pub const LUI: InstrVal = 0b0110111;
-    /// Opcode of [Instruction::Auipc]
-    pub const AUIPC: InstrVal = 0b0010111;
+    /// Opcode of [`Instruction::Lui`]
+    pub const LUI: InstrVal = 0b011_0111;
+    /// Opcode of [`Instruction::Auipc`]
+    pub const AUIPC: InstrVal = 0b001_0111;
 
     /* I-type instructions */
     /// Opcode of the following instructions:
-    /// * [Instruction::Addi]
-    /// * [Instruction::Xori]
-    /// * [Instruction::Ori]
-    /// * [Instruction::Andi]
-    /// * [Instruction::Slli]
-    /// * [Instruction::Srli]
-    /// * [Instruction::Srai]
-    /// * [Instruction::Slti]
-    /// * [Instruction::Sltiu]
+    /// * [`Instruction::Addi`]
+    /// * [`Instruction::Xori`]
+    /// * [`Instruction::Ori`]
+    /// * [`Instruction::Andi`]
+    /// * [`Instruction::Slli`]
+    /// * [`Instruction::Srli`]
+    /// * [`Instruction::Srai`]
+    /// * [`Instruction::Slti`]
+    /// * [`Instruction::Sltiu`]
     ///
     /// To figure out what instruction it is,
     /// you need to look at funct3.
-    /// The name has been taken from RiscV book.
-    pub const OP_IMM: InstrVal = 0b0010011;
-    /// Opcode of [Instruction::Jalr]
-    pub const JALR: InstrVal = 0b1100111;
+    /// The name has been taken from `RiscV` book.
+    pub const OP_IMM: InstrVal = 0b001_0011;
+    /// Opcode of [`Instruction::Jalr`]
+    pub const JALR: InstrVal = 0b110_0111;
     /// Opcode of the following instructions
-    /// * [Instruction::Lb]
-    /// * [Instruction::Lh]
-    /// * [Instruction::Lw]
-    /// * [Instruction::Lbu]
-    /// * [Instruction::Lhu]
+    /// * [`Instruction::Lb`]
+    /// * [`Instruction::Lh`]
+    /// * [`Instruction::Lw`]
+    /// * [`Instruction::Lbu`]
+    /// * [`Instruction::Lhu`]
     ///
     /// To figure out what instruction it is,
     /// you need to look at funct3.
-    pub const LOAD: InstrVal = 0b0000011;
+    pub const LOAD: InstrVal = 0b000_0011;
 
     /* S-type instructions */
     /// Opcode of the following instructions
-    /// * [Instruction::Sb]
-    /// * [Instruction::Sh]
-    /// * [Instruction::Sw]
+    /// * [`Instruction::Sb`]
+    /// * [`Instruction::Sh`]
+    /// * [`Instruction::Sw`]
     ///
     /// To figure out what instruction it is,
     /// you need to look at funct3.
-    pub const STORE: InstrVal = 0b0100011;
+    pub const STORE: InstrVal = 0b010_0011;
 
     /* B-type instructions */
     /// Opcode of the following instructions
-    /// * [Instruction::Beq]
-    /// * [Instruction::Bne]
-    /// * [Instruction::Blt]
-    /// * [Instruction::Bge]
-    /// * [Instruction::Bltu]
-    /// * [Instruction::Bgeu]
+    /// * [`Instruction::Beq`]
+    /// * [`Instruction::Bne`]
+    /// * [`Instruction::Blt`]
+    /// * [`Instruction::Bge`]
+    /// * [`Instruction::Bltu`]
+    /// * [`Instruction::Bgeu`]
     ///
     /// To figure out what instruction it is,
     /// you need to look at funct3.
-    pub const BRANCH: InstrVal = 0b1100011;
+    pub const BRANCH: InstrVal = 0b110_0011;
 
-    pub const ALL_OPCODES: [InstrVal; 8] =
-        [JAL, OP, LUI, AUIPC, OP_IMM, JALR, LOAD, STORE];
+    pub const ALL_OPCODES: [InstrVal; 8] = [JAL, OP, LUI, AUIPC, OP_IMM, JALR, LOAD, STORE];
 }
 
 /// [op] contains `funct3` and `funct7` values
-/// for instructions with opcode [opcodes::OP].
+/// for instructions with opcode [`opcodes::OP`].
 /// For more information, see the comment above that constant.
 pub mod op {
     use super::InstrVal;
 
     /* Codes for ADD */
     pub const FUNCT3_ADD: InstrVal = 0b000;
-    pub const FUNCT7_ADD: InstrVal = 0b0000000;
+    pub const FUNCT7_ADD: InstrVal = 0b000_0000;
 
     /* Codes for SUB */
     pub const FUNCT3_SUB: InstrVal = 0b000;
-    pub const FUNCT7_SUB: InstrVal = 0b0100000;
+    pub const FUNCT7_SUB: InstrVal = 0b010_0000;
 
     /* Codes for XOR */
     pub const FUNCT3_XOR: InstrVal = 0b100;
-    pub const FUNCT7_XOR: InstrVal = 0b0000000;
+    pub const FUNCT7_XOR: InstrVal = 0b000_0000;
 
     /* Codes for OR */
     pub const FUNCT3_OR: InstrVal = 0b110;
-    pub const FUNCT7_OR: InstrVal = 0b0000000;
+    pub const FUNCT7_OR: InstrVal = 0b000_0000;
 
     /* Codes for AND */
     pub const FUNCT3_AND: InstrVal = 0b111;
-    pub const FUNCT7_AND: InstrVal = 0b0000000;
+    pub const FUNCT7_AND: InstrVal = 0b000_0000;
 
     /* Codes for SLL */
     pub const FUNCT3_SLL: InstrVal = 0b001;
-    pub const FUNCT7_SLL: InstrVal = 0b0000000;
+    pub const FUNCT7_SLL: InstrVal = 0b000_0000;
 
     /* Codes for SRL */
     pub const FUNCT3_SRL: InstrVal = 0b101;
-    pub const FUNCT7_SRL: InstrVal = 0b0000000;
+    pub const FUNCT7_SRL: InstrVal = 0b000_0000;
 
     /* Codes for SRA */
     pub const FUNCT3_SRA: InstrVal = 0b101;
-    pub const FUNCT7_SRA: InstrVal = 0b0100000;
+    pub const FUNCT7_SRA: InstrVal = 0b010_0000;
 
     /* Codes for SLT */
     pub const FUNCT3_SLT: InstrVal = 0b010;
-    pub const FUNCT7_SLT: InstrVal = 0b0000000;
+    pub const FUNCT7_SLT: InstrVal = 0b000_0000;
 
     /* Codes for SLTU */
     pub const FUNCT3_SLTU: InstrVal = 0b011;
-    pub const FUNCT7_SLTU: InstrVal = 0b0000000;
+    pub const FUNCT7_SLTU: InstrVal = 0b000_0000;
 
     pub const ALL_FUNCT37: [(InstrVal, InstrVal); 10] = [
         (FUNCT3_ADD, FUNCT7_ADD),
@@ -312,8 +312,8 @@ pub mod op {
     ];
 }
 
-/// [op_imm] contains `funct3` values
-/// for instructions with opcode [opcodes::OP_IMM].
+/// [`op_imm`] contains `funct3` values
+/// for instructions with opcode [`opcodes::OP_IMM`].
 /// For more information, see the comment above that constant.
 pub mod op_imm {
     #[allow(unused_imports)]
@@ -330,7 +330,7 @@ pub mod op_imm {
     /// into two values known as "shtyp" and "shamt".
     ///
     /// To figure out which one is it, consult values in
-    /// [srli_srai_shtyp].
+    /// [`srli_srai_shtyp`].
     pub const FUNCT3_SRLI_SRAI: InstrVal = 0b101;
     pub const FUNCT3_SLTI: InstrVal = 0b010;
     pub const FUNCT3_SLTIU: InstrVal = 0b011;
@@ -352,14 +352,14 @@ pub mod op_imm {
 pub mod srli_srai_shtyp {
     use crate::kernel::InstrVal;
 
-    pub const SHTYP_SRLI: InstrVal = 0b0000000;
-    pub const SHTYP_SRAI: InstrVal = 0b0100000;
+    pub const SHTYP_SRLI: InstrVal = 0b000_0000;
+    pub const SHTYP_SRAI: InstrVal = 0b010_0000;
 
     pub const ALL_SHTYP: [InstrVal; 2] = [SHTYP_SRLI, SHTYP_SRAI];
 }
 
 /// [load] contains `funct3` values
-/// for instructions with opcode [opcodes::LOAD].
+/// for instructions with opcode [`opcodes::LOAD`].
 /// For more information, see the comment above that constant.
 pub mod load {
     use super::InstrVal;
@@ -370,12 +370,11 @@ pub mod load {
     pub const FUNCT3_LBU: InstrVal = 0b100;
     pub const FUNCT3_LHU: InstrVal = 0b101;
 
-    pub const ALL_FUNCT3: [InstrVal; 5] =
-        [FUNCT3_LB, FUNCT3_LH, FUNCT3_LW, FUNCT3_LBU, FUNCT3_LHU];
+    pub const ALL_FUNCT3: [InstrVal; 5] = [FUNCT3_LB, FUNCT3_LH, FUNCT3_LW, FUNCT3_LBU, FUNCT3_LHU];
 }
 
 /// [store] contains `funct3` values
-/// for instructions with opcode [opcodes::STORE].
+/// for instructions with opcode [`opcodes::STORE`].
 /// For more information, see the comment above that constant.
 pub mod store {
     use super::InstrVal;
@@ -388,7 +387,7 @@ pub mod store {
 }
 
 /// [branch] contains `funct3` values
-/// for instructions with opcode [opcodes::BRANCH].
+/// for instructions with opcode [`opcodes::BRANCH`].
 /// For more information, see the comment above that constant.
 pub mod branch {
     use super::InstrVal;
@@ -401,7 +400,7 @@ pub mod branch {
     pub const FUNCT3_BGEU: InstrVal = 0b111;
 }
 
-const REGISTER_MASK: InstrVal = 0b11111;
+const REGISTER_MASK: InstrVal = 0x1F;
 
 /// [offsets] contains all the bit offsets for parts of an
 /// instruction.
@@ -429,9 +428,15 @@ pub mod offsets {
     pub const B_TYPE_IMM_11: InstrVal = 31;
 }
 
-/// Decode a RiscV instruction.
+/// Decode a `RiscV` instruction.
+///
+/// # Errors
+///
+/// Will return `Err` if `code` doesn't represent a valid `RiscV` instruction
+/// supported by the simulator. The returned error will detail what is wrong.
+/// For more info, see [`DecodeError`].
 pub const fn decode_instruction(code: InstrVal) -> Result<Instruction> {
-    use Instruction::*;
+    use Instruction::{Auipc, Jal, Jalr, Lui};
 
     let instruction = match get_opcode(code) {
         opcodes::JAL => Jal(get_rd(code), get_j_imm(code)),
@@ -449,9 +454,9 @@ pub const fn decode_instruction(code: InstrVal) -> Result<Instruction> {
     Ok(instruction)
 }
 
-/// Decode an instruction with opcode [opcodes::OP_IMM].
+/// Decode an instruction with opcode [`opcodes::OP_IMM`].
 const fn decode_op_imm(instruction: InstrVal) -> Result<Instruction> {
-    use Instruction::*;
+    use Instruction::{Addi, Andi, Ori, Slli, Slti, Sltiu, Xori};
 
     let funct3 = get_funct3(instruction);
     let rd = get_rd(instruction);
@@ -473,9 +478,9 @@ const fn decode_op_imm(instruction: InstrVal) -> Result<Instruction> {
     Ok(instruction)
 }
 
-/// Decode an op_imm with funct3 [op_imm::FUNCT3_SRLI_SRAI]
+/// Decode an `op_imm` with funct3 [`op_imm::FUNCT3_SRLI_SRAI`]
 const fn decode_srli_srai(instruction: InstrVal) -> Result<Instruction> {
-    use Instruction::*;
+    use Instruction::{Srai, Srli};
 
     let rd = get_rd(instruction);
     let rs1 = get_rs1(instruction);
@@ -490,9 +495,9 @@ const fn decode_srli_srai(instruction: InstrVal) -> Result<Instruction> {
     Ok(instruction)
 }
 
-/// Decode an instruction with opcode [opcodes::OP].
+/// Decode an instruction with opcode [`opcodes::OP`].
 const fn decode_op(instruction: InstrVal) -> Result<Instruction> {
-    use Instruction::*;
+    use Instruction::{Add, And, Or, Sll, Slt, Sltu, Sra, Srl, Sub, Xor};
 
     let funct3_7 = (get_funct3(instruction), get_funct7(instruction));
     let rd = get_rd(instruction);
@@ -516,9 +521,9 @@ const fn decode_op(instruction: InstrVal) -> Result<Instruction> {
     Ok(instruction)
 }
 
-/// Decode an instruction with opcode [opcodes::LOAD].
+/// Decode an instruction with opcode [`opcodes::LOAD`].
 const fn decode_load(instruction: InstrVal) -> Result<Instruction> {
-    use Instruction::*;
+    use Instruction::{Lb, Lbu, Lh, Lhu, Lw};
 
     let funct3 = get_funct3(instruction);
     let rd = get_rd(instruction);
@@ -537,9 +542,9 @@ const fn decode_load(instruction: InstrVal) -> Result<Instruction> {
     Ok(instruction)
 }
 
-/// Decode an instruction with opcode [opcodes::STORE].
+/// Decode an instruction with opcode [`opcodes::STORE`].
 const fn decode_store(code: InstrVal) -> Result<Instruction> {
-    use Instruction::*;
+    use Instruction::{Sb, Sh, Sw};
 
     let funct3 = get_funct3(code);
     let rs1 = get_rs1(code);
@@ -556,9 +561,9 @@ const fn decode_store(code: InstrVal) -> Result<Instruction> {
     Ok(instruction)
 }
 
-/// Decode an instruction with opcode [opcodes::BRANCH].
+/// Decode an instruction with opcode [`opcodes::BRANCH`].
 const fn decode_branch(code: InstrVal) -> Result<Instruction> {
-    use Instruction::*;
+    use Instruction::{Beq, Bge, Bgeu, Blt, Bltu, Bne};
 
     let funct3 = get_funct3(code);
     let rs1 = get_rs1(code);
@@ -581,79 +586,74 @@ const fn decode_branch(code: InstrVal) -> Result<Instruction> {
 /// Get the opcode field.
 /// This field is present in all instruction types.
 const fn get_opcode(code: InstrVal) -> InstrVal {
-    code & 0b1111111
+    code & 0x7F
 }
 
 /// Get the func3 field. Applicable to R, I, S, B instructions.
-/// The value is placed into the lowest bits of [InstrVal].
+/// The value is placed into the lowest bits of [`InstrVal`].
 const fn get_funct3(code: InstrVal) -> InstrVal {
-    (code >> offsets::FUNCT3) & 0b111
+    (code >> offsets::FUNCT3) & 0x7
 }
 
 /// Get the func7 field. Applicable to R instructions.
-/// The value is placed into the lowest bits of [InstrVal].
+/// The value is placed into the lowest bits of [`InstrVal`].
 const fn get_funct7(code: InstrVal) -> InstrVal {
-    (code >> offsets::FUNCT7) & 0b1111111
+    (code >> offsets::FUNCT7) & 0x7F
 }
 
 /// Get the rd field. Applicable to R, I, U, J instructions.
-/// The value is placed into the lowest bits of [InstrVal].
-/// The result is immediately wrapped with [RegId] for
+/// The value is placed into the lowest bits of [`InstrVal`].
+/// The result is immediately wrapped with [`RegId`] for
 /// convenience.
 const fn get_rd(code: InstrVal) -> RegId {
-    let raw = (code >> offsets::RD) & REGISTER_MASK;
-    RegId::new(raw).unwrap()
+    reg_x((code >> offsets::RD) & REGISTER_MASK)
 }
 
 /// Get the rs1 field. Applicable to R, I, S, B instructions.
-/// The value is placed into the lowest bits of [InstrVal].
-/// The result is immediately wrapped with [RegId] for
+/// The value is placed into the lowest bits of [`InstrVal`].
+/// The result is immediately wrapped with [`RegId`] for
 /// convenience.
 const fn get_rs1(code: InstrVal) -> RegId {
-    let raw = (code >> offsets::RS1) & REGISTER_MASK;
-    RegId::new(raw).unwrap()
+    reg_x((code >> offsets::RS1) & REGISTER_MASK)
 }
 
 /// Get the rs2 field. Applicable to R, S, B instructions.
-/// The value is placed into the lowest bits of [InstrVal].
-/// The result is immediately wrapped with [RegId] for
+/// The value is placed into the lowest bits of [`InstrVal`].
+/// The result is immediately wrapped with [`RegId`] for
 /// convenience.
 const fn get_rs2(code: InstrVal) -> RegId {
-    let raw = (code >> offsets::RS2) & REGISTER_MASK;
-    RegId::new(raw).unwrap()
+    reg_x((code >> offsets::RS2) & REGISTER_MASK)
 }
 
 /// Get the immediate value. Applicable to I instructions ONLY.
-/// The value is placed into the lowest bits of [InstrVal].
+/// The value is placed into the lowest bits of [`InstrVal`].
 /// The value is not sign-extended.
 /// The result is immediately wrapped with [Bit] for convenience.
 const fn get_i_imm(code: InstrVal) -> Bit<12> {
-    Bit::new((code >> offsets::I_TYPE_IMM) as RegVal).unwrap()
+    bit((code >> offsets::I_TYPE_IMM) as RegVal)
 }
 
 /// Get the immediate value split into shift amount and shtyp.
 /// Applicable to shif imm-op only.
-/// The value is placed into the lowest bits of [InstrVal].
+/// The value is placed into the lowest bits of [`InstrVal`].
 /// The value is not sign-extended.
 /// The result is immediately wrapped with [Bit] for convenience.
 const fn get_shift_imms(code: InstrVal) -> (Bit<5>, Bit<7>) {
     let amount = (code >> offsets::I_TYPE_SHIFT_AMOUNT) & 0x1F;
     let shtyp = (code >> offsets::I_TYPE_SHIFT_TYPE) & 0x7F;
-    let amount = Bit::new(amount as RegVal).unwrap();
-    let shtyp = Bit::new(shtyp as RegVal).unwrap();
-    (amount, shtyp)
+    (bit(amount as RegVal), bit(shtyp as RegVal))
 }
 
 /// Get the immediate value. Applicable to U instructions ONLY.
-/// The value is placed into the lowest bits of [InstrVal].
+/// The value is placed into the lowest bits of [`InstrVal`].
 /// The value is not sign-extended.
 /// The result is immediately wrapped with [Bit] for convenience.
 const fn get_u_imm(code: InstrVal) -> Bit<20> {
-    Bit::new((code >> offsets::U_TYPE_IMM) as RegVal).unwrap()
+    bit((code >> offsets::U_TYPE_IMM) as RegVal)
 }
 
 /// Get the immediate value. Applicable to J instructions ONLY.
-/// The value is placed into the lowest bits of [InstrVal].
+/// The value is placed into the lowest bits of [`InstrVal`].
 /// The value is not sign-extended.
 /// The result is immediately wrapped with [Bit] for convenience.
 const fn get_j_imm(code: InstrVal) -> Bit<20> {
@@ -661,19 +661,17 @@ const fn get_j_imm(code: InstrVal) -> Bit<20> {
     let imm_10 = (code & 0x0010_0000) >> offsets::J_TYPE_IMM_10;
     let imm_11_18 = (code & 0x000F_F000) >> offsets::J_TYPE_IMM_11_18;
     let imm_19 = (code & 0x8000_0000) >> offsets::J_TYPE_IMM_19;
-    let raw = imm_0_9 | (imm_10 << 10) | (imm_11_18 << 11) | (imm_19 << 19);
-    Bit::new(raw as RegVal).unwrap()
+    bit((imm_0_9 | (imm_10 << 10) | (imm_11_18 << 11) | (imm_19 << 19)) as RegVal)
 }
 
 /// Get the immediate value. Applicable to S instructions ONLY.
-/// The value is placed into the lowest bits of [InstrVal].
+/// The value is placed into the lowest bits of [`InstrVal`].
 /// The value is not sign-extended.
 /// The result is immediately wrapped with [Bit] for convenience.
 const fn get_s_imm(code: InstrVal) -> Bit<12> {
     let imm_0_4 = (code & 0x0000_0F80) >> offsets::S_TYPE_IMM_0_4;
     let imm_5_11 = (code & 0xFE00_0000) >> offsets::S_TYPE_IMM_5_11;
-    let raw = imm_0_4 | (imm_5_11 << 5);
-    Bit::new(raw as RegVal).unwrap()
+    bit((imm_0_4 | (imm_5_11 << 5)) as RegVal)
 }
 
 const fn get_b_imm(code: InstrVal) -> Bit<12> {
@@ -681,16 +679,19 @@ const fn get_b_imm(code: InstrVal) -> Bit<12> {
     let imm_4_9 = (code & 0x7E00_0000) >> offsets::B_TYPE_IMM_4_9;
     let imm_10 = (code & 0x0000_0080) >> offsets::B_TYPE_IMM_10;
     let imm_11 = (code & 0x8000_0000) >> offsets::B_TYPE_IMM_11;
-    let raw = imm_0_3 | (imm_4_9 << 4) | (imm_10 << 10) | (imm_11 << 11);
-    Bit::new(raw as RegVal).unwrap()
+    bit((imm_0_3 | (imm_4_9 << 4) | (imm_10 << 10) | (imm_11 << 11)) as RegVal)
 }
 
-/// Encode an instruction back into its [InstrVal] representation.
+/// Encode an instruction back into its [`InstrVal`] representation.
 /// The returned value is guaranteed to be parseable back into [Instruction]
-/// and is also a valid RiscV instruction.
+/// and is also a valid `RiscV` instruction.
 pub const fn encode_instruction(instruction: Instruction) -> InstrVal {
     use crate::util::bit;
-    use Instruction::*;
+    use Instruction::{
+        Add, Addi, And, Andi, Auipc, Beq, Bge, Bgeu, Blt, Bltu, Bne, Jal, Jalr, Lb, Lbu, Lh, Lhu,
+        Lui, Lw, Or, Ori, Sb, Sh, Sll, Slli, Slt, Slti, Sltiu, Sltu, Sra, Srai, Srl, Srli, Sub, Sw,
+        Xor, Xori,
+    };
 
     match instruction {
         Jal(rd, imm) => encode_jal(rd, imm),
@@ -710,9 +711,7 @@ pub const fn encode_instruction(instruction: Instruction) -> InstrVal {
         Xori(rd, rs1, imm) => encode_op_imm(rd, op_imm::FUNCT3_XORI, rs1, imm),
         Ori(rd, rs1, imm) => encode_op_imm(rd, op_imm::FUNCT3_ORI, rs1, imm),
         Andi(rd, rs1, imm) => encode_op_imm(rd, op_imm::FUNCT3_ANDI, rs1, imm),
-        Slli(rd, rs1, imm) => {
-            encode_op_imm(rd, op_imm::FUNCT3_SLLI, rs1, bit(imm.get_zext()))
-        }
+        Slli(rd, rs1, imm) => encode_op_imm(rd, op_imm::FUNCT3_SLLI, rs1, bit(imm.get_zext())),
         Srli(rd, rs1, imm) => encode_shift(rd, rs1, imm, srli_srai_shtyp::SHTYP_SRLI),
         Srai(rd, rs1, imm) => encode_shift(rd, rs1, imm, srli_srai_shtyp::SHTYP_SRAI),
         Slti(rd, rs1, imm) => encode_op_imm(rd, op_imm::FUNCT3_SLTI, rs1, imm),
@@ -777,25 +776,15 @@ const fn encode_u_instr(opcode: InstrVal, rd: RegId, imm: Bit<20>) -> InstrVal {
     out
 }
 
-const fn encode_shift(
-    rd: RegId,
-    rs1: RegId,
-    amount: Bit<5>,
-    shtyp: InstrVal,
-) -> InstrVal {
+const fn encode_shift(rd: RegId, rs1: RegId, amount: Bit<5>, shtyp: InstrVal) -> InstrVal {
     let amount_local_off = offsets::I_TYPE_SHIFT_TYPE - offsets::I_TYPE_SHIFT_AMOUNT;
     let mut imm = 0;
     imm |= amount.get_zext();
     imm |= (shtyp << amount_local_off) as RegVal;
-    encode_op_imm(rd, op_imm::FUNCT3_SRLI_SRAI, rs1, Bit::new(imm).unwrap())
+    encode_op_imm(rd, op_imm::FUNCT3_SRLI_SRAI, rs1, bit(imm))
 }
 
-const fn encode_op_imm(
-    rd: RegId,
-    funct3: InstrVal,
-    rs1: RegId,
-    imm: Bit<12>,
-) -> InstrVal {
+const fn encode_op_imm(rd: RegId, funct3: InstrVal, rs1: RegId, imm: Bit<12>) -> InstrVal {
     let mut out = 0;
     out |= opcodes::OP_IMM;
     out |= rd.get() << offsets::RD;
@@ -824,12 +813,7 @@ const fn encode_load(rd: RegId, funct3: InstrVal, rs1: RegId, imm: Bit<12>) -> I
     out
 }
 
-const fn encode_store(
-    funct3: InstrVal,
-    rs1: RegId,
-    rs2: RegId,
-    imm: Bit<12>,
-) -> InstrVal {
+const fn encode_store(funct3: InstrVal, rs1: RegId, rs2: RegId, imm: Bit<12>) -> InstrVal {
     let imm = imm.get_zext() as InstrVal;
     let imm_0_4 = imm & 0x0000_001F;
     let imm_5_11 = (imm & 0x0000_0FE0) >> 5;
@@ -844,12 +828,7 @@ const fn encode_store(
     out
 }
 
-const fn encode_branch(
-    funct3: InstrVal,
-    rs1: RegId,
-    rs2: RegId,
-    imm: Bit<12>,
-) -> InstrVal {
+const fn encode_branch(funct3: InstrVal, rs1: RegId, rs2: RegId, imm: Bit<12>) -> InstrVal {
     let imm = imm.get_zext() as InstrVal;
     let imm_0_3 = imm & 0x0000_000F;
     let imm_4_9 = (imm & 0x0000_03F0) >> 4;
@@ -870,131 +849,103 @@ const fn encode_branch(
 
 #[cfg(test)]
 mod tests {
-    use crate::kernel::{decode_instruction, encode_instruction, InstrVal, RegId};
+    use crate::kernel::{decode_instruction, encode_instruction, InstrVal};
     use crate::util::{bit, reg_x};
 
-    use super::DecodeError;
     use super::Instruction;
 
-    #[derive(Debug, Clone, Copy)]
-    struct ParseTest {
-        input: InstrVal,
-        expected: Result<Instruction, DecodeError>,
-    }
-
-    #[test]
-    fn lol() {
-        let instr = Instruction::Bge(RegId::A0, RegId::A1, bit(0xFFC));
-        let enc = encode_instruction(instr);
-        println!("{enc:#x}");
-        assert_eq!(decode_instruction(enc).unwrap(), instr);
-    }
-
-    #[test]
-    fn test_simple_positive_parse() {
-        for t in test_data_good() {
-            let decoded = decode_instruction(t.input);
-            assert_eq!(decoded, t.expected);
-            assert_eq!(
-                encode_instruction(decoded.unwrap()),
-                t.input,
-                "failed to decode-encode instruction: {:#b}",
-                t.input
-            );
-        }
-    }
-
-    /// This testdata is a bunch of positive cases where the decoder should return a
+    /// This test is a bunch of positive cases where the decoder should return a
     /// successful result.
     /// This test data should include samples of all instructions supported by the simulator.
-    /// Use this tool to debug failing tests: https://luplab.gitlab.io/rvcodecjs.
-    fn test_data_good() -> impl IntoIterator<Item = ParseTest> {
-        use Instruction::*;
+    /// Use this tool to debug failing tests: <https://luplab.gitlab.io/rvcodecjs>.
+    #[test]
+    fn test_simple_positive_parse() {
+        /* J-Type instructions */
+        assert_good_parse(
+            0b00010100010000000000_00000_1101111,
+            Instruction::Jal(reg_x(0), bit(162)),
+        );
+        assert_good_parse(
+            0b00010100010000000000_00101_1101111,
+            Instruction::Jal(reg_x(5), bit(162)),
+        );
+        assert_good_parse(
+            0b11111111000111111111_00000_1101111,
+            Instruction::Jal(reg_x(0), bit(0xf_fff8)),
+        );
+        /* R-Type instructions */
+        assert_good_parse(
+            0b0000000_00001_00110_000_00100_0110011,
+            Instruction::Add(reg_x(4), reg_x(6), reg_x(1)),
+        );
+        assert_good_parse(
+            0b0100000_11100_00000_000_00101_0110011,
+            Instruction::Sub(reg_x(5), reg_x(0), reg_x(28)),
+        );
+        assert_good_parse(
+            0b0000000_01001_01000_100_00011_0110011,
+            Instruction::Xor(reg_x(3), reg_x(8), reg_x(9)),
+        );
+        /* U-Type instructions */
+        assert_good_parse(
+            0b00000001000111101011_00110_0110111,
+            Instruction::Lui(reg_x(6), bit(4587)),
+        );
+        assert_good_parse(
+            0b00000001001100010111_01100_0010111,
+            Instruction::Auipc(reg_x(12), bit(4887)),
+        );
+        /* I-Type instructions */
+        assert_good_parse(
+            0b000000010100_01100_000_01011_0010011,
+            Instruction::Addi(reg_x(11), reg_x(12), bit(20)),
+        );
+        assert_good_parse(
+            0b110110000000_11101_100_00101_0010011,
+            Instruction::Xori(reg_x(5), reg_x(29), bit(3456)),
+        );
+        assert_good_parse(
+            0b000011111111_00101_000_01010_1100111,
+            Instruction::Jalr(reg_x(10), reg_x(5), bit(255)),
+        );
+        assert_good_parse(
+            0b000010000100_00110_000_00101_0000011,
+            Instruction::Lb(reg_x(5), reg_x(6), bit(132)),
+        );
+        assert_good_parse(
+            0b111111111111_11111_001_11100_0000011,
+            Instruction::Lh(reg_x(28), reg_x(31), bit(0xFFF)),
+        );
+        assert_good_parse(
+            0b000000000010_01011_010_01110_0000011,
+            Instruction::Lw(reg_x(14), reg_x(11), bit(2)),
+        );
+        assert_good_parse(
+            0b000000000001_01110_100_01111_0000011,
+            Instruction::Lbu(reg_x(15), reg_x(14), bit(1)),
+        );
+        assert_good_parse(
+            0b000000000100_01111_101_01111_0000011,
+            Instruction::Lhu(reg_x(15), reg_x(15), bit(4)),
+        );
+        /* S-Type instructions */
+        assert_good_parse(
+            0b000001100101_00111_000_11011_0100011,
+            Instruction::Sb(reg_x(7), reg_x(5), bit(123)),
+        );
+        assert_good_parse(
+            0b111111111111_00000_001_11111_0100011,
+            Instruction::Sh(reg_x(0), reg_x(31), bit(4095)),
+        );
+        assert_good_parse(
+            0b111111111111_00000_010_11111_0100011,
+            Instruction::Sw(reg_x(0), reg_x(31), bit(4095)),
+        );
+    }
 
-        // NOTE: please keep the type ordering the same as in
-        // the parser implementation.
-        vec![
-            /* J-Type instructions */
-            ParseTest {
-                input: 0b00010100010000000000_00000_1101111,
-                expected: Ok(Jal(reg_x(0), bit(162))),
-            },
-            ParseTest {
-                input: 0b00010100010000000000_00101_1101111,
-                expected: Ok(Jal(reg_x(5), bit(162))),
-            },
-            ParseTest {
-                input: 0b11111111000111111111_00000_1101111,
-                expected: Ok(Jal(reg_x(0), bit(0xf_fff8))),
-            },
-            /* R-Type instructions */
-            ParseTest {
-                input: 0b0000000_00001_00110_000_00100_0110011,
-                expected: Ok(Add(reg_x(4), reg_x(6), reg_x(1))),
-            },
-            ParseTest {
-                input: 0b0100000_11100_00000_000_00101_0110011,
-                expected: Ok(Sub(reg_x(5), reg_x(0), reg_x(28))),
-            },
-            ParseTest {
-                input: 0b0000000_01001_01000_100_00011_0110011,
-                expected: Ok(Xor(reg_x(3), reg_x(8), reg_x(9))),
-            },
-            /* U-Type instructions */
-            ParseTest {
-                input: 0b00000001000111101011_00110_0110111,
-                expected: Ok(Lui(reg_x(6), bit(4587))),
-            },
-            ParseTest {
-                input: 0b00000001001100010111_01100_0010111,
-                expected: Ok(Auipc(reg_x(12), bit(4887))),
-            },
-            /* I-Type instructions */
-            ParseTest {
-                input: 0b000000010100_01100_000_01011_0010011,
-                expected: Ok(Addi(reg_x(11), reg_x(12), bit(20))),
-            },
-            ParseTest {
-                input: 0b110110000000_11101_100_00101_0010011,
-                expected: Ok(Xori(reg_x(5), reg_x(29), bit(3456))),
-            },
-            ParseTest {
-                input: 0b000011111111_00101_000_01010_1100111,
-                expected: Ok(Jalr(reg_x(10), reg_x(5), bit(255))),
-            },
-            ParseTest {
-                input: 0b000010000100_00110_000_00101_0000011,
-                expected: Ok(Lb(reg_x(5), reg_x(6), bit(132))),
-            },
-            ParseTest {
-                input: 0b111111111111_11111_001_11100_0000011,
-                expected: Ok(Lh(reg_x(28), reg_x(31), bit(0xFFF))),
-            },
-            ParseTest {
-                input: 0b000000000010_01011_010_01110_0000011,
-                expected: Ok(Lw(reg_x(14), reg_x(11), bit(2))),
-            },
-            ParseTest {
-                input: 0b000000000001_01110_100_01111_0000011,
-                expected: Ok(Lbu(reg_x(15), reg_x(14), bit(1))),
-            },
-            ParseTest {
-                input: 0b000000000100_01111_101_01111_0000011,
-                expected: Ok(Lhu(reg_x(15), reg_x(15), bit(4))),
-            },
-            /* S-Type instructions */
-            ParseTest {
-                input: 0b000001100101_00111_000_11011_0100011,
-                expected: Ok(Sb(reg_x(7), reg_x(5), bit(123))),
-            },
-            ParseTest {
-                input: 0b111111111111_00000_001_11111_0100011,
-                expected: Ok(Sh(reg_x(0), reg_x(31), bit(4095))),
-            },
-            ParseTest {
-                input: 0b111111111111_00000_010_11111_0100011,
-                expected: Ok(Sw(reg_x(0), reg_x(31), bit(4095))),
-            },
-        ]
+    fn assert_good_parse(input: InstrVal, expected: Instruction) {
+        let decoded = decode_instruction(input).unwrap();
+        assert_eq!(decoded, expected);
+        assert_eq!(encode_instruction(decoded), input);
     }
 }
