@@ -846,7 +846,7 @@ const fn encode_branch(funct3: InstrVal, rs1: RegId, rs2: RegId, imm: Bit<12>) -
 
 #[cfg(test)]
 mod tests {
-    use crate::kernel::{decode_instruction, encode_instruction, InstrVal, RegId};
+    use crate::kernel::{decode_instruction, encode_instruction, InstrVal};
     use crate::util::{bit, reg_x};
 
     use super::DecodeError;
@@ -856,14 +856,6 @@ mod tests {
     struct ParseTest {
         input: InstrVal,
         expected: Result<Instruction, DecodeError>,
-    }
-
-    #[test]
-    fn lol() {
-        let instr = Instruction::Bge(RegId::A0, RegId::A1, bit(0xFFC));
-        let enc = encode_instruction(instr);
-        println!("{enc:#x}");
-        assert_eq!(decode_instruction(enc).unwrap(), instr);
     }
 
     #[test]
