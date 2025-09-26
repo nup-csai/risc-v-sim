@@ -435,7 +435,7 @@ pub mod offsets {
 /// supported by the simulator. The returned error will detail what is wrong.
 /// For more info, see [`DecodeError`].
 pub const fn decode_instruction(code: InstrVal) -> Result<Instruction> {
-    use Instruction::*;
+    use Instruction::{Jal, Lui, Auipc, Jalr};
 
     let instruction = match get_opcode(code) {
         opcodes::JAL => Jal(get_rd(code), get_j_imm(code)),
@@ -455,7 +455,7 @@ pub const fn decode_instruction(code: InstrVal) -> Result<Instruction> {
 
 /// Decode an instruction with opcode [`opcodes::OP_IMM`].
 const fn decode_op_imm(instruction: InstrVal) -> Result<Instruction> {
-    use Instruction::*;
+    use Instruction::{Addi, Xori, Andi, Ori, Slli, Slti, Sltiu};
 
     let funct3 = get_funct3(instruction);
     let rd = get_rd(instruction);
@@ -479,7 +479,7 @@ const fn decode_op_imm(instruction: InstrVal) -> Result<Instruction> {
 
 /// Decode an `op_imm` with funct3 [`op_imm::FUNCT3_SRLI_SRAI`]
 const fn decode_srli_srai(instruction: InstrVal) -> Result<Instruction> {
-    use Instruction::*;
+    use Instruction::{Srli, Srai};
 
     let rd = get_rd(instruction);
     let rs1 = get_rs1(instruction);
@@ -496,7 +496,7 @@ const fn decode_srli_srai(instruction: InstrVal) -> Result<Instruction> {
 
 /// Decode an instruction with opcode [`opcodes::OP`].
 const fn decode_op(instruction: InstrVal) -> Result<Instruction> {
-    use Instruction::*;
+    use Instruction::{Add, Sub, Xor, Or, And, Sll, Srl, Sra, Slt, Sltu};
 
     let funct3_7 = (get_funct3(instruction), get_funct7(instruction));
     let rd = get_rd(instruction);
@@ -522,7 +522,7 @@ const fn decode_op(instruction: InstrVal) -> Result<Instruction> {
 
 /// Decode an instruction with opcode [`opcodes::LOAD`].
 const fn decode_load(instruction: InstrVal) -> Result<Instruction> {
-    use Instruction::*;
+    use Instruction::{Lb, Lh, Lw, Lbu, Lhu};
 
     let funct3 = get_funct3(instruction);
     let rd = get_rd(instruction);
@@ -543,7 +543,7 @@ const fn decode_load(instruction: InstrVal) -> Result<Instruction> {
 
 /// Decode an instruction with opcode [`opcodes::STORE`].
 const fn decode_store(code: InstrVal) -> Result<Instruction> {
-    use Instruction::*;
+    use Instruction::{Sb, Sh, Sw};
 
     let funct3 = get_funct3(code);
     let rs1 = get_rs1(code);
@@ -562,7 +562,7 @@ const fn decode_store(code: InstrVal) -> Result<Instruction> {
 
 /// Decode an instruction with opcode [`opcodes::BRANCH`].
 const fn decode_branch(code: InstrVal) -> Result<Instruction> {
-    use Instruction::*;
+    use Instruction::{Beq, Bne, Blt, Bge, Bltu, Bgeu};
 
     let funct3 = get_funct3(code);
     let rs1 = get_rs1(code);
@@ -686,7 +686,7 @@ const fn get_b_imm(code: InstrVal) -> Bit<12> {
 /// and is also a valid `RiscV` instruction.
 pub const fn encode_instruction(instruction: Instruction) -> InstrVal {
     use crate::util::bit;
-    use Instruction::*;
+    use Instruction::{Jal, Add, Sub, Xor, Or, And, Sll, Srl, Sra, Slt, Sltu, Lui, Auipc, Addi, Xori, Ori, Andi, Slli, Srli, Srai, Slti, Sltiu, Jalr, Lb, Lh, Lw, Lbu, Lhu, Sb, Sh, Sw, Beq, Bne, Blt, Bge, Bltu, Bgeu};
 
     match instruction {
         Jal(rd, imm) => encode_jal(rd, imm),

@@ -302,7 +302,7 @@ impl Instruction {
 
 impl fmt::Display for Instruction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use Instruction::*;
+        use Instruction::{Jal, Add, Sub, Xor, Or, And, Sll, Srl, Sra, Slt, Sltu, Lui, Auipc, Addi, Xori, Ori, Andi, Slli, Srli, Srai, Slti, Sltiu, Jalr, Lb, Lh, Lw, Lbu, Lhu, Sb, Sh, Sw, Beq, Bne, Blt, Bge, Bltu, Bgeu};
 
         match *self {
             Jal(rd, imm) => write!(f, "jal {rd} {:#x}", imm.get_zext() << 1),
