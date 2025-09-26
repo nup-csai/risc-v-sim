@@ -1,9 +1,9 @@
-//! This module contains the decoder of the RiscV instructions.
+//! This module contains the decoder of the `RiscV` instructions.
 //! It does not support the compressed instructions. For a list
 //! of the supported instructions, please consult the [Instruction]
 //! type.
 //!
-//! # RiscV instructions
+//! # `RiscV` instructions
 //!
 //! This section lists instruction types and their bit representation.
 //! This bits are going from highest to lowest from left to right.
@@ -170,56 +170,56 @@ pub mod opcodes {
     use super::Instruction;
 
     /* J-type instructions */
-    /// Opcode of [Instruction::Jal]
+    /// Opcode of [`Instruction::Jal`]
     pub const JAL: InstrVal = 0b1101111;
 
     /* R-type instructions */
     /// Opcode for register-register integer operations:
-    /// * [Instruction::Add]
-    /// * [Instruction::Sub]
-    /// * [Instruction::Xor]
-    /// * [Instruction::And]
-    /// * [Instruction::Sll]
-    /// * [Instruction::Srl]
-    /// * [Instruction::Sra]
-    /// * [Instruction::Slt]
-    /// * [Instruction::Sltu]
+    /// * [`Instruction::Add`]
+    /// * [`Instruction::Sub`]
+    /// * [`Instruction::Xor`]
+    /// * [`Instruction::And`]
+    /// * [`Instruction::Sll`]
+    /// * [`Instruction::Srl`]
+    /// * [`Instruction::Sra`]
+    /// * [`Instruction::Slt`]
+    /// * [`Instruction::Sltu`]
     ///
     /// To figure our what instruction it is,
     /// you need to look at funct3 and funct7.
-    /// The name has been taken from RiscV book.
+    /// The name has been taken from `RiscV` book.
     pub const OP: InstrVal = 0b0110011;
 
     /* U-type instructions */
-    /// Opcode of [Instruction::Lui]
+    /// Opcode of [`Instruction::Lui`]
     pub const LUI: InstrVal = 0b0110111;
-    /// Opcode of [Instruction::Auipc]
+    /// Opcode of [`Instruction::Auipc`]
     pub const AUIPC: InstrVal = 0b0010111;
 
     /* I-type instructions */
     /// Opcode of the following instructions:
-    /// * [Instruction::Addi]
-    /// * [Instruction::Xori]
-    /// * [Instruction::Ori]
-    /// * [Instruction::Andi]
-    /// * [Instruction::Slli]
-    /// * [Instruction::Srli]
-    /// * [Instruction::Srai]
-    /// * [Instruction::Slti]
-    /// * [Instruction::Sltiu]
+    /// * [`Instruction::Addi`]
+    /// * [`Instruction::Xori`]
+    /// * [`Instruction::Ori`]
+    /// * [`Instruction::Andi`]
+    /// * [`Instruction::Slli`]
+    /// * [`Instruction::Srli`]
+    /// * [`Instruction::Srai`]
+    /// * [`Instruction::Slti`]
+    /// * [`Instruction::Sltiu`]
     ///
     /// To figure out what instruction it is,
     /// you need to look at funct3.
-    /// The name has been taken from RiscV book.
+    /// The name has been taken from `RiscV` book.
     pub const OP_IMM: InstrVal = 0b0010011;
-    /// Opcode of [Instruction::Jalr]
+    /// Opcode of [`Instruction::Jalr`]
     pub const JALR: InstrVal = 0b1100111;
     /// Opcode of the following instructions
-    /// * [Instruction::Lb]
-    /// * [Instruction::Lh]
-    /// * [Instruction::Lw]
-    /// * [Instruction::Lbu]
-    /// * [Instruction::Lhu]
+    /// * [`Instruction::Lb`]
+    /// * [`Instruction::Lh`]
+    /// * [`Instruction::Lw`]
+    /// * [`Instruction::Lbu`]
+    /// * [`Instruction::Lhu`]
     ///
     /// To figure out what instruction it is,
     /// you need to look at funct3.
@@ -227,9 +227,9 @@ pub mod opcodes {
 
     /* S-type instructions */
     /// Opcode of the following instructions
-    /// * [Instruction::Sb]
-    /// * [Instruction::Sh]
-    /// * [Instruction::Sw]
+    /// * [`Instruction::Sb`]
+    /// * [`Instruction::Sh`]
+    /// * [`Instruction::Sw`]
     ///
     /// To figure out what instruction it is,
     /// you need to look at funct3.
@@ -237,12 +237,12 @@ pub mod opcodes {
 
     /* B-type instructions */
     /// Opcode of the following instructions
-    /// * [Instruction::Beq]
-    /// * [Instruction::Bne]
-    /// * [Instruction::Blt]
-    /// * [Instruction::Bge]
-    /// * [Instruction::Bltu]
-    /// * [Instruction::Bgeu]
+    /// * [`Instruction::Beq`]
+    /// * [`Instruction::Bne`]
+    /// * [`Instruction::Blt`]
+    /// * [`Instruction::Bge`]
+    /// * [`Instruction::Bltu`]
+    /// * [`Instruction::Bgeu`]
     ///
     /// To figure out what instruction it is,
     /// you need to look at funct3.
@@ -252,7 +252,7 @@ pub mod opcodes {
 }
 
 /// [op] contains `funct3` and `funct7` values
-/// for instructions with opcode [opcodes::OP].
+/// for instructions with opcode [`opcodes::OP`].
 /// For more information, see the comment above that constant.
 pub mod op {
     use super::InstrVal;
@@ -311,8 +311,8 @@ pub mod op {
     ];
 }
 
-/// [op_imm] contains `funct3` values
-/// for instructions with opcode [opcodes::OP_IMM].
+/// [`op_imm`] contains `funct3` values
+/// for instructions with opcode [`opcodes::OP_IMM`].
 /// For more information, see the comment above that constant.
 pub mod op_imm {
     #[allow(unused_imports)]
@@ -329,7 +329,7 @@ pub mod op_imm {
     /// into two values known as "shtyp" and "shamt".
     ///
     /// To figure out which one is it, consult values in
-    /// [srli_srai_shtyp].
+    /// [`srli_srai_shtyp`].
     pub const FUNCT3_SRLI_SRAI: InstrVal = 0b101;
     pub const FUNCT3_SLTI: InstrVal = 0b010;
     pub const FUNCT3_SLTIU: InstrVal = 0b011;
@@ -358,7 +358,7 @@ pub mod srli_srai_shtyp {
 }
 
 /// [load] contains `funct3` values
-/// for instructions with opcode [opcodes::LOAD].
+/// for instructions with opcode [`opcodes::LOAD`].
 /// For more information, see the comment above that constant.
 pub mod load {
     use super::InstrVal;
@@ -373,7 +373,7 @@ pub mod load {
 }
 
 /// [store] contains `funct3` values
-/// for instructions with opcode [opcodes::STORE].
+/// for instructions with opcode [`opcodes::STORE`].
 /// For more information, see the comment above that constant.
 pub mod store {
     use super::InstrVal;
@@ -386,7 +386,7 @@ pub mod store {
 }
 
 /// [branch] contains `funct3` values
-/// for instructions with opcode [opcodes::BRANCH].
+/// for instructions with opcode [`opcodes::BRANCH`].
 /// For more information, see the comment above that constant.
 pub mod branch {
     use super::InstrVal;
@@ -427,7 +427,7 @@ pub mod offsets {
     pub const B_TYPE_IMM_11: InstrVal = 31;
 }
 
-/// Decode a RiscV instruction.
+/// Decode a `RiscV` instruction.
 pub const fn decode_instruction(code: InstrVal) -> Result<Instruction> {
     use Instruction::*;
 
@@ -447,7 +447,7 @@ pub const fn decode_instruction(code: InstrVal) -> Result<Instruction> {
     Ok(instruction)
 }
 
-/// Decode an instruction with opcode [opcodes::OP_IMM].
+/// Decode an instruction with opcode [`opcodes::OP_IMM`].
 const fn decode_op_imm(instruction: InstrVal) -> Result<Instruction> {
     use Instruction::*;
 
@@ -471,7 +471,7 @@ const fn decode_op_imm(instruction: InstrVal) -> Result<Instruction> {
     Ok(instruction)
 }
 
-/// Decode an op_imm with funct3 [op_imm::FUNCT3_SRLI_SRAI]
+/// Decode an `op_imm` with funct3 [`op_imm::FUNCT3_SRLI_SRAI`]
 const fn decode_srli_srai(instruction: InstrVal) -> Result<Instruction> {
     use Instruction::*;
 
@@ -488,7 +488,7 @@ const fn decode_srli_srai(instruction: InstrVal) -> Result<Instruction> {
     Ok(instruction)
 }
 
-/// Decode an instruction with opcode [opcodes::OP].
+/// Decode an instruction with opcode [`opcodes::OP`].
 const fn decode_op(instruction: InstrVal) -> Result<Instruction> {
     use Instruction::*;
 
@@ -514,7 +514,7 @@ const fn decode_op(instruction: InstrVal) -> Result<Instruction> {
     Ok(instruction)
 }
 
-/// Decode an instruction with opcode [opcodes::LOAD].
+/// Decode an instruction with opcode [`opcodes::LOAD`].
 const fn decode_load(instruction: InstrVal) -> Result<Instruction> {
     use Instruction::*;
 
@@ -535,7 +535,7 @@ const fn decode_load(instruction: InstrVal) -> Result<Instruction> {
     Ok(instruction)
 }
 
-/// Decode an instruction with opcode [opcodes::STORE].
+/// Decode an instruction with opcode [`opcodes::STORE`].
 const fn decode_store(code: InstrVal) -> Result<Instruction> {
     use Instruction::*;
 
@@ -554,7 +554,7 @@ const fn decode_store(code: InstrVal) -> Result<Instruction> {
     Ok(instruction)
 }
 
-/// Decode an instruction with opcode [opcodes::BRANCH].
+/// Decode an instruction with opcode [`opcodes::BRANCH`].
 const fn decode_branch(code: InstrVal) -> Result<Instruction> {
     use Instruction::*;
 
@@ -583,43 +583,43 @@ const fn get_opcode(code: InstrVal) -> InstrVal {
 }
 
 /// Get the func3 field. Applicable to R, I, S, B instructions.
-/// The value is placed into the lowest bits of [InstrVal].
+/// The value is placed into the lowest bits of [`InstrVal`].
 const fn get_funct3(code: InstrVal) -> InstrVal {
     (code >> offsets::FUNCT3) & 0b111
 }
 
 /// Get the func7 field. Applicable to R instructions.
-/// The value is placed into the lowest bits of [InstrVal].
+/// The value is placed into the lowest bits of [`InstrVal`].
 const fn get_funct7(code: InstrVal) -> InstrVal {
     (code >> offsets::FUNCT7) & 0b1111111
 }
 
 /// Get the rd field. Applicable to R, I, U, J instructions.
-/// The value is placed into the lowest bits of [InstrVal].
-/// The result is immediately wrapped with [RegId] for
+/// The value is placed into the lowest bits of [`InstrVal`].
+/// The result is immediately wrapped with [`RegId`] for
 /// convenience.
 const fn get_rd(code: InstrVal) -> RegId {
     reg_x((code >> offsets::RD) & REGISTER_MASK)
 }
 
 /// Get the rs1 field. Applicable to R, I, S, B instructions.
-/// The value is placed into the lowest bits of [InstrVal].
-/// The result is immediately wrapped with [RegId] for
+/// The value is placed into the lowest bits of [`InstrVal`].
+/// The result is immediately wrapped with [`RegId`] for
 /// convenience.
 const fn get_rs1(code: InstrVal) -> RegId {
     reg_x((code >> offsets::RS1) & REGISTER_MASK)
 }
 
 /// Get the rs2 field. Applicable to R, S, B instructions.
-/// The value is placed into the lowest bits of [InstrVal].
-/// The result is immediately wrapped with [RegId] for
+/// The value is placed into the lowest bits of [`InstrVal`].
+/// The result is immediately wrapped with [`RegId`] for
 /// convenience.
 const fn get_rs2(code: InstrVal) -> RegId {
     reg_x((code >> offsets::RS2) & REGISTER_MASK)
 }
 
 /// Get the immediate value. Applicable to I instructions ONLY.
-/// The value is placed into the lowest bits of [InstrVal].
+/// The value is placed into the lowest bits of [`InstrVal`].
 /// The value is not sign-extended.
 /// The result is immediately wrapped with [Bit] for convenience.
 const fn get_i_imm(code: InstrVal) -> Bit<12> {
@@ -628,7 +628,7 @@ const fn get_i_imm(code: InstrVal) -> Bit<12> {
 
 /// Get the immediate value split into shift amount and shtyp.
 /// Applicable to shif imm-op only.
-/// The value is placed into the lowest bits of [InstrVal].
+/// The value is placed into the lowest bits of [`InstrVal`].
 /// The value is not sign-extended.
 /// The result is immediately wrapped with [Bit] for convenience.
 const fn get_shift_imms(code: InstrVal) -> (Bit<5>, Bit<7>) {
@@ -638,7 +638,7 @@ const fn get_shift_imms(code: InstrVal) -> (Bit<5>, Bit<7>) {
 }
 
 /// Get the immediate value. Applicable to U instructions ONLY.
-/// The value is placed into the lowest bits of [InstrVal].
+/// The value is placed into the lowest bits of [`InstrVal`].
 /// The value is not sign-extended.
 /// The result is immediately wrapped with [Bit] for convenience.
 const fn get_u_imm(code: InstrVal) -> Bit<20> {
@@ -646,7 +646,7 @@ const fn get_u_imm(code: InstrVal) -> Bit<20> {
 }
 
 /// Get the immediate value. Applicable to J instructions ONLY.
-/// The value is placed into the lowest bits of [InstrVal].
+/// The value is placed into the lowest bits of [`InstrVal`].
 /// The value is not sign-extended.
 /// The result is immediately wrapped with [Bit] for convenience.
 const fn get_j_imm(code: InstrVal) -> Bit<20> {
@@ -658,7 +658,7 @@ const fn get_j_imm(code: InstrVal) -> Bit<20> {
 }
 
 /// Get the immediate value. Applicable to S instructions ONLY.
-/// The value is placed into the lowest bits of [InstrVal].
+/// The value is placed into the lowest bits of [`InstrVal`].
 /// The value is not sign-extended.
 /// The result is immediately wrapped with [Bit] for convenience.
 const fn get_s_imm(code: InstrVal) -> Bit<12> {
@@ -675,9 +675,9 @@ const fn get_b_imm(code: InstrVal) -> Bit<12> {
     bit((imm_0_3 | (imm_4_9 << 4) | (imm_10 << 10) | (imm_11 << 11)) as RegVal)
 }
 
-/// Encode an instruction back into its [InstrVal] representation.
+/// Encode an instruction back into its [`InstrVal`] representation.
 /// The returned value is guaranteed to be parseable back into [Instruction]
-/// and is also a valid RiscV instruction.
+/// and is also a valid `RiscV` instruction.
 pub const fn encode_instruction(instruction: Instruction) -> InstrVal {
     use crate::util::bit;
     use Instruction::*;
@@ -867,7 +867,7 @@ mod tests {
     /// This testdata is a bunch of positive cases where the decoder should return a
     /// successful result.
     /// This test data should include samples of all instructions supported by the simulator.
-    /// Use this tool to debug failing tests: https://luplab.gitlab.io/rvcodecjs.
+    /// Use this tool to debug failing tests: <https://luplab.gitlab.io/rvcodecjs>.
     fn test_data_good() -> impl IntoIterator<Item = ParseTest> {
         use Instruction::*;
 

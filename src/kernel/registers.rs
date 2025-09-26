@@ -6,13 +6,13 @@ pub type RegValSigned = i64;
 /// The type used to store CPU instructions.
 pub type InstrVal = u32;
 
-/// Masks the bits required to index bits of [RegVal].
+/// Masks the bits required to index bits of [`RegVal`].
 pub const REGVAL_SIZE_MASK: RegVal = 0b111111;
 pub const GENERAL_REGISTER_COUNT: usize = 32;
 
 /// The [Registers] struct contains all Rv64i registers.
-/// You can manipulate them with [Registers::get] and
-/// [Registers::set]. The [RegId::ZERO] registers is guaranteed
+/// You can manipulate them with [`Registers::get`] and
+/// [`Registers::set`]. The [`RegId::ZERO`] registers is guaranteed
 /// to always return `0` wil be unaffected by sets.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 pub struct Registers {
@@ -20,7 +20,7 @@ pub struct Registers {
     pub pc: RegVal,
 }
 
-/// [RegId] represents a validated general purpose register index.
+/// [`RegId`] represents a validated general purpose register index.
 /// In baseline Rv64i there are 32 general purpose registers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[repr(transparent)]

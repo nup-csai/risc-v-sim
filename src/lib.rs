@@ -16,7 +16,7 @@ use crate::shell::run_kernel;
 
 pub type ErrBox = Box<dyn Error + Send + Sync>;
 
-/// Emulates RiscV programs. The result is a JSON object printed
+/// Emulates `RiscV` programs. The result is a JSON object printed
 /// into stdout. The JSON object is guaranteed to always be printed
 /// to stdout and will have the same shape. The user may freely pipe
 /// the output into a JSON-parsing program.

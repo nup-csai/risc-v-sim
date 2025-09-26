@@ -25,7 +25,7 @@ type Result<T> = std::result::Result<T, MemoryError>;
 /// N **noverlapping** segments. The no-overlap part is important
 /// as it allows an unambigious mapping of addresses to segments.
 /// Segments are just chunks of plain bytes with permission control.
-/// For more information, see [MemorySegment].
+/// For more information, see [`MemorySegment`].
 #[derive(Debug)]
 pub struct Memory {
     segments: Vec<MemorySegment>,
@@ -37,7 +37,7 @@ impl Memory {
     }
 
     /// Adds a segment ot the memory. If the segment turns out to be overlapping,
-    /// [MemoryError::SegmentOverlap] is returned.
+    /// [`MemoryError::SegmentOverlap`] is returned.
     pub fn add_segment(&mut self, added_segment: MemorySegment) -> Result<()> {
         let conflicting_segment = self
             .segments
@@ -144,10 +144,10 @@ impl Memory {
     /// to the segments as that would violate the structure's gurantees.
     /// If you need modify segment's data or permissions, please see the
     /// following methods:
-    /// * [Memory::segment_data_mut]
-    /// * [Memory::set_segment_read]
-    /// * [Memory::set_segment_write]
-    /// * [Memory::set_segment_execute]
+    /// * [`Memory::segment_data_mut`]
+    /// * [`Memory::set_segment_read`]
+    /// * [`Memory::set_segment_write`]
+    /// * [`Memory::set_segment_execute`]
     pub fn segments(&self) -> &[MemorySegment] {
         &self.segments
     }
@@ -202,7 +202,7 @@ fn to_segment_offs(address: RegVal, len: usize, segment: &MemorySegment) -> (usi
 /// * constant-size data buffer
 /// * permission flags
 ///
-/// The permission flags act similarly to RiscV's permission flags from
+/// The permission flags act similarly to `RiscV`'s permission flags from
 /// PMP (Physical Memory Protection). Do note however that this is not
 /// an implementation of PMP as they can only be set by the kernel.
 #[derive(Debug, Clone)]
@@ -212,7 +212,7 @@ pub struct MemorySegment {
     /// Flag for allowing write operations to the segment.
     pub is_write: bool,
     /// Flag for allowing instruction fetches from the segment.
-    /// Note, that like in RiscV's PMP, you do not need read access
+    /// Note, that like in `RiscV`'s PMP, you do not need read access
     /// to execute instructions from the segment.
     pub is_execute: bool,
     /// Segment's global offset within the memory.

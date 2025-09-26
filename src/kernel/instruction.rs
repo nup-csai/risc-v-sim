@@ -1,5 +1,5 @@
 //! This module contains the type-safe internal representation
-//! of a RiscV instruction and other related types related to it.
+//! of a `RiscV` instruction and other related types related to it.
 
 use std::{
     fmt,
@@ -12,7 +12,7 @@ use crate::kernel::{RegValSigned, REGVAL_SIZE_MASK};
 
 use super::{Memory, MemoryError, RegId, RegVal, Registers};
 
-/// Error returned by [Instruction::execute].
+/// Error returned by [`Instruction::execute`].
 #[derive(Clone, Copy, PartialEq, Eq, Error, Debug)]
 pub enum InstructionError {
     #[error("instruction `{instruction}`: {cause}")]
@@ -27,10 +27,10 @@ type Result<T> = std::result::Result<T, InstructionError>;
 
 /// [Instruction] is a type-safe representation of a CPU
 /// instruction. That means, all valid values of this type
-/// are valid RiscV instructions. The order of operands in
-/// the instructions is the same as in RiscV assembly.
+/// are valid `RiscV` instructions. The order of operands in
+/// the instructions is the same as in `RiscV` assembly.
 ///
-/// For instruction behaviour, please consult the RiscV
+/// For instruction behaviour, please consult the `RiscV`
 /// documentation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum Instruction {
@@ -383,7 +383,7 @@ impl<const N: usize> Bit<N> {
         }
     }
 
-    /// Get the value as [RegVal].
+    /// Get the value as [`RegVal`].
     /// The value is zero-extended.
     // NOTE: unused, but may be useful later.
     #[allow(dead_code)]
@@ -391,7 +391,7 @@ impl<const N: usize> Bit<N> {
         self.0
     }
 
-    /// Get the value as [RegVal].
+    /// Get the value as [`RegVal`].
     /// The value is sign-extended.
     pub const fn get_sext(self) -> RegVal {
         let mut result = self.0;
