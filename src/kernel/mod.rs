@@ -40,6 +40,13 @@ impl Kernel {
         Self::new(memory, entry_point)
     }
 
+    /// Does a single instructoin step simulation.
+    /// 
+    /// # Errors
+    /// 
+    /// If can't be properly fetched or decoded at current `pc`,
+    /// an error is returned. If the fetched instruction fails to run,
+    /// an error is returned too.
     pub fn step(&mut self) -> Result<KernelStep, KernelError> {
         let old_registers = self.registers;
         let old_pc = old_registers.pc;
@@ -84,6 +91,13 @@ impl Program {
         Self { instructions: instructions.into_iter().map(encode_instruction).collect() }
     }
 
+    /// Constructs a [`Program`] from a collection of raw instruction
+    /// values.
+    /// 
+    /// # Errors
+    /// 
+    /// Returns `Err` if some the collection contains an invalid
+    /// instruction code. For more information, see [`decode_instruction()`].
     pub fn from_raw_instructions(
         instructions: impl IntoIterator<Item = InstrVal>,
     ) -> Result<Self, InstructionDecodeError> {

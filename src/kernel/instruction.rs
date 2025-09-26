@@ -80,6 +80,12 @@ pub enum Instruction {
 }
 
 impl Instruction {
+    /// Execute an instruction.
+    /// 
+    /// # Errors
+    /// 
+    /// Returns `Err` if instruction execution leads to a fail.
+    /// See [`InstructionError`] for possible errors.
     pub fn execute(self, regs: &mut Registers, mem: &mut Memory, old_pc: RegVal) -> Result<()> {
         match self {
             Instruction::Jal(rd, imm) => {

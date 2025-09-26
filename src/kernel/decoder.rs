@@ -428,6 +428,12 @@ pub mod offsets {
 }
 
 /// Decode a `RiscV` instruction.
+/// 
+/// # Errors 
+/// 
+/// Will return `Err` if `code` doesn't represent a valid `RiscV` instruction
+/// supported by the simulator. The returned error will detail what is wrong.
+/// For more info, see [`DecodeError`].
 pub const fn decode_instruction(code: InstrVal) -> Result<Instruction> {
     use Instruction::*;
 
