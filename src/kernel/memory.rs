@@ -32,7 +32,7 @@ pub struct Memory {
 }
 
 impl Memory {
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self { segments: Vec::new() }
     }
 
@@ -224,7 +224,7 @@ pub struct MemorySegment {
 impl MemorySegment {
     /// Create a segment with specified offset, size and permissions
     /// with all of its bytes zeroed.
-    pub fn new_zeroed(
+    #[must_use] pub fn new_zeroed(
         is_read: bool,
         is_write: bool,
         is_execute: bool,
