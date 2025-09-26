@@ -53,7 +53,7 @@ pub struct Args {
     input: Vec<(MemorySegmentDef, PathBuf)>,
     /// Mounts `FILE` into program's memory as output. The program will get a
     /// specified segment filled with zeros. At the end of program execution
-    /// the contents of the segment will be written into `FILE``.
+    /// the contents of the segment will be written into `FILE`.
     ///
     /// `FLAGS` is an optional argument that controls the permissions for the
     /// region the file is mounted into:
