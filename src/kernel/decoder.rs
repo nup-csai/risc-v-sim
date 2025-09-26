@@ -847,120 +847,100 @@ mod tests {
     use crate::kernel::{decode_instruction, encode_instruction, InstrVal};
     use crate::util::{bit, reg_x};
 
-    use super::DecodeError;
     use super::Instruction;
 
-    #[derive(Debug, Clone, Copy)]
-    struct ParseTest {
-        input: InstrVal,
-        expected: Result<Instruction, DecodeError>,
-    }
-
-    #[test]
-    fn test_simple_positive_parse() {
-        for t in test_data_good() {
-            let decoded = decode_instruction(t.input);
-            assert_eq!(decoded, t.expected);
-            assert_eq!(
-                encode_instruction(decoded.unwrap()),
-                t.input,
-                "failed to decode-encode instruction: {:#b}",
-                t.input
-            );
-        }
-    }
-
-    /// This testdata is a bunch of positive cases where the decoder should return a
+    /// This test is a bunch of positive cases where the decoder should return a
     /// successful result.
     /// This test data should include samples of all instructions supported by the simulator.
     /// Use this tool to debug failing tests: <https://luplab.gitlab.io/rvcodecjs>.
-    fn test_data_good() -> impl IntoIterator<Item = ParseTest> {
-        use Instruction::*;
+    #[test]
+    fn test_simple_positive_parse() {
+        /* J-Type instructions */
+        assert_good_parse(
+            0b00010100010000000000_00000_1101111,
+            Instruction::Jal(reg_x(0), bit(162)),
+        );
+        assert_good_parse(
+            0b00010100010000000000_00101_1101111,
+            Instruction::Jal(reg_x(5), bit(162)),
+        );
+        assert_good_parse(
+            0b11111111000111111111_00000_1101111,
+            Instruction::Jal(reg_x(0), bit(0xf_fff8)),
+        );
+        /* R-Type instructions */
+        assert_good_parse(
+            0b0000000_00001_00110_000_00100_0110011,
+            Instruction::Add(reg_x(4), reg_x(6), reg_x(1)),
+        );
+        assert_good_parse(
+            0b0100000_11100_00000_000_00101_0110011,
+            Instruction::Sub(reg_x(5), reg_x(0), reg_x(28)),
+        );
+        assert_good_parse(
+            0b0000000_01001_01000_100_00011_0110011,
+            Instruction::Xor(reg_x(3), reg_x(8), reg_x(9)),
+        );
+        /* U-Type instructions */
+        assert_good_parse(
+            0b00000001000111101011_00110_0110111,
+            Instruction::Lui(reg_x(6), bit(4587)),
+        );
+        assert_good_parse(
+            0b00000001001100010111_01100_0010111,
+            Instruction::Auipc(reg_x(12), bit(4887)),
+        );
+        /* I-Type instructions */
+        assert_good_parse(
+            0b000000010100_01100_000_01011_0010011,
+            Instruction::Addi(reg_x(11), reg_x(12), bit(20)),
+        );
+        assert_good_parse(
+            0b110110000000_11101_100_00101_0010011,
+            Instruction::Xori(reg_x(5), reg_x(29), bit(3456)),
+        );
+        assert_good_parse(
+            0b000011111111_00101_000_01010_1100111,
+            Instruction::Jalr(reg_x(10), reg_x(5), bit(255)),
+        );
+        assert_good_parse(
+            0b000010000100_00110_000_00101_0000011,
+            Instruction::Lb(reg_x(5), reg_x(6), bit(132)),
+        );
+        assert_good_parse(
+            0b111111111111_11111_001_11100_0000011,
+            Instruction::Lh(reg_x(28), reg_x(31), bit(0xFFF)),
+        );
+        assert_good_parse(
+            0b000000000010_01011_010_01110_0000011,
+            Instruction::Lw(reg_x(14), reg_x(11), bit(2)),
+        );
+        assert_good_parse(
+            0b000000000001_01110_100_01111_0000011,
+            Instruction::Lbu(reg_x(15), reg_x(14), bit(1)),
+        );
+        assert_good_parse(
+            0b000000000100_01111_101_01111_0000011,
+            Instruction::Lhu(reg_x(15), reg_x(15), bit(4)),
+        );
+        /* S-Type instructions */
+        assert_good_parse(
+            0b000001100101_00111_000_11011_0100011,
+            Instruction::Sb(reg_x(7), reg_x(5), bit(123)),
+        );
+        assert_good_parse(
+            0b111111111111_00000_001_11111_0100011,
+            Instruction::Sh(reg_x(0), reg_x(31), bit(4095)),
+        );
+        assert_good_parse(
+            0b111111111111_00000_010_11111_0100011,
+            Instruction::Sw(reg_x(0), reg_x(31), bit(4095)),
+        );
+    }
 
-        // NOTE: please keep the type ordering the same as in
-        // the parser implementation.
-        vec![
-            /* J-Type instructions */
-            ParseTest {
-                input: 0b00010100010000000000_00000_1101111,
-                expected: Ok(Jal(reg_x(0), bit(162))),
-            },
-            ParseTest {
-                input: 0b00010100010000000000_00101_1101111,
-                expected: Ok(Jal(reg_x(5), bit(162))),
-            },
-            ParseTest {
-                input: 0b11111111000111111111_00000_1101111,
-                expected: Ok(Jal(reg_x(0), bit(0xf_fff8))),
-            },
-            /* R-Type instructions */
-            ParseTest {
-                input: 0b0000000_00001_00110_000_00100_0110011,
-                expected: Ok(Add(reg_x(4), reg_x(6), reg_x(1))),
-            },
-            ParseTest {
-                input: 0b0100000_11100_00000_000_00101_0110011,
-                expected: Ok(Sub(reg_x(5), reg_x(0), reg_x(28))),
-            },
-            ParseTest {
-                input: 0b0000000_01001_01000_100_00011_0110011,
-                expected: Ok(Xor(reg_x(3), reg_x(8), reg_x(9))),
-            },
-            /* U-Type instructions */
-            ParseTest {
-                input: 0b00000001000111101011_00110_0110111,
-                expected: Ok(Lui(reg_x(6), bit(4587))),
-            },
-            ParseTest {
-                input: 0b00000001001100010111_01100_0010111,
-                expected: Ok(Auipc(reg_x(12), bit(4887))),
-            },
-            /* I-Type instructions */
-            ParseTest {
-                input: 0b000000010100_01100_000_01011_0010011,
-                expected: Ok(Addi(reg_x(11), reg_x(12), bit(20))),
-            },
-            ParseTest {
-                input: 0b110110000000_11101_100_00101_0010011,
-                expected: Ok(Xori(reg_x(5), reg_x(29), bit(3456))),
-            },
-            ParseTest {
-                input: 0b000011111111_00101_000_01010_1100111,
-                expected: Ok(Jalr(reg_x(10), reg_x(5), bit(255))),
-            },
-            ParseTest {
-                input: 0b000010000100_00110_000_00101_0000011,
-                expected: Ok(Lb(reg_x(5), reg_x(6), bit(132))),
-            },
-            ParseTest {
-                input: 0b111111111111_11111_001_11100_0000011,
-                expected: Ok(Lh(reg_x(28), reg_x(31), bit(0xFFF))),
-            },
-            ParseTest {
-                input: 0b000000000010_01011_010_01110_0000011,
-                expected: Ok(Lw(reg_x(14), reg_x(11), bit(2))),
-            },
-            ParseTest {
-                input: 0b000000000001_01110_100_01111_0000011,
-                expected: Ok(Lbu(reg_x(15), reg_x(14), bit(1))),
-            },
-            ParseTest {
-                input: 0b000000000100_01111_101_01111_0000011,
-                expected: Ok(Lhu(reg_x(15), reg_x(15), bit(4))),
-            },
-            /* S-Type instructions */
-            ParseTest {
-                input: 0b000001100101_00111_000_11011_0100011,
-                expected: Ok(Sb(reg_x(7), reg_x(5), bit(123))),
-            },
-            ParseTest {
-                input: 0b111111111111_00000_001_11111_0100011,
-                expected: Ok(Sh(reg_x(0), reg_x(31), bit(4095))),
-            },
-            ParseTest {
-                input: 0b111111111111_00000_010_11111_0100011,
-                expected: Ok(Sw(reg_x(0), reg_x(31), bit(4095))),
-            },
-        ]
+    fn assert_good_parse(input: InstrVal, expected: Instruction) {
+        let decoded = decode_instruction(input).unwrap();
+        assert_eq!(decoded, expected);
+        assert_eq!(encode_instruction(decoded), input);
     }
 }
