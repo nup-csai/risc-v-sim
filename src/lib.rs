@@ -163,7 +163,7 @@ fn parse_segment_flags(s: &str) -> Result<(bool, bool, bool), ErrBox> {
 /// # Errors
 /// 
 /// If something goes wrong, [`ShellError`] is returned.
-pub fn run_cli(args: Args) -> Result<(), ShellError> {
+pub fn run_cli(args: &Args) -> Result<(), ShellError> {
     let info = load_program_from_file(&args.path)?;
     let entry_point = info.entry;
     let mut memory = Memory::new();
