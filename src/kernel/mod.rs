@@ -17,14 +17,16 @@ pub struct Kernel {
 }
 
 impl Kernel {
-    #[must_use] pub const fn new(memory: Memory, entry_point: RegVal) -> Self {
+    #[must_use]
+    pub const fn new(memory: Memory, entry_point: RegVal) -> Self {
         let mut registers = Registers::new();
         registers.pc = entry_point;
 
         Kernel { registers, memory }
     }
 
-    #[must_use] pub fn from_program(program: Program, entry_point: RegVal, program_off: RegVal) -> Self {
+    #[must_use]
+    pub fn from_program(program: Program, entry_point: RegVal, program_off: RegVal) -> Self {
         let mut memory = Memory::new();
         let program_bytes = program.into_bytes().into_iter().collect();
         memory
@@ -41,9 +43,9 @@ impl Kernel {
     }
 
     /// Does a single instructoin step simulation.
-    /// 
+    ///
     /// # Errors
-    /// 
+    ///
     /// If can't be properly fetched or decoded at current `pc`,
     /// an error is returned. If the fetched instruction fails to run,
     /// an error is returned too.
@@ -93,9 +95,9 @@ impl Program {
 
     /// Constructs a [`Program`] from a collection of raw instruction
     /// values.
-    /// 
+    ///
     /// # Errors
-    /// 
+    ///
     /// Returns `Err` if some the collection contains an invalid
     /// instruction code. For more information, see [`decode_instruction()`].
     pub fn from_raw_instructions(

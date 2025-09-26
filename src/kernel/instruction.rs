@@ -81,9 +81,9 @@ pub enum Instruction {
 
 impl Instruction {
     /// Execute an instruction.
-    /// 
+    ///
     /// # Errors
-    /// 
+    ///
     /// Returns `Err` if instruction execution leads to a fail.
     /// See [`InstructionError`] for possible errors.
     pub fn execute(self, regs: &mut Registers, mem: &mut Memory, old_pc: RegVal) -> Result<()> {
@@ -302,7 +302,11 @@ impl Instruction {
 
 impl fmt::Display for Instruction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use Instruction::{Jal, Add, Sub, Xor, Or, And, Sll, Srl, Sra, Slt, Sltu, Lui, Auipc, Addi, Xori, Ori, Andi, Slli, Srli, Srai, Slti, Sltiu, Jalr, Lb, Lh, Lw, Lbu, Lhu, Sb, Sh, Sw, Beq, Bne, Blt, Bge, Bltu, Bgeu};
+        use Instruction::{
+            Add, Addi, And, Andi, Auipc, Beq, Bge, Bgeu, Blt, Bltu, Bne, Jal, Jalr, Lb, Lbu, Lh,
+            Lhu, Lui, Lw, Or, Ori, Sb, Sh, Sll, Slli, Slt, Slti, Sltiu, Sltu, Sra, Srai, Srl, Srli,
+            Sub, Sw, Xor, Xori,
+        };
 
         match *self {
             Jal(rd, imm) => write!(f, "jal {rd} {:#x}", imm.get_zext() << 1),

@@ -32,15 +32,16 @@ pub struct Memory {
 }
 
 impl Memory {
-    #[must_use] pub fn new() -> Self {
+    #[must_use]
+    pub fn new() -> Self {
         Self { segments: Vec::new() }
     }
 
-    /// Adds a segment ot the memory. 
-    /// 
+    /// Adds a segment ot the memory.
+    ///
     /// # Errors
-    /// 
-    /// If the segment turns out to be overlapping, 
+    ///
+    /// If the segment turns out to be overlapping,
     /// [`MemoryError::SegmentOverlap`] is returned.
     pub fn add_segment(&mut self, added_segment: MemorySegment) -> Result<()> {
         let conflicting_segment = self
@@ -108,9 +109,9 @@ impl Memory {
     }
 
     /// Finds a segment that contains `address`.
-    /// 
+    ///
     /// # Errors
-    /// 
+    ///
     /// Returns [`MemoryError::AddressOutOfRange`] if there is no segment
     /// containing `adress`.
     pub fn find_segment(&self, address: RegVal) -> Result<&MemorySegment> {
@@ -234,7 +235,8 @@ pub struct MemorySegment {
 impl MemorySegment {
     /// Create a segment with specified offset, size and permissions
     /// with all of its bytes zeroed.
-    #[must_use] pub fn new_zeroed(
+    #[must_use]
+    pub fn new_zeroed(
         is_read: bool,
         is_write: bool,
         is_execute: bool,

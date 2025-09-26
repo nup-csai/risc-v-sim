@@ -73,9 +73,9 @@ pub struct ProgramInfo {
 impl ProgramInfo {
     /// Adds the program to the memory with specified extra
     /// permissions.
-    /// 
+    ///
     /// # Errors
-    /// 
+    ///
     /// Returns `Err` if adding the program segment to memory
     /// leads to a memory error. For more information, see
     /// [`Memory::add_segment`].
@@ -97,9 +97,9 @@ impl ProgramInfo {
 }
 
 /// Reads progra info from an `.elf` file.
-/// 
+///
 /// # Errors
-/// 
+///
 /// Returns [`ShellError::Load`] if an IO error happens during program load.
 /// Returns same errors as [`load_program_from_elf`].
 pub fn load_program_from_file(path: impl AsRef<Path>) -> Result<ProgramInfo> {
@@ -114,9 +114,9 @@ pub fn load_program_from_file(path: impl AsRef<Path>) -> Result<ProgramInfo> {
 /// * The .text section offset must be aligned to 4 bytes
 /// * The .text section is not compressed
 /// * The .text section must contain supported `RiscV` instructions
-/// 
+///
 /// # Errors
-/// 
+///
 /// Returns `Err` if `data` doesn't contain valid elf file bytes
 /// or the elf file doesn't satisfy the constraints
 pub fn load_program_from_elf(data: &[u8]) -> Result<ProgramInfo> {
@@ -142,10 +142,7 @@ pub fn load_program_from_elf(data: &[u8]) -> Result<ProgramInfo> {
         return Err(ShellError::UnalignedText);
     }
 
-    let raw_stream = chunks
-        .iter()
-        .copied()
-        .map(InstrVal::from_le_bytes);
+    let raw_stream = chunks.iter().copied().map(InstrVal::from_le_bytes);
     let program =
         Program::from_raw_instructions(raw_stream).map_err(ShellError::InstructionDecoderError)?;
 
@@ -163,9 +160,9 @@ pub struct RunResult {
 
 /// Runs a kernel for `step_count` steps, writing the trace to `out` together
 /// with the status.
-/// 
+///
 /// # Errors
-/// 
+///
 /// Returns an error if an IO error happens or if an error during kernel stepping happens.
 /// If the execution is unfortunate enough to have both kernel and IO error, the two
 /// errors are bundled with [`ShellError::ResultReportError`].

@@ -159,9 +159,9 @@ fn parse_segment_flags(s: &str) -> Result<(bool, bool, bool), ErrBox> {
 }
 
 /// Run the CLI according to specified `args`.
-/// 
+///
 /// # Errors
-/// 
+///
 /// If something goes wrong, [`ShellError`] is returned.
 pub fn run_cli(args: &Args) -> Result<(), ShellError> {
     let info = load_program_from_file(&args.path)?;
