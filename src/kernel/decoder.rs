@@ -139,7 +139,7 @@
 
 use thiserror::Error;
 
-use crate::c_try;
+use crate::{c_try, util::{bit, reg_x}};
 
 use super::{Bit, InstrVal, Instruction, RegId, RegVal};
 
@@ -599,8 +599,7 @@ const fn get_funct7(code: InstrVal) -> InstrVal {
 /// The result is immediately wrapped with [RegId] for
 /// convenience.
 const fn get_rd(code: InstrVal) -> RegId {
-    let raw = (code >> offsets::RD) & REGISTER_MASK;
-    RegId::new(raw).unwrap()
+    reg_x((code >> offsets::RD) & REGISTER_MASK)
 }
 
 /// Get the rs1 field. Applicable to R, I, S, B instructions.
@@ -608,8 +607,7 @@ const fn get_rd(code: InstrVal) -> RegId {
 /// The result is immediately wrapped with [RegId] for
 /// convenience.
 const fn get_rs1(code: InstrVal) -> RegId {
-    let raw = (code >> offsets::RS1) & REGISTER_MASK;
-    RegId::new(raw).unwrap()
+    reg_x((code >> offsets::RS1) & REGISTER_MASK)
 }
 
 /// Get the rs2 field. Applicable to R, S, B instructions.
@@ -617,8 +615,7 @@ const fn get_rs1(code: InstrVal) -> RegId {
 /// The result is immediately wrapped with [RegId] for
 /// convenience.
 const fn get_rs2(code: InstrVal) -> RegId {
-    let raw = (code >> offsets::RS2) & REGISTER_MASK;
-    RegId::new(raw).unwrap()
+    reg_x((code >> offsets::RS2) & REGISTER_MASK)
 }
 
 /// Get the immediate value. Applicable to I instructions ONLY.
@@ -626,7 +623,7 @@ const fn get_rs2(code: InstrVal) -> RegId {
 /// The value is not sign-extended.
 /// The result is immediately wrapped with [Bit] for convenience.
 const fn get_i_imm(code: InstrVal) -> Bit<12> {
-    Bit::new((code >> offsets::I_TYPE_IMM) as RegVal).unwrap()
+    bit((code >> offsets::I_TYPE_IMM) as RegVal)
 }
 
 /// Get the immediate value split into shift amount and shtyp.
@@ -637,9 +634,7 @@ const fn get_i_imm(code: InstrVal) -> Bit<12> {
 const fn get_shift_imms(code: InstrVal) -> (Bit<5>, Bit<7>) {
     let amount = (code >> offsets::I_TYPE_SHIFT_AMOUNT) & 0x1F;
     let shtyp = (code >> offsets::I_TYPE_SHIFT_TYPE) & 0x7F;
-    let amount = Bit::new(amount as RegVal).unwrap();
-    let shtyp = Bit::new(shtyp as RegVal).unwrap();
-    (amount, shtyp)
+    (bit(amount as RegVal), bit(shtyp as RegVal))
 }
 
 /// Get the immediate value. Applicable to U instructions ONLY.
@@ -647,7 +642,7 @@ const fn get_shift_imms(code: InstrVal) -> (Bit<5>, Bit<7>) {
 /// The value is not sign-extended.
 /// The result is immediately wrapped with [Bit] for convenience.
 const fn get_u_imm(code: InstrVal) -> Bit<20> {
-    Bit::new((code >> offsets::U_TYPE_IMM) as RegVal).unwrap()
+    bit((code >> offsets::U_TYPE_IMM) as RegVal)
 }
 
 /// Get the immediate value. Applicable to J instructions ONLY.
@@ -659,8 +654,7 @@ const fn get_j_imm(code: InstrVal) -> Bit<20> {
     let imm_10 = (code & 0x0010_0000) >> offsets::J_TYPE_IMM_10;
     let imm_11_18 = (code & 0x000F_F000) >> offsets::J_TYPE_IMM_11_18;
     let imm_19 = (code & 0x8000_0000) >> offsets::J_TYPE_IMM_19;
-    let raw = imm_0_9 | (imm_10 << 10) | (imm_11_18 << 11) | (imm_19 << 19);
-    Bit::new(raw as RegVal).unwrap()
+    bit((imm_0_9 | (imm_10 << 10) | (imm_11_18 << 11) | (imm_19 << 19)) as RegVal)
 }
 
 /// Get the immediate value. Applicable to S instructions ONLY.
@@ -670,8 +664,7 @@ const fn get_j_imm(code: InstrVal) -> Bit<20> {
 const fn get_s_imm(code: InstrVal) -> Bit<12> {
     let imm_0_4 = (code & 0x0000_0F80) >> offsets::S_TYPE_IMM_0_4;
     let imm_5_11 = (code & 0xFE00_0000) >> offsets::S_TYPE_IMM_5_11;
-    let raw = imm_0_4 | (imm_5_11 << 5);
-    Bit::new(raw as RegVal).unwrap()
+    bit((imm_0_4 | (imm_5_11 << 5)) as RegVal)
 }
 
 const fn get_b_imm(code: InstrVal) -> Bit<12> {
@@ -679,8 +672,7 @@ const fn get_b_imm(code: InstrVal) -> Bit<12> {
     let imm_4_9 = (code & 0x7E00_0000) >> offsets::B_TYPE_IMM_4_9;
     let imm_10 = (code & 0x0000_0080) >> offsets::B_TYPE_IMM_10;
     let imm_11 = (code & 0x8000_0000) >> offsets::B_TYPE_IMM_11;
-    let raw = imm_0_3 | (imm_4_9 << 4) | (imm_10 << 10) | (imm_11 << 11);
-    Bit::new(raw as RegVal).unwrap()
+    bit((imm_0_3 | (imm_4_9 << 4) | (imm_10 << 10) | (imm_11 << 11)) as RegVal)
 }
 
 /// Encode an instruction back into its [InstrVal] representation.
@@ -778,7 +770,7 @@ const fn encode_shift(rd: RegId, rs1: RegId, amount: Bit<5>, shtyp: InstrVal) ->
     let mut imm = 0;
     imm |= amount.get_zext();
     imm |= (shtyp << amount_local_off) as RegVal;
-    encode_op_imm(rd, op_imm::FUNCT3_SRLI_SRAI, rs1, Bit::new(imm).unwrap())
+    encode_op_imm(rd, op_imm::FUNCT3_SRLI_SRAI, rs1, bit(imm))
 }
 
 const fn encode_op_imm(rd: RegId, funct3: InstrVal, rs1: RegId, imm: Bit<12>) -> InstrVal {

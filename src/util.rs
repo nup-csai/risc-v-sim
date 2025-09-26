@@ -14,13 +14,11 @@ macro_rules! c_try {
 }
 
 /// Shortcut function that panics if `v` is not a valid reg index.
-#[allow(dead_code)]
 pub const fn reg_x(x: InstrVal) -> RegId {
     RegId::new(x).expect("Bad register value")
 }
 
 /// Shortcut function that panics if `v` is not a valid Bit<N> value.
-#[allow(dead_code)]
 pub const fn bit<const WIDTH: usize>(v: RegVal) -> Bit<{ WIDTH }> {
     Bit::new(v).expect("bad bit value")
 }
