@@ -7,7 +7,7 @@ pub type RegValSigned = i64;
 pub type InstrVal = u32;
 
 /// Masks the bits required to index bits of [`RegVal`].
-pub const REGVAL_SIZE_MASK: RegVal = 0b111111;
+pub const REGVAL_SIZE_MASK: RegVal = 0x3F;
 pub const GENERAL_REGISTER_COUNT: usize = 32;
 
 /// The [Registers] struct contains all Rv64i registers.

@@ -171,7 +171,7 @@ pub mod opcodes {
 
     /* J-type instructions */
     /// Opcode of [`Instruction::Jal`]
-    pub const JAL: InstrVal = 0b1101111;
+    pub const JAL: InstrVal = 0b110_1111;
 
     /* R-type instructions */
     /// Opcode for register-register integer operations:
@@ -188,13 +188,13 @@ pub mod opcodes {
     /// To figure our what instruction it is,
     /// you need to look at funct3 and funct7.
     /// The name has been taken from `RiscV` book.
-    pub const OP: InstrVal = 0b0110011;
+    pub const OP: InstrVal = 0b011_0011;
 
     /* U-type instructions */
     /// Opcode of [`Instruction::Lui`]
-    pub const LUI: InstrVal = 0b0110111;
+    pub const LUI: InstrVal = 0b011_0111;
     /// Opcode of [`Instruction::Auipc`]
-    pub const AUIPC: InstrVal = 0b0010111;
+    pub const AUIPC: InstrVal = 0b001_0111;
 
     /* I-type instructions */
     /// Opcode of the following instructions:
@@ -211,9 +211,9 @@ pub mod opcodes {
     /// To figure out what instruction it is,
     /// you need to look at funct3.
     /// The name has been taken from `RiscV` book.
-    pub const OP_IMM: InstrVal = 0b0010011;
+    pub const OP_IMM: InstrVal = 0b001_0011;
     /// Opcode of [`Instruction::Jalr`]
-    pub const JALR: InstrVal = 0b1100111;
+    pub const JALR: InstrVal = 0b110_0111;
     /// Opcode of the following instructions
     /// * [`Instruction::Lb`]
     /// * [`Instruction::Lh`]
@@ -223,7 +223,7 @@ pub mod opcodes {
     ///
     /// To figure out what instruction it is,
     /// you need to look at funct3.
-    pub const LOAD: InstrVal = 0b0000011;
+    pub const LOAD: InstrVal = 0b000_0011;
 
     /* S-type instructions */
     /// Opcode of the following instructions
@@ -233,7 +233,7 @@ pub mod opcodes {
     ///
     /// To figure out what instruction it is,
     /// you need to look at funct3.
-    pub const STORE: InstrVal = 0b0100011;
+    pub const STORE: InstrVal = 0b010_0011;
 
     /* B-type instructions */
     /// Opcode of the following instructions
@@ -246,7 +246,7 @@ pub mod opcodes {
     ///
     /// To figure out what instruction it is,
     /// you need to look at funct3.
-    pub const BRANCH: InstrVal = 0b1100011;
+    pub const BRANCH: InstrVal = 0b110_0011;
 
     pub const ALL_OPCODES: [InstrVal; 8] = [JAL, OP, LUI, AUIPC, OP_IMM, JALR, LOAD, STORE];
 }
@@ -259,43 +259,43 @@ pub mod op {
 
     /* Codes for ADD */
     pub const FUNCT3_ADD: InstrVal = 0b000;
-    pub const FUNCT7_ADD: InstrVal = 0b0000000;
+    pub const FUNCT7_ADD: InstrVal = 0b000_0000;
 
     /* Codes for SUB */
     pub const FUNCT3_SUB: InstrVal = 0b000;
-    pub const FUNCT7_SUB: InstrVal = 0b0100000;
+    pub const FUNCT7_SUB: InstrVal = 0b010_0000;
 
     /* Codes for XOR */
     pub const FUNCT3_XOR: InstrVal = 0b100;
-    pub const FUNCT7_XOR: InstrVal = 0b0000000;
+    pub const FUNCT7_XOR: InstrVal = 0b000_0000;
 
     /* Codes for OR */
     pub const FUNCT3_OR: InstrVal = 0b110;
-    pub const FUNCT7_OR: InstrVal = 0b0000000;
+    pub const FUNCT7_OR: InstrVal = 0b000_0000;
 
     /* Codes for AND */
     pub const FUNCT3_AND: InstrVal = 0b111;
-    pub const FUNCT7_AND: InstrVal = 0b0000000;
+    pub const FUNCT7_AND: InstrVal = 0b000_0000;
 
     /* Codes for SLL */
     pub const FUNCT3_SLL: InstrVal = 0b001;
-    pub const FUNCT7_SLL: InstrVal = 0b0000000;
+    pub const FUNCT7_SLL: InstrVal = 0b000_0000;
 
     /* Codes for SRL */
     pub const FUNCT3_SRL: InstrVal = 0b101;
-    pub const FUNCT7_SRL: InstrVal = 0b0000000;
+    pub const FUNCT7_SRL: InstrVal = 0b000_0000;
 
     /* Codes for SRA */
     pub const FUNCT3_SRA: InstrVal = 0b101;
-    pub const FUNCT7_SRA: InstrVal = 0b0100000;
+    pub const FUNCT7_SRA: InstrVal = 0b010_0000;
 
     /* Codes for SLT */
     pub const FUNCT3_SLT: InstrVal = 0b010;
-    pub const FUNCT7_SLT: InstrVal = 0b0000000;
+    pub const FUNCT7_SLT: InstrVal = 0b000_0000;
 
     /* Codes for SLTU */
     pub const FUNCT3_SLTU: InstrVal = 0b011;
-    pub const FUNCT7_SLTU: InstrVal = 0b0000000;
+    pub const FUNCT7_SLTU: InstrVal = 0b000_0000;
 
     pub const ALL_FUNCT37: [(InstrVal, InstrVal); 10] = [
         (FUNCT3_ADD, FUNCT7_ADD),
@@ -351,8 +351,8 @@ pub mod op_imm {
 pub mod srli_srai_shtyp {
     use crate::kernel::InstrVal;
 
-    pub const SHTYP_SRLI: InstrVal = 0b0000000;
-    pub const SHTYP_SRAI: InstrVal = 0b0100000;
+    pub const SHTYP_SRLI: InstrVal = 0b000_0000;
+    pub const SHTYP_SRAI: InstrVal = 0b010_0000;
 
     pub const ALL_SHTYP: [InstrVal; 2] = [SHTYP_SRLI, SHTYP_SRAI];
 }
@@ -399,7 +399,7 @@ pub mod branch {
     pub const FUNCT3_BGEU: InstrVal = 0b111;
 }
 
-const REGISTER_MASK: InstrVal = 0b11111;
+const REGISTER_MASK: InstrVal = 0x1F;
 
 /// [offsets] contains all the bit offsets for parts of an
 /// instruction.
@@ -579,19 +579,19 @@ const fn decode_branch(code: InstrVal) -> Result<Instruction> {
 /// Get the opcode field.
 /// This field is present in all instruction types.
 const fn get_opcode(code: InstrVal) -> InstrVal {
-    code & 0b1111111
+    code & 0x7F
 }
 
 /// Get the func3 field. Applicable to R, I, S, B instructions.
 /// The value is placed into the lowest bits of [`InstrVal`].
 const fn get_funct3(code: InstrVal) -> InstrVal {
-    (code >> offsets::FUNCT3) & 0b111
+    (code >> offsets::FUNCT3) & 0x7
 }
 
 /// Get the func7 field. Applicable to R instructions.
 /// The value is placed into the lowest bits of [`InstrVal`].
 const fn get_funct7(code: InstrVal) -> InstrVal {
-    (code >> offsets::FUNCT7) & 0b1111111
+    (code >> offsets::FUNCT7) & 0x7F
 }
 
 /// Get the rd field. Applicable to R, I, U, J instructions.
