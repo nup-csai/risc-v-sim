@@ -208,7 +208,7 @@ pub fn run_cli(args: &Args) -> Result<(), ShellError> {
             .segments()
             .iter()
             .find(|s| s.contains_address(def.off))
-            .unwrap();
+            .expect("memory segment disappeared");
         std::fs::write(file.clone(), segment.as_bytes())
             .map_err(|error| ShellError::WritingOutputSegment { file: file.clone(), error })?;
     }

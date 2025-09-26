@@ -35,7 +35,7 @@ impl Kernel {
                 off: program_off,
                 mem: program_bytes,
             })
-            .unwrap();
+            .expect("added a segment to an empty memory");
 
         Self::new(memory, entry_point)
     }

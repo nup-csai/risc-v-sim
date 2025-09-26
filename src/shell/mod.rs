@@ -136,13 +136,15 @@ pub fn load_program_from_elf(data: &[u8]) -> Result<ProgramInfo> {
     if compression_header.is_some() {
         return Err(ShellError::CompressedText);
     }
-    if text.len() % 4 != 0 {
+
+    let (chunks, tail) = text.as_chunks::<4>();
+    if !tail.is_empty() {
         return Err(ShellError::UnalignedText);
     }
 
-    let raw_stream = text
-        .chunks(4)
-        .map(|x| <[u8; 4]>::try_from(x).unwrap())
+    let raw_stream = chunks
+        .iter()
+        .copied()
         .map(InstrVal::from_le_bytes);
     let program =
         Program::from_raw_instructions(raw_stream).map_err(ShellError::InstructionDecoderError)?;
