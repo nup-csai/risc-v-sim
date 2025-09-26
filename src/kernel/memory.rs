@@ -159,17 +159,17 @@ impl Memory {
 
     /// Set `is_read` flag for segment specified by `idx`.
     pub fn set_segment_read(&mut self, idx: usize, is_read: bool) {
-        self.segments[idx].is_read = is_read
+        self.segments[idx].is_read = is_read;
     }
 
     /// Set `is_write` flag for segment specified by `idx`.
     pub fn set_segment_write(&mut self, idx: usize, is_write: bool) {
-        self.segments[idx].is_write = is_write
+        self.segments[idx].is_write = is_write;
     }
 
     /// Set `is_execute` flag for segment specified by `idx`.
     pub fn set_segment_execute(&mut self, idx: usize, is_execute: bool) {
-        self.segments[idx].is_execute = is_execute
+        self.segments[idx].is_execute = is_execute;
     }
 
     fn alignment_check(address: RegVal, expected_alignment: usize) -> Result<()> {
@@ -355,7 +355,7 @@ mod tests {
                 assert!(
                     segment1.overlaps_segment(off2, len2),
                     "segment {off1}:{len1} must overlap {off2}:{len2}"
-                )
+                );
             }
 
             for _ in 0..ADDRESS_SAMPLING_COUNT {
@@ -370,7 +370,7 @@ mod tests {
                 assert!(
                     segment1.overlaps_segment(off2, len2),
                     "segment {off1}:{len1} must overlap {off2}:{len2}"
-                )
+                );
             }
         }
     }
@@ -389,7 +389,7 @@ mod tests {
                 assert!(
                     !segment1.overlaps_segment(off2, len2),
                     "segment {off1}:{len1} must not overlap {off2}:{len2}"
-                )
+                );
             }
 
             for _ in 0..ADDRESS_SAMPLING_COUNT {
@@ -404,7 +404,7 @@ mod tests {
                 assert!(
                     !segment1.overlaps_segment(off2, len2),
                     "segment {off1}:{len1} must not overlap {off2}:{len2}"
-                )
+                );
             }
         }
     }
