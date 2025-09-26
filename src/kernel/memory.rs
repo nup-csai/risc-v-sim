@@ -65,7 +65,7 @@ impl Memory {
     /// * `address` not belonging to any segment
     /// * the segment responsible for `address` does not allow reads
     /// * alignment enforcement is enabled and `address` is not properly aligned
-    pub fn read(&self, address: RegVal, dst: &mut [u8]) -> Result<()> {
+    pub fn load(&self, address: RegVal, dst: &mut [u8]) -> Result<()> {
         let segment = self.find_segment(address)?;
         if !segment.is_read {
             return Err(MemoryError::AddressNotReadable { address });
@@ -119,7 +119,7 @@ impl Memory {
     /// * `address` not belonging to any segment
     /// * the segment responsible for `address` does not allow writes
     /// * alignment enforcement is enabled and `address` is not properly aligned
-    pub fn write(&mut self, address: RegVal, src: &[u8]) -> Result<()> {
+    pub fn store(&mut self, address: RegVal, src: &[u8]) -> Result<()> {
         let segment = self.find_segment_mut(address)?;
         if !segment.is_write {
             return Err(MemoryError::AddressNotWritable { address });

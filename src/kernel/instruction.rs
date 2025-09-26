@@ -281,14 +281,14 @@ impl Instruction {
 
     fn load(self, mem: &Memory, addr: RegVal, sz: usize) -> Result<RegVal> {
         let mut dst = [0u8; std::mem::size_of::<RegVal>()];
-        mem.read(addr, &mut dst[0..sz])
+        mem.load(addr, &mut dst[0..sz])
             .map_err(|cause| InstructionError::MemoryError { instruction: self, cause })?;
         Ok(RegVal::from_le_bytes(dst))
     }
 
     fn store(self, mem: &mut Memory, addr: RegVal, val: RegVal, sz: usize) -> Result<()> {
         let src = &val.to_le_bytes()[0..sz];
-        mem.write(addr, src)
+        mem.store(addr, src)
             .map_err(|cause| InstructionError::MemoryError { instruction: self, cause })?;
         Ok(())
     }
