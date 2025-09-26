@@ -37,7 +37,7 @@ impl Memory {
     }
 
     /// Adds a segment ot the memory. If the segment turns out to be overlapping,
-    /// [MemoryError::AddingOverlappingSegment] is returned.
+    /// [MemoryError::SegmentOverlap] is returned.
     pub fn add_segment(&mut self, added_segment: MemorySegment) -> Result<()> {
         let conflicting_segment = self
             .segments

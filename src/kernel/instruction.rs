@@ -383,7 +383,7 @@ impl<const N: usize> Bit<N> {
         }
     }
 
-    /// Get the value as [RegisterVal].
+    /// Get the value as [RegVal].
     /// The value is zero-extended.
     // NOTE: unused, but may be useful later.
     #[allow(dead_code)]
@@ -391,7 +391,7 @@ impl<const N: usize> Bit<N> {
         self.0
     }
 
-    /// Get the value as [RegisterVal].
+    /// Get the value as [RegVal].
     /// The value is sign-extended.
     pub const fn get_sext(self) -> RegVal {
         let mut result = self.0;
