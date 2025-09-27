@@ -55,7 +55,7 @@ jobs:
           name: elfs
           path: ./riscv-samples/bin
       - name: Run tests
-        run: cargo test --package "*" --locked
+        run: cargo test --package "*" --locked -- --show-output
   cargo-fmt:
     runs-on: ubuntu-latest
     container: rust:1.88.0-bookworm 
