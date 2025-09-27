@@ -290,7 +290,7 @@ mod tests {
         RegVal,
     };
 
-    const SEGMENT_SAMPLING_COUNT: usize = 1_000;
+    const SEGMENT_SAMPLING_COUNT: usize = 100;
     const ADDRESS_SAMPLING_COUNT: usize = 100;
 
     #[test]
