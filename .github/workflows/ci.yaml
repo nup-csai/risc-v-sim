@@ -8,15 +8,29 @@ env:
   RUSTVERSION: "1.88"
 
 jobs:
-  ci-check:
+  build-samples:
     runs-on: ubuntu-latest
+    container: krinkin/rv64-toolchain:latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions-rs/toolchain@v1
+      - name: build and capture
+        run: cd riscv-samples && make -j8 init-capture && make capture
+      - name: Upload traces
+        uses: actions/upload-artifact@v4
         with:
-          profile: minimal
-          toolchain: ${{ env.RUSTVERSION }} 
-          override: true
+          name: traces
+          path: ./riscv-samples/traces/*.trace
+      - name: Upload elfs
+        uses: actions/upload-artifact@v4
+        with:
+          name: elfs
+          path: ./riscv-samples/bin/*.elf
+  ci-check:
+    runs-on: ubuntu-latest
+    container: rust:1.88.0-bookworm 
+    needs: build-samples
+    steps:
+      - uses: actions/checkout@v4
       - uses: actions/cache@v4
         continue-on-error: false
         with:
@@ -26,20 +40,27 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ci-${{ runner.os }}-${{ env.RUSTVERSION }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ci-bookworm-${{ env.RUSTVERSION }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ci-${{ runner.os }}-${{ env.RUSTVERSION }}-cargo-
-      - name: Check everything
-        run: cargo check --locked --all-targets
+      - name: Build everything
+        run: cargo build --locked
+      - name: Load traces
+        uses: actions/download-artifact@v4
+        with:
+          name: traces
+          path: ./riscv-samples/traces
+      - name: Load elfs
+        uses: actions/download-artifact@v4
+        with:
+          name: elfs
+          path: ./riscv-samples/bin
       - name: Run tests
         run: cargo test --package "*" --locked
   cargo-fmt:
     runs-on: ubuntu-latest
+    container: rust:1.88.0-bookworm 
     steps:
       - uses: actions/checkout@v4
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: ${{ env.RUSTVERSION }}
-          override: true
-          components: rustfmt
+      - name: Install cargo fmt
+        run: rustup component add rustfmt
       - run: cargo fmt --all -- --check

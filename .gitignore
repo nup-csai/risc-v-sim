@@ -1,2 +1,5 @@
 /target
 /tests/elfs
+riscv-samples/bin
+riscv-samples/traces
+riscv-samples/gdb_cmds
