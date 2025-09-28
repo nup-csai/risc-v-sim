@@ -7,14 +7,16 @@
 //! # `RiscV` instructions
 //!
 //! This section lists instruction types and their bit representation.
-//! This bits are going from highest to lowest from left to right.
+//! The bits are going from highest to lowest, from left to right.
+//! The values in square brackets indicate what bits of the immediate
+//! value are stored and in which order.
 //!
 //! ## J-Type
 //!
 //! J-Type instructions have the following bit represenation.
-//! The values in square brackets indicate what bits of the immediate
-//! value are stored and in which order as such instructions do not
-//! store them consecutively.
+//! Note that the bits of the immediate value are not stored
+//! consecutively.
+//!
 //!
 //! ```pic
 //! jal zero, 324

@@ -59,7 +59,7 @@ pub mod shell;
 mod util;
 
 use std::error::Error;
-use std::io::stdout;
+use std::io::{stdout, Read};
 use std::path::PathBuf;
 use std::str::FromStr;
 
@@ -123,6 +123,28 @@ pub struct Args {
     output: Vec<(MemorySegmentDef, PathBuf)>,
 }
 
+/// Run the CLI according to specified `args`.
+///
+/// # Errors
+///
+/// If something goes wrong, [`ShellError`] is returned.
+pub fn run_cli(args: &Args) -> Result<(), ShellError> {
+    let mut memory = Memory::new();
+    let entry_point = load_program_into_memory(&mut memory, &args.path)?;
+    load_segments_into_memory(&mut memory, &args.input, &args.output)?;
+
+    let mut kernel = Kernel::new(memory, entry_point);
+    run_kernel(&mut kernel, args.ticks, &mut stdout().lock())?;
+
+    for (def, file) in &args.output {
+        let segment = find_segment_for_def(&kernel.memory, def);
+        std::fs::write(file.clone(), segment.as_bytes())
+            .map_err(|error| ShellError::WritingOutputSegment { file: file.clone(), error })?;
+    }
+
+    Ok(())
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct MemorySegmentDef {
     pub off: RegVal,
@@ -132,65 +154,114 @@ pub struct MemorySegmentDef {
     pub is_execute: bool,
 }
 
+impl MemorySegmentDef {
+    fn to_segment(self, mem: impl Into<Box<[u8]>>) -> MemorySegment {
+        let mem = mem.into();
+        assert_eq!(mem.len(), self.len as usize);
+
+        MemorySegment {
+            is_read: self.is_read,
+            is_write: self.is_write,
+            is_execute: self.is_execute,
+            off: self.off,
+            mem,
+        }
+    }
+}
+
+fn load_program_into_memory(memory: &mut Memory, path: &PathBuf) -> Result<RegVal, ShellError> {
+    let info = load_program_from_file(path)?;
+    let entry_point = info.entry;
+
+    info.load_into_memory(memory, false, false)
+        .map_err(ShellError::LoadingProramIntoMemory)?;
+
+    Ok(entry_point)
+}
+
+fn load_segments_into_memory(
+    memory: &mut Memory,
+    inputs: &[(MemorySegmentDef, PathBuf)],
+    outputs: &[(MemorySegmentDef, PathBuf)],
+) -> Result<(), ShellError> {
+    for (def, path) in inputs {
+        let bytes = read_file(path, def.len)?;
+        memory
+            .add_segment(def.to_segment(bytes))
+            .map_err(ShellError::AddingSegmentToMemory)?;
+    }
+
+    for (def, _) in outputs {
+        let bytes = vec![0u8; def.len as usize].into_boxed_slice();
+        memory
+            .add_segment(def.to_segment(bytes))
+            .map_err(ShellError::AddingSegmentToMemory)?;
+    }
+
+    Ok(())
+}
+
+fn read_file(path: &PathBuf, amount: u64) -> Result<Vec<u8>, ShellError> {
+    let make_err =
+        |error: std::io::Error| ShellError::LoadingInputSegment { path: path.clone(), error };
+
+    let mut bytes = Vec::with_capacity(amount as usize);
+    let file = std::fs::File::open(path).map_err(make_err)?;
+    file.take(amount)
+        .read_to_end(&mut bytes)
+        .map_err(make_err)?;
+    Ok(bytes)
+}
+
+fn find_segment_for_def<'a>(memory: &'a Memory, def: &MemorySegmentDef) -> &'a MemorySegment {
+    memory
+        .segments()
+        .iter()
+        .find(|s| s.contains_address(def.off))
+        .expect("memory segment disappeared")
+}
+
 fn parse_input_memory_segment(s: &str) -> Result<(MemorySegmentDef, PathBuf), ErrBox> {
-    parse_memory_segment(s, true, false, false)
+    parse_memory_segment(s, true)
 }
 
 fn parse_output_memory_segment(s: &str) -> Result<(MemorySegmentDef, PathBuf), ErrBox> {
-    parse_memory_segment(s, false, true, false)
+    parse_memory_segment(s, false)
 }
 
-fn parse_memory_segment(
-    s: &str,
-    mut is_read: bool,
-    mut is_write: bool,
-    mut is_execute: bool,
-) -> Result<(MemorySegmentDef, PathBuf), ErrBox> {
+fn parse_memory_segment(s: &str, is_input: bool) -> Result<(MemorySegmentDef, PathBuf), ErrBox> {
     use clap::{error::*, Error};
 
     let eq_pos = s.find('=').ok_or_else(|| Error::new(ErrorKind::NoEquals))?;
     let segment_def_string = &s[..eq_pos];
     let file_path_str = &s[eq_pos + 1..];
 
-    let mut segment_def_pieces = segment_def_string.split(':');
-    let segment_off_string = segment_def_pieces
-        .next()
-        .ok_or_else(|| format!("not enough `:` in `{segment_def_string}`"))?;
-    let segment_len_string = segment_def_pieces
-        .next()
-        .ok_or_else(|| format!("not enough `:` in `{segment_def_string}`"))?;
-    let segment_flags_string = segment_def_pieces.next();
-    if segment_def_pieces.next().is_some() {
-        return Err(format!("too many `:` in `{segment_def_string}`").into());
+    let segment_def = parse_segment_def(segment_def_string, is_input)?;
+    Ok((segment_def, PathBuf::from_str(file_path_str).unwrap()))
+}
+
+fn parse_segment_def(s: &str, is_input: bool) -> Result<MemorySegmentDef, ErrBox> {
+    let pieces = s.split(':').collect::<Vec<&str>>();
+    if pieces.len() < 2 {
+        return Err(format!("not enough `:` in `{s}`").into());
     }
-    if let Some(segment_flags_string) = segment_flags_string {
-        (is_read, is_write, is_execute) = parse_segment_flags(segment_flags_string)?;
+    if pieces.len() > 3 {
+        return Err(format!("too many `:` in `{s}`").into());
     }
 
-    let segment_def = MemorySegmentDef {
-        off: parse_segment_number(segment_off_string)?,
-        len: parse_segment_number(segment_len_string)?,
+    let (is_read, is_write, is_execute) = match pieces.get(2) {
+        Some(s) => parse_segment_flags(s)?,
+        None if is_input => (true, false, false),
+        None => (false, true, false),
+    };
+
+    Ok(MemorySegmentDef {
+        off: parse_int_hex_or_dec(pieces[0])?,
+        len: parse_int_hex_or_dec(pieces[1])?,
         is_read,
         is_write,
         is_execute,
-    };
-    let path = PathBuf::from_str(file_path_str).unwrap();
-
-    Ok((segment_def, path))
-}
-
-fn parse_segment_number(s: &str) -> Result<RegVal, ErrBox> {
-    let mut radix = 10;
-    let mut to_parse = s;
-    if s.starts_with("0x") {
-        radix = 16;
-        to_parse = &to_parse[2..];
-    }
-
-    let res = RegVal::from_str_radix(to_parse, radix).map_err(|_| {
-        format!("`{s}` must be a valid decimal number or a hexadecimal nummber prefixed with `0x`")
-    })?;
-    Ok(res)
+    })
 }
 
 fn parse_segment_flags(s: &str) -> Result<(bool, bool, bool), ErrBox> {
@@ -215,60 +286,17 @@ fn parse_segment_flags(s: &str) -> Result<(bool, bool, bool), ErrBox> {
     Ok((is_read, is_write, is_execute))
 }
 
-/// Run the CLI according to specified `args`.
-///
-/// # Errors
-///
-/// If something goes wrong, [`ShellError`] is returned.
-pub fn run_cli(args: &Args) -> Result<(), ShellError> {
-    let info = load_program_from_file(&args.path)?;
-    let entry_point = info.entry;
-    let mut memory = Memory::new();
-
-    info.load_into_memory(&mut memory, false, false)
-        .map_err(ShellError::LoadingProramIntoMemory)?;
-
-    for (def, file) in &args.input {
-        let bytes = std::fs::read(file)
-            .map_err(|error| ShellError::LoadingInputSegment { file: file.clone(), error })?;
-
-        memory
-            .add_segment(MemorySegment {
-                is_read: def.is_read,
-                is_write: def.is_write,
-                is_execute: def.is_execute,
-                off: def.off,
-                mem: bytes[0..std::cmp::min(bytes.len(), def.len as usize)].into(),
-            })
-            .map_err(ShellError::AddingSegmentToMemory)?;
+fn parse_int_hex_or_dec(s: &str) -> Result<RegVal, ErrBox> {
+    let mut radix = 10;
+    let mut to_parse = s;
+    // Trim off `0x`. Rust number parser doesn't like it.
+    if s.starts_with("0x") {
+        radix = 16;
+        to_parse = &to_parse[2..];
     }
 
-    for (def, _) in &args.output {
-        let bytes = vec![0u8; def.len as usize].into_boxed_slice();
-        memory
-            .add_segment(MemorySegment {
-                is_read: def.is_read,
-                is_write: def.is_write,
-                is_execute: def.is_execute,
-                off: def.off,
-                mem: bytes,
-            })
-            .map_err(ShellError::AddingSegmentToMemory)?;
-    }
-
-    let mut kernel = Kernel::new(memory, entry_point);
-    run_kernel(&mut kernel, args.ticks, &mut stdout().lock())?;
-
-    for (def, file) in &args.output {
-        let segment = kernel
-            .memory
-            .segments()
-            .iter()
-            .find(|s| s.contains_address(def.off))
-            .expect("memory segment disappeared");
-        std::fs::write(file.clone(), segment.as_bytes())
-            .map_err(|error| ShellError::WritingOutputSegment { file: file.clone(), error })?;
-    }
-
-    Ok(())
+    let res = RegVal::from_str_radix(to_parse, radix).map_err(|_| {
+        format!("`{s}` must be a valid decimal number or a hexadecimal nummber prefixed with `0x`")
+    })?;
+    Ok(res)
 }

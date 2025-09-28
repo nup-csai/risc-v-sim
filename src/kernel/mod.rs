@@ -49,13 +49,18 @@ impl Kernel {
         Self::new(memory, entry_point)
     }
 
-    /// Does a single instructoin step simulation.
+    /// Does a single instruction step simulation.
     ///
     /// # Errors
     ///
-    /// If can't be properly fetched or decoded at current `pc`,
-    /// an error is returned. If the fetched instruction fails to run,
-    /// an error is returned too.
+    /// An error is returned if:
+    /// 1. Trying to fetch instruction bytes at the address stored
+    ///    in `pc` leads to a memory error. See [`Memory::fetch_instruction()`]
+    ///    for more info.
+    /// 2. The fetched instruction bytes do no represent any supported
+    ///    instruction.
+    /// 3. An error happened during isntruction execution. See [`Instruction::execute()`]
+    ///    for more info.
     pub fn step(&mut self) -> Result<KernelStep, KernelError> {
         let old_registers = self.registers;
         let old_pc = old_registers.pc;
