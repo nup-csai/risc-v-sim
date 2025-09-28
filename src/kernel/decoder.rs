@@ -319,9 +319,9 @@ pub mod op {
 /// for instructions with opcode [`opcodes::OP_IMM`].
 /// For more information, see the comment above that constant.
 pub mod op_imm {
+    use super::InstrVal;
     #[allow(unused_imports)]
     use super::srli_srai_shtyp;
-    use super::InstrVal;
 
     pub const FUNCT3_ADDI: InstrVal = 0b000;
     pub const FUNCT3_XORI: InstrVal = 0b100;
@@ -852,7 +852,7 @@ const fn encode_branch(funct3: InstrVal, rs1: RegId, rs2: RegId, imm: Bit<12>) -
 
 #[cfg(test)]
 mod tests {
-    use crate::kernel::{decode_instruction, encode_instruction, InstrVal};
+    use crate::kernel::{InstrVal, decode_instruction, encode_instruction};
     use crate::util::{bit, reg_x};
 
     use super::Instruction;

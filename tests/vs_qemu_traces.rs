@@ -9,7 +9,7 @@ use std::{
 };
 
 use risc_v_sim::kernel::{
-    InstrVal, KernelStep, Memory, MemorySegment, RegId, RegVal, Registers, GENERAL_REGISTER_COUNT,
+    GENERAL_REGISTER_COUNT, InstrVal, KernelStep, Memory, MemorySegment, RegId, RegVal, Registers,
 };
 
 const SIMULATION_PROGRAM_OFFSET: RegVal = 0x80000000;

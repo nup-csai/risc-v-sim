@@ -133,7 +133,9 @@ impl Program {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Error)]
-#[error("Failed to encode instruction {instruction_idx}: {instruction_code:#x} is not a valid instruction")]
+#[error(
+    "Failed to encode instruction {instruction_idx}: {instruction_code:#x} is not a valid instruction"
+)]
 pub struct InstructionDecodeError {
     pub instruction_idx: usize,
     pub instruction_code: InstrVal,

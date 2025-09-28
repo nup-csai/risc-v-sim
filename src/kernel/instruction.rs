@@ -8,7 +8,7 @@ use std::{
 
 use thiserror::Error;
 
-use crate::kernel::{RegValSigned, REGVAL_SIZE_MASK};
+use crate::kernel::{REGVAL_SIZE_MASK, RegValSigned};
 
 use super::{Memory, MemoryError, RegId, RegVal, Registers};
 
@@ -390,11 +390,7 @@ impl<const N: usize> Bit<N> {
     const EXTENSION: RegVal = RegVal::MAX ^ Self::MAX;
 
     pub const fn new(val: RegVal) -> Option<Self> {
-        if val <= Self::MAX {
-            Some(Self(val))
-        } else {
-            None
-        }
+        if val <= Self::MAX { Some(Self(val)) } else { None }
     }
 
     /// Get the value as [`RegVal`].

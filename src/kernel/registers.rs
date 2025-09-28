@@ -70,11 +70,7 @@ pub struct RegId(InstrVal);
 impl RegId {
     #[must_use]
     pub const fn new(val: InstrVal) -> Option<Self> {
-        if val < GENERAL_REGISTER_COUNT as InstrVal {
-            Some(Self(val))
-        } else {
-            None
-        }
+        if val < GENERAL_REGISTER_COUNT as InstrVal { Some(Self(val)) } else { None }
     }
 
     /// Get the raw value stored internally.
@@ -222,7 +218,7 @@ impl Default for Registers {
 
 #[cfg(test)]
 mod tests {
-    use crate::kernel::{RegVal, RegValSigned, REGVAL_SIZE_MASK};
+    use crate::kernel::{REGVAL_SIZE_MASK, RegVal, RegValSigned};
 
     #[test]
     fn signed_unsigned_regval_same_size() {

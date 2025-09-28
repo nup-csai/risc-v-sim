@@ -6,8 +6,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use elf::endian::AnyEndian;
 use elf::ElfBytes;
+use elf::endian::AnyEndian;
 use serde::Serialize;
 use thiserror::Error;
 

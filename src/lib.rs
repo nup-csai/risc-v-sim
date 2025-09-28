@@ -59,13 +59,13 @@ pub mod shell;
 mod util;
 
 use std::error::Error;
-use std::io::{stdout, Read};
+use std::io::{Read, stdout};
 use std::path::PathBuf;
 use std::str::FromStr;
 
 use clap::Parser;
 use kernel::Kernel;
-use shell::{load_program_from_file, ShellError};
+use shell::{ShellError, load_program_from_file};
 
 use crate::kernel::{Memory, MemorySegment, RegVal};
 use crate::shell::run_kernel;
@@ -230,7 +230,7 @@ fn parse_output_memory_segment(s: &str) -> Result<(MemorySegmentDef, PathBuf), E
 }
 
 fn parse_memory_segment(s: &str, is_input: bool) -> Result<(MemorySegmentDef, PathBuf), ErrBox> {
-    use clap::{error::*, Error};
+    use clap::{Error, error::*};
 
     let eq_pos = s.find('=').ok_or_else(|| Error::new(ErrorKind::NoEquals))?;
     let segment_def_string = &s[..eq_pos];
@@ -278,7 +278,7 @@ fn parse_segment_flags(s: &str) -> Result<(bool, bool, bool), ErrBox> {
                 return Err(format!(
                     "`{ch}` is not a valid permission flag. Available flags are: r, w and x"
                 )
-                .into())
+                .into());
             }
         }
     }

@@ -299,8 +299,8 @@ mod tests {
     use rand::{random, random_range};
 
     use crate::kernel::{
-        memory::{Memory, MemorySegment},
         RegVal,
+        memory::{Memory, MemorySegment},
     };
 
     const SEGMENT_SAMPLING_COUNT: usize = 100;
