@@ -25,5 +25,5 @@ jobs:
       - name: Push to GitHub pages
         uses: actions/deploy-pages@v4.0.5
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.DOCS_DEPLOY_TOKEN }}
           artifact_name: "docs"
