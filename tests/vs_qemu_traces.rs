@@ -1,3 +1,7 @@
+//! The integration tests for checking risc-v-sim against QEMU.
+//! Please make sure you have captured the QEMU traces first.
+//! For more information, see the README in `riscv-samples`.
+
 use std::{
     fs::{self},
     io::{BufRead, BufReader},

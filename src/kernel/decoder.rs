@@ -1,5 +1,6 @@
-//! This module contains the decoder of the `RiscV` instructions.
-//! It does not support the compressed instructions. For a list
+//! Decoder of `RiscV` instructions.
+//!
+//! Compressed instructions are not supported. For a list
 //! of the supported instructions, please consult the [Instruction]
 //! type.
 //!

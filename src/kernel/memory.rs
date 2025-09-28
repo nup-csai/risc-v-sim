@@ -1,3 +1,5 @@
+//! Memory subsystem of the kernel.
+
 use thiserror::Error;
 
 use crate::kernel::{InstrVal, RegVal};
@@ -208,7 +210,9 @@ fn to_segment_offs(address: RegVal, len: usize, segment: &MemorySegment) -> (usi
     (local_start, local_end)
 }
 
-/// The memory segment structure. A memory segment consists of:
+/// A memory segment structure.
+///
+/// A memory segment consists of:
 /// * global offset in the memory
 /// * constant-size data buffer
 /// * permission flags

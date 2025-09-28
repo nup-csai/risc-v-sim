@@ -1,3 +1,59 @@
+//! risc-v-sim is a `RiscV` emulator aimed to be used for
+//! educational purposes. It provides a RV64i compatible
+//! single core `RiscV` processor with a flexible address
+//! space. Once risc-v-sim terminates, it outputs the
+//! program trace, formatted as a JSON object. The trace
+//! also contains an error message, describing what went
+//! wrong during the exeuction.
+//!
+//! risc-v-sim is not intended to be used as a
+//! general-purpose `RiscV` emulator. It does not support
+//! traps for handling incorrect memory accesses. Incorrect
+//! memory accesses cause the execution to halt, giving the
+//! user a clear message of what went wrong.
+//!
+//! Risc-v-sim is capable of reading and running `RiscV`
+//! little-endian `.elf` files, which makes it possible
+//! to use it with a real compiler targetting `RiscV` in
+//! a teaching course.
+//!  
+//! ## The Address Space
+//! risc-v-sim's address is not mapped to anything by default.
+//! The user can map address ranges to various **files**.
+//!
+//! There are two types of segments in RiscV:
+//! 1. Input segments -- a file is loaded into memory and placed
+//! into the specified address range
+//! 2. Output segments -- all data a program writes is written to
+//! a specified file once risc-v-sim terminates
+//!
+//! ## Overview
+//! risc-v-sim consists of two main parts:
+//! 1. [`kernel`] - main runtime
+//! 2. [`shell`] - utility on top of the kernel to load elfs
+//!    and configure the input/output segments
+//!
+//! The kernel itself is a simple implementation of a CPU exeuction
+//! step ([`Kernel::step()`]):
+//! 1. Fetch ([`kernel::memory`])
+//! 2. Decode ([`kernel::decoder`])
+//! 3. Execute ([`kernel::instruction`])
+//!
+//! The shell then drives the kernel by caling the step function.
+//!
+//! ## Testing
+//! Risc-v-sim is tested against QEMU to make sure the behaviour
+//! is compatible with a more recognized implementation. For more
+//! information, see the `riscv-samples` directory in the repository
+//! root.
+//!
+//! ## Further Reading
+//! For a brief reference of the Rv64i architecture, it is recommended
+//! consult the RiscV reference card by Berkley: <https://github.com/jameslzhu/riscv-card/releases/download/latest/riscv-card.pdf>.
+//!
+//! Alternatively, it is recommended to consult with the RiscV manual
+//! volume I (Unpriveleged Architecture): <https://riscv.github.io/riscv-isa-manual/snapshot/unprivileged/>.
+
 pub mod kernel;
 pub mod shell;
 mod util;
@@ -24,6 +80,7 @@ pub type ErrBox = Box<dyn Error + Send + Sync>;
 /// All errors and logs will also be reported into standard error
 /// for debugging purposes.
 #[derive(Parser, Debug)]
+#[doc(hidden)]
 pub struct Args {
     /// Path to the .elf file
     #[arg(short, long)]

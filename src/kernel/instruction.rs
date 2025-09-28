@@ -1,5 +1,5 @@
-//! This module contains the type-safe internal representation
-//! of a `RiscV` instruction and other related types related to it.
+//! Type-safe internal representation of a `RiscV` instruction
+//! and other related types related to it.
 
 use std::{
     fmt,

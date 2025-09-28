@@ -1,3 +1,6 @@
+//! The shell is a collection of wrapper code on top of
+//! the kernel to provide risc-v-sim's interface.
+
 use std::{
     io::Write,
     path::{Path, PathBuf},

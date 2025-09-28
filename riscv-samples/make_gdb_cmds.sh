@@ -1,10 +1,16 @@
+#! /bin/bash
+# This file generates the commands used to drive GDB.
+#
+# Usage: ./make_gdb_cmds.sh FILE_TO_GENERATE_COMMANDS_FOR NUMBER_OF_STEPS
+
 FILE=$1
 NSTEPS=$2
 
 # Even when you pass -bios none, Qemu inserts a smplistic
 # boot-loader into its "ROM" segment and starts the
 # execution there. That boot-loader sets t0, a2 and a2
-# to some handy values. Let's zero them out.
+# to some handy values. We zero these values out for
+# a cleaner trace. 
 cat <<EOM
 file $FILE 
 target remote localhost:1234

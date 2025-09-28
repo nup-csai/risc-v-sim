@@ -1,3 +1,10 @@
+//! The kernel is the main logic component of risc-v-sim,
+//! that represents a `RiscV` computer.
+//!
+//! The Kernel consists of two simple parts:
+//! 1. registers ([`registers::Registers`])
+//! 2. memory ([`memory::Memory`])
+
 pub mod decoder;
 pub mod instruction;
 pub mod memory;

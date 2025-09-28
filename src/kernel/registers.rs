@@ -1,3 +1,5 @@
+//! Register container of the kernel.
+
 use std::fmt;
 
 /// The type of the values the CPU works with.
@@ -8,6 +10,7 @@ pub type InstrVal = u32;
 
 /// Masks the bits required to index bits of [`RegVal`].
 pub const REGVAL_SIZE_MASK: RegVal = 0x3F;
+/// Amount of registers available to the kernel.
 pub const GENERAL_REGISTER_COUNT: usize = 32;
 
 /// The [Registers] struct contains all Rv64i registers.
