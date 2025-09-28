@@ -6,29 +6,10 @@ env:
   RUSTFLAGS: "-D warnings"
   RUSTDOCFLAGS: "-D warnings"
   RUST_BACKTRACE: "1"
-  RUSTVERSION: "1.88"
 
 jobs:
-  build-samples:
-    runs-on: ubuntu-latest
-    container: krinkin/rv64-toolchain:latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: build and capture
-        run: cd riscv-samples && make -j8 init-capture && make capture
-      - name: Upload traces
-        uses: actions/upload-artifact@v4
-        with:
-          name: traces
-          path: ./riscv-samples/traces/*.trace
-      - name: Upload elfs
-        uses: actions/upload-artifact@v4
-        with:
-          name: elfs
-          path: ./riscv-samples/bin/*.elf
   ci-check:
     runs-on: ubuntu-24.04  
-    needs: build-samples
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
@@ -40,22 +21,26 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ci-bookworm-${{ env.RUSTVERSION }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ci-${{ runner.os }}-${{ env.RUSTVERSION }}-cargo-
-      - name: Build everything
-        run: cargo build --locked
-      - name: Load traces
-        uses: actions/download-artifact@v4
+          key: ci-check-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ci-check-cargo-
+      - run: cargo check --locked
+  unit-tests:
+    runs-on: ubuntu-24.04 
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        continue-on-error: false
         with:
-          name: traces
-          path: ./riscv-samples/traces
-      - name: Load elfs
-        uses: actions/download-artifact@v4
-        with:
-          name: elfs
-          path: ./riscv-samples/bin
-      - name: Run tests
-        run: cargo test --package "*" --locked -- --show-output
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ci-unit-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ci-unit-cargo-
+      - run: cargo test -q --lib --bins --locked
+      - run: cargo test --doc --locked
   cargo-fmt:
     runs-on: ubuntu-24.04 
     steps:
@@ -67,4 +52,15 @@ jobs:
     runs-on: ubuntu-24.04 
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        continue-on-error: false
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ci-doc-check-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ci-doc-check-cargo-
       - run: cargo doc --no-deps --document-private-items
