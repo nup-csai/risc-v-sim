@@ -1,10 +1,13 @@
+//! The shell is a collection of wrapper code on top of
+//! the kernel to provide risc-v-sim's interface.
+
 use std::{
     io::Write,
     path::{Path, PathBuf},
 };
 
-use elf::endian::AnyEndian;
 use elf::ElfBytes;
+use elf::endian::AnyEndian;
 use serde::Serialize;
 use thiserror::Error;
 
@@ -37,9 +40,9 @@ pub enum ShellError {
     InstructionDecoderError(#[source] InstructionDecodeError),
     #[error("Failed to load the program into memory: {0}")]
     LoadingProramIntoMemory(#[source] MemoryError),
-    #[error("Failed to load segment bytes from {file:?}: {error}")]
+    #[error("Failed to load segment bytes from {path:?}: {error}")]
     LoadingInputSegment {
-        file: PathBuf,
+        path: PathBuf,
         #[source]
         error: std::io::Error,
     },
@@ -76,7 +79,7 @@ impl ProgramInfo {
     ///
     /// # Errors
     ///
-    /// Returns `Err` if adding the program segment to memory
+    /// Returns an error if adding the program segment to memory
     /// leads to a memory error. For more information, see
     /// [`Memory::add_segment`].
     pub fn load_into_memory(
@@ -117,7 +120,7 @@ pub fn load_program_from_file(path: impl AsRef<Path>) -> Result<ProgramInfo> {
 ///
 /// # Errors
 ///
-/// Returns `Err` if `data` doesn't contain valid elf file bytes
+/// Returns an error if `data` doesn't contain valid elf file bytes
 /// or the elf file doesn't satisfy the constraints
 pub fn load_program_from_elf(data: &[u8]) -> Result<ProgramInfo> {
     let file = ElfBytes::<AnyEndian>::minimal_parse(data).map_err(ShellError::ElfHead)?;

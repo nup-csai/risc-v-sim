@@ -1,5 +1,5 @@
-//! This module contains the type-safe internal representation
-//! of a `RiscV` instruction and other related types related to it.
+//! Type-safe internal representation of a `RiscV` instruction
+//! and other related types related to it.
 
 use std::{
     fmt,
@@ -8,7 +8,7 @@ use std::{
 
 use thiserror::Error;
 
-use crate::kernel::{RegValSigned, REGVAL_SIZE_MASK};
+use crate::kernel::{REGVAL_SIZE_MASK, RegValSigned};
 
 use super::{Memory, MemoryError, RegId, RegVal, Registers};
 
@@ -26,12 +26,14 @@ pub enum InstructionError {
 type Result<T> = std::result::Result<T, InstructionError>;
 
 /// [Instruction] is a type-safe representation of a CPU
-/// instruction. That means, all valid values of this type
-/// are valid `RiscV` instructions. The order of operands in
-/// the instructions is the same as in `RiscV` assembly.
+/// instruction.
 ///
-/// For instruction behaviour, please consult the `RiscV`
-/// documentation.
+/// * Each enum variant corresponds directly to some insturction's
+///   mnemonic in `RiscV` assembly.
+/// * The order each variant's fields as the same as in
+///   `RiscV` assembly. The only exception to that
+///   rule is the `offset(register)` operand. [`Instruction`]
+///   stores the register first and **then** the offset.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum Instruction {
     /* J-Type instructions */
@@ -84,8 +86,10 @@ impl Instruction {
     ///
     /// # Errors
     ///
-    /// Returns `Err` if instruction execution leads to a fail.
-    /// See [`InstructionError`] for possible errors.
+    /// An error is returned if instruction execution leads
+    /// to a memory error. For more information, see
+    /// * [`Memory::load()`]
+    /// * [`Memory::store()`]
     pub fn execute(self, regs: &mut Registers, mem: &mut Memory, old_pc: RegVal) -> Result<()> {
         match self {
             Instruction::Jal(rd, imm) => {
@@ -375,7 +379,7 @@ fn ge_regval(x: RegVal, y: RegVal) -> bool {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 #[repr(transparent)]
-/// Contains a N-bit wide immediate value
+/// Contains an N-bit wide value.
 pub struct Bit<const N: usize>(RegVal);
 
 impl<const N: usize> Bit<N> {
@@ -386,17 +390,11 @@ impl<const N: usize> Bit<N> {
     const EXTENSION: RegVal = RegVal::MAX ^ Self::MAX;
 
     pub const fn new(val: RegVal) -> Option<Self> {
-        if val <= Self::MAX {
-            Some(Self(val))
-        } else {
-            None
-        }
+        if val <= Self::MAX { Some(Self(val)) } else { None }
     }
 
     /// Get the value as [`RegVal`].
     /// The value is zero-extended.
-    // NOTE: unused, but may be useful later.
-    #[allow(dead_code)]
     pub const fn get_zext(self) -> RegVal {
         self.0
     }
@@ -411,6 +409,8 @@ impl<const N: usize> Bit<N> {
         result
     }
 
+    /// Get the value with sign-extension, but also
+    /// reinterpret the bits as [`RegValSigned`].
     pub const fn get_signed(self) -> RegValSigned {
         self.get_sext() as RegValSigned
     }

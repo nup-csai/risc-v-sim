@@ -1,19 +1,22 @@
-//! This module contains the decoder of the `RiscV` instructions.
-//! It does not support the compressed instructions. For a list
+//! Decoder of `RiscV` instructions.
+//!
+//! Compressed instructions are not supported. For a list
 //! of the supported instructions, please consult the [Instruction]
 //! type.
 //!
 //! # `RiscV` instructions
 //!
 //! This section lists instruction types and their bit representation.
-//! This bits are going from highest to lowest from left to right.
+//! The bits are going from highest to lowest, from left to right.
+//! The values in square brackets indicate what bits of the immediate
+//! value are stored and in which order.
 //!
 //! ## J-Type
 //!
 //! J-Type instructions have the following bit represenation.
-//! The values in square brackets indicate what bits of the immediate
-//! value are stored and in which order as such instructions do not
-//! store them consecutively.
+//! Note that the bits of the immediate value are not stored
+//! consecutively.
+//!
 //!
 //! ```pic
 //! jal zero, 324
@@ -316,9 +319,9 @@ pub mod op {
 /// for instructions with opcode [`opcodes::OP_IMM`].
 /// For more information, see the comment above that constant.
 pub mod op_imm {
+    use super::InstrVal;
     #[allow(unused_imports)]
     use super::srli_srai_shtyp;
-    use super::InstrVal;
 
     pub const FUNCT3_ADDI: InstrVal = 0b000;
     pub const FUNCT3_XORI: InstrVal = 0b100;
@@ -849,7 +852,7 @@ const fn encode_branch(funct3: InstrVal, rs1: RegId, rs2: RegId, imm: Bit<12>) -
 
 #[cfg(test)]
 mod tests {
-    use crate::kernel::{decode_instruction, encode_instruction, InstrVal};
+    use crate::kernel::{InstrVal, decode_instruction, encode_instruction};
     use crate::util::{bit, reg_x};
 
     use super::Instruction;

@@ -1,3 +1,5 @@
+//! Memory subsystem of the kernel.
+
 use thiserror::Error;
 
 use crate::kernel::{InstrVal, RegVal};
@@ -20,8 +22,9 @@ pub enum MemoryError {
 
 type Result<T> = std::result::Result<T, MemoryError>;
 
-/// The heart of the memory system. All memory requests
-/// should be done through it. A memory system consists of
+//// The memory system.
+///
+/// A memory system consists of
 /// N **noverlapping** segments. The no-overlap part is important
 /// as it allows an unambigious mapping of addresses to segments.
 /// Segments are just chunks of plain bytes with permission control.
@@ -41,7 +44,7 @@ impl Memory {
     ///
     /// # Errors
     ///
-    /// If the segment turns out to be overlapping,
+    /// If the added segment overlaps already added segments,
     /// [`MemoryError::SegmentOverlap`] is returned.
     pub fn add_segment(&mut self, added_segment: MemorySegment) -> Result<()> {
         let conflicting_segment = self
@@ -66,10 +69,10 @@ impl Memory {
     ///
     /// # Errors
     ///
-    /// The following scenarios will read to memory errors:
-    /// * `address` not belonging to any segment
-    /// * the segment responsible for `address` does not allow reads
-    /// * alignment enforcement is enabled and `address` is not properly aligned
+    /// An error is returned if:
+    /// * `address` does not belong to any segment
+    /// * The segment containing `address` does not allow reads
+    /// * `address` is not aligned to `dst`'s size
     pub fn load(&self, address: RegVal, dst: &mut [u8]) -> Result<()> {
         let segment = self.find_segment(address)?;
         if !segment.is_read {
@@ -89,10 +92,10 @@ impl Memory {
     ///
     /// # Errors
     ///
-    /// The following scenarios will read to memory errors:
-    /// * `address` not belonging to any segment
-    /// * the segment responsible for `address` does not allow execution
-    /// * alignment enforcement is enabled and `address` is not properly aligned
+    /// An error is returned if:
+    /// * `address` does not belong to any segment
+    /// * The segment containing `address` does not allow execution
+    /// * `address` is not aligned to 4 bytes
     pub fn fetch_instruction(&self, address: RegVal) -> Result<InstrVal> {
         let segment = self.find_segment(address)?;
         if !segment.is_execute {
@@ -108,28 +111,15 @@ impl Memory {
         Ok(InstrVal::from_le_bytes(dst))
     }
 
-    /// Finds a segment that contains `address`.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`MemoryError::AddressOutOfRange`] if there is no segment
-    /// containing `adress`.
-    pub fn find_segment(&self, address: RegVal) -> Result<&MemorySegment> {
-        self.segments
-            .iter()
-            .find(|x| x.contains_address(address))
-            .ok_or(MemoryError::AddressOutOfRange { address })
-    }
-
     /// Issue a wirtte request to the memory. The contents of `src` will be
     /// written to the appropriate memory segment.
     ///
     /// # Errors
     ///
-    /// The following scenarios will read to memory errors:
-    /// * `address` not belonging to any segment
-    /// * the segment responsible for `address` does not allow writes
-    /// * alignment enforcement is enabled and `address` is not properly aligned
+    /// An error is returned if:
+    /// * `address` does not belong to any segment
+    /// * The segment containing `address` does not allow writes
+    /// * `address` is not aligned to `src`'s size
     pub fn store(&mut self, address: RegVal, src: &[u8]) -> Result<()> {
         let segment = self.find_segment_mut(address)?;
         if !segment.is_write {
@@ -144,6 +134,26 @@ impl Memory {
         Ok(())
     }
 
+    /// Finds a segment that contains `address`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MemoryError::AddressOutOfRange`] if there is no segment
+    /// containing `adress`.
+    pub fn find_segment(&self, address: RegVal) -> Result<&MemorySegment> {
+        self.segments
+            .iter()
+            .find(|x| x.contains_address(address))
+            .ok_or(MemoryError::AddressOutOfRange { address })
+    }
+
+    /// Finds a segment that contains `address`, but returns a mutable
+    /// reference to it instead.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MemoryError::AddressOutOfRange`] if there is no segment
+    /// containing `adress`.
     fn find_segment_mut(&mut self, address: RegVal) -> Result<&mut MemorySegment> {
         self.segments
             .iter_mut()
@@ -151,7 +161,9 @@ impl Memory {
             .ok_or(MemoryError::AddressOutOfRange { address })
     }
 
-    /// Get all memory segments. You can't get a mutable access
+    /// Returns all memory segments.
+    ///
+    /// You can't get a mutable access
     /// to the segments as that would violate the structure's gurantees.
     /// If you need modify segment's data or permissions, please see the
     /// following methods:
@@ -208,14 +220,15 @@ fn to_segment_offs(address: RegVal, len: usize, segment: &MemorySegment) -> (usi
     (local_start, local_end)
 }
 
-/// The memory segment structure. A memory segment consists of:
+/// A memory segment.
+///
+/// A memory segment consists of:
 /// * global offset in the memory
 /// * constant-size data buffer
 /// * permission flags
 ///
 /// The permission flags act similarly to `RiscV`'s permission flags from
-/// PMP (Physical Memory Protection). Do note however that this is not
-/// an implementation of PMP as they can only be set by the kernel.
+/// PMP (Physical Memory Protection).
 #[derive(Debug, Clone)]
 pub struct MemorySegment {
     /// Flag for allowing read operations from the segment.
@@ -286,8 +299,8 @@ mod tests {
     use rand::{random, random_range};
 
     use crate::kernel::{
-        memory::{Memory, MemorySegment},
         RegVal,
+        memory::{Memory, MemorySegment},
     };
 
     const SEGMENT_SAMPLING_COUNT: usize = 100;

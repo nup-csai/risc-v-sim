@@ -1,3 +1,7 @@
+//! The integration tests for checking risc-v-sim against QEMU.
+//! Please make sure you have captured the QEMU traces first.
+//! For more information, see the README in `riscv-samples`.
+
 use std::{
     fs::{self},
     io::{BufRead, BufReader},
@@ -5,7 +9,7 @@ use std::{
 };
 
 use risc_v_sim::kernel::{
-    InstrVal, KernelStep, Memory, MemorySegment, RegId, RegVal, Registers, GENERAL_REGISTER_COUNT,
+    GENERAL_REGISTER_COUNT, InstrVal, KernelStep, Memory, MemorySegment, RegId, RegVal, Registers,
 };
 
 const SIMULATION_PROGRAM_OFFSET: RegVal = 0x80000000;

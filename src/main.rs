@@ -1,5 +1,5 @@
 use clap::Parser;
-use risc_v_sim::{run_cli, Args};
+use risc_v_sim::{Args, run_cli};
 use std::process::ExitCode;
 
 fn main() -> ExitCode {

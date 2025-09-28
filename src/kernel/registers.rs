@@ -1,3 +1,5 @@
+//! Register container of the kernel.
+
 use std::fmt;
 
 /// The type of the values the CPU works with.
@@ -8,33 +10,70 @@ pub type InstrVal = u32;
 
 /// Masks the bits required to index bits of [`RegVal`].
 pub const REGVAL_SIZE_MASK: RegVal = 0x3F;
+/// Amount of registers available to the kernel.
 pub const GENERAL_REGISTER_COUNT: usize = 32;
 
-/// The [Registers] struct contains all Rv64i registers.
-/// You can manipulate them with [`Registers::get`] and
-/// [`Registers::set`]. The [`RegId::ZERO`] registers is guaranteed
-/// to always return `0` wil be unaffected by sets.
+/// A register container.
+///
+/// You can acces the general registers [`Registers::get`] and
+/// [`Registers::set`] and also the `pc` directly.
+///
+/// The register with index zero is always going to be zero
+/// even if you set it to another value.
+///
+/// See also [`RegId`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 pub struct Registers {
     storage: [RegVal; GENERAL_REGISTER_COUNT - 1],
     pub pc: RegVal,
 }
 
-/// [`RegId`] represents a validated general purpose register index.
-/// In baseline Rv64i there are 32 general purpose registers.
+impl Registers {
+    #[must_use]
+    pub const fn new() -> Self {
+        Self { storage: [0; GENERAL_REGISTER_COUNT - 1], pc: 0 }
+    }
+
+    /// Get the value of a register.
+    pub const fn get(&self, reg: RegId) -> RegVal {
+        let reg = reg.get() as usize;
+        if reg == 0 {
+            return 0;
+        }
+
+        // GeneralRegister can't represent out of range indicies.
+        // If it manages to do that -- that's a bug
+        self.storage[reg - 1]
+    }
+
+    /// Set a register to some value.
+    pub const fn set(&mut self, reg: RegId, val: RegVal) {
+        let reg = reg.get() as usize;
+        if reg == 0 {
+            return;
+        }
+
+        // GeneralRegister can't represent out of range indicies.
+        // If it manages to do that -- that's a bug
+        self.storage[reg - 1] = val;
+    }
+}
+
+/// A register index.
+///
+/// You can construct a new register index with [`RegId::new()`].
+/// You can also use predefined constants for convenience.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[repr(transparent)]
 pub struct RegId(InstrVal);
 
 impl RegId {
-    pub const fn new(value: InstrVal) -> Option<Self> {
-        if value < GENERAL_REGISTER_COUNT as InstrVal {
-            Some(Self(value))
-        } else {
-            None
-        }
+    #[must_use]
+    pub const fn new(val: InstrVal) -> Option<Self> {
+        if val < GENERAL_REGISTER_COUNT as InstrVal { Some(Self(val)) } else { None }
     }
 
+    /// Get the raw value stored internally.
     pub const fn get(&self) -> InstrVal {
         self.0
     }
@@ -171,36 +210,6 @@ impl fmt::Display for RegId {
     }
 }
 
-impl Registers {
-    /// Create a new `Processor` instance
-    pub const fn new() -> Registers {
-        Registers { storage: [0; GENERAL_REGISTER_COUNT - 1], pc: 0 }
-    }
-
-    /// Get the value of a register.
-    pub const fn get(&self, reg: RegId) -> RegVal {
-        let reg = reg.get() as usize;
-        if reg == 0 {
-            return 0;
-        }
-
-        // GeneralRegister can't represent out of range indicies.
-        // If it manages to do that -- that's a bug
-        self.storage[reg - 1]
-    }
-
-    pub const fn set(&mut self, reg: RegId, value: RegVal) {
-        let reg = reg.get() as usize;
-        if reg == 0 {
-            return;
-        }
-
-        // GeneralRegister can't represent out of range indicies.
-        // If it manages to do that -- that's a bug
-        self.storage[reg - 1] = value;
-    }
-}
-
 impl Default for Registers {
     fn default() -> Self {
         Self::new()
@@ -209,7 +218,7 @@ impl Default for Registers {
 
 #[cfg(test)]
 mod tests {
-    use crate::kernel::{RegVal, RegValSigned, REGVAL_SIZE_MASK};
+    use crate::kernel::{REGVAL_SIZE_MASK, RegVal, RegValSigned};
 
     #[test]
     fn signed_unsigned_regval_same_size() {

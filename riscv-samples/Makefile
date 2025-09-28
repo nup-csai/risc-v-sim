@@ -1,11 +1,14 @@
 BINDIRS := bin bin/obj traces gdb_cmds
 
+# The aliases for used commands. Change the names if they
+# are called differently in your setup.
 AS := riscv64-linux-gnu-as 
 LD := riscv64-linux-gnu-ld
 QEMU := qemu-system-riscv64
 GDB := gdb-multiarch
 
-# Extra gdb output sanitzer for more pleasant parsing
+# GDB output is quite machine-unfriendly and contains some junk.
+# This command santizes the output to make the trace machine-friendly. 
 TRACE_FILTER := awk '/^[a-z]([a-z]|[0-9])/ {print $$1 " " $$2} /^==/{print}' | grep "\S" 
 
 SRCS = $(wildcard src/*.s)

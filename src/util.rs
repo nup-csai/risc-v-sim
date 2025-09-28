@@ -4,6 +4,7 @@ use crate::kernel::{Bit, InstrVal, RegId, RegVal};
 /// This exists because Rust currently does not allow `?` in
 /// const-contexts. Note, that unlike `?`, it doesn't call `.into()`.
 #[macro_export]
+#[doc(hidden)]
 macro_rules! c_try {
     ($e:expr) => {
         match $e {
