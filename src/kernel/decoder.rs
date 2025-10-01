@@ -1,7 +1,7 @@
 //! Decoder of `RiscV` instructions.
 //!
 //! Compressed instructions are not supported. For a list
-//! of the supported instructions, please consult the [Instruction]
+//! of the supported instructions, please consult the [`Instruction`]
 //! type.
 //!
 //! # `RiscV` instructions
