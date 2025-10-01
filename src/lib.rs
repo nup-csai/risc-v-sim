@@ -132,7 +132,11 @@ pub fn run_cli(args: &Args) -> Result<(), ShellError> {
     let mut kernel = Kernel::from_program(&load_program_from_file(&args.path)?);
     load_segments_into_memory(&mut kernel.memory, &args.input, &args.output)?;
 
-    run_kernel(&mut kernel, args.ticks, &mut stdout().lock())?;
+    let run_result = run_kernel(&mut kernel, args.ticks);
+    if let Err(e) = serde_json::to_writer(&mut stdout().lock(), &run_result) {
+        eprintln!("Failed to write result to stdout: {e}");
+    }
+
     for (def, file) in &args.output {
         let segment = find_segment_for_def(&kernel.memory, def);
         std::fs::write(file.clone(), segment.as_bytes())

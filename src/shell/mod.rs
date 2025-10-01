@@ -1,10 +1,7 @@
 //! The shell is a collection of wrapper code on top of
 //! the kernel to provide risc-v-sim's interface.
 
-use std::{
-    io::Write,
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
 use elf::ElfBytes;
 use elf::endian::AnyEndian;
@@ -56,12 +53,6 @@ pub enum ShellError {
     },
     #[error("Kernel error: {0}")]
     KernelError(#[source] KernelError),
-    #[error("Failed to write run result: {cause}. Original result: {actual_result:?}")]
-    ResultReportError {
-        #[source]
-        cause: serde_json::Error,
-        actual_result: std::result::Result<(), Box<ShellError>>,
-    },
 }
 
 type Result<T> = std::result::Result<T, ShellError>;
@@ -119,15 +110,14 @@ pub struct RunResult {
     pub err: Option<String>,
 }
 
-/// Runs a kernel for `step_count` steps, writing the trace to `out` together
-/// with the status.
+/// Runs the kernel for `step_count` steps, returning the result.
 ///
-/// # Errors
+/// The execution will terminate early if the kernel executes
+/// [`Instruction::Ebreak`].
 ///
-/// Returns an error if an IO error happens or if an error during kernel stepping happens.
-/// If the execution is unfortunate enough to have both kernel and IO error, the two
-/// errors are bundled with [`ShellError::ResultReportError`].
-pub fn run_kernel(kernel: &mut Kernel, step_count: usize, out: &mut dyn Write) -> Result<RunResult> {
+/// The result is a special struct, which serializes into a machine-friendly
+/// shaped JSON.
+pub fn run_kernel(kernel: &mut Kernel, step_count: usize) -> RunResult {
     let mut err = None;
     let mut steps = Vec::new();
     for _ in 0..step_count {
@@ -145,22 +135,5 @@ pub fn run_kernel(kernel: &mut Kernel, step_count: usize, out: &mut dyn Write) -
         }
     }
 
-    let result = match err {
-        Some(e) => Err(ShellError::KernelError(e)),
-        None => Ok(()),
-    };
-    let run_result = RunResult { steps, err: err.as_ref().map(KernelError::to_string) };
-    let write_result = serde_json::to_writer(
-        out,
-        &run_result,
-    );
-
-    if let Err(cause) = write_result {
-        return Err(ShellError::ResultReportError {
-            cause,
-            actual_result: result.map_err(Box::new),
-        });
-    }
-
-    Ok(run_result)
+    RunResult { steps, err: err.as_ref().map(KernelError::to_string) }
 }

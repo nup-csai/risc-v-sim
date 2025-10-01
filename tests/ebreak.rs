@@ -3,13 +3,12 @@
 //! Please make sure you have captured the QEMU traces first.
 //! For more information, see the README in `riscv-samples`.
 
-use std::{
-    path::PathBuf,
-};
+use std::path::PathBuf;
 
 use risc_v_sim::{
     kernel::{
-        InstrVal, Kernel, KernelStep, MemorySegment, RegId, RegVal, Registers, GENERAL_REGISTER_COUNT
+        GENERAL_REGISTER_COUNT, InstrVal, Kernel, KernelStep, MemorySegment, RegId, RegVal,
+        Registers,
     },
     shell::{load_program_from_file, run_kernel},
 };
@@ -21,7 +20,7 @@ const SIUMLATION_RW_MEM_SIZE: RegVal = 0x8000;
 #[test]
 fn ebreak() {
     let elf_path = PathBuf::from_iter(["riscv-samples", "bin", "ebreak.elf"]);
-    let mut ebreak_trace = [ Registers::new(); 3];
+    let mut ebreak_trace = [Registers::new(); 3];
     ebreak_trace[0].pc = 0x80000004;
     ebreak_trace[1].pc = 0x80000008;
     ebreak_trace[2].pc = 0x8000000C;
@@ -42,7 +41,7 @@ fn assert_elf_trace(elf_path: PathBuf, qemu_trace: &[Registers]) {
             SIUMLATION_RW_MEM_SIZE,
         ))
         .unwrap();
-    let run_res = run_kernel(&mut kernel, 5, &mut std::io::sink()).unwrap();
+    let run_res = run_kernel(&mut kernel, 5);
     assert!(run_res.err.is_none());
 
     for (idx, (qemu_step, step)) in qemu_trace.iter().zip(&run_res.steps).enumerate() {
