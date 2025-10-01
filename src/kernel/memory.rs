@@ -16,7 +16,7 @@ pub enum MemoryError {
     AddressNotExecutable { address: RegVal },
     #[error("Expected {address:#x} to {expected_alignment}-aligned")]
     MisalignedAccess { address: RegVal, expected_alignment: usize },
-    #[error("Segment {off:#x}:{len:#x}) overlaps existing: {found_off:#x}:{found_len:#x}")]
+    #[error("Segment {off:#x}:{len:#x} overlaps existing: {found_off:#x}:{found_len:#x}")]
     SegmentOverlap { found_off: RegVal, found_len: RegVal, off: RegVal, len: RegVal },
 }
 
