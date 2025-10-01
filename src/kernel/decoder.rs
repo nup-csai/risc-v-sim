@@ -485,13 +485,13 @@ pub const fn decode_instruction(code: InstrVal) -> Result<Instruction> {
 }
 
 /// Decode an instruction with opcode [`opcodes::OP_IMM`].
-const fn decode_op_imm(instruction: InstrVal) -> Result<Instruction> {
+const fn decode_op_imm(code: InstrVal) -> Result<Instruction> {
     use Instruction::{Addi, Andi, Ori, Slli, Slti, Sltiu, Xori};
 
-    let funct3 = get_funct3(instruction);
-    let rd = get_rd(instruction);
-    let rs1 = get_rs1(instruction);
-    let imm = get_i_imm(instruction);
+    let funct3 = get_funct3(code);
+    let rd = get_rd(code);
+    let rs1 = get_rs1(code);
+    let imm = get_i_imm(code);
 
     let instruction = match funct3 {
         op_imm::FUNCT3_ADDI => Addi(rd, rs1, imm),
@@ -499,7 +499,7 @@ const fn decode_op_imm(instruction: InstrVal) -> Result<Instruction> {
         op_imm::FUNCT3_ANDI => Andi(rd, rs1, imm),
         op_imm::FUNCT3_ORI => Ori(rd, rs1, imm),
         op_imm::FUNCT3_SLLI => Slli(rd, rs1, imm),
-        op_imm::FUNCT3_SRLI_SRAI => c_try!(decode_srli_srai(instruction)),
+        op_imm::FUNCT3_SRLI_SRAI => c_try!(decode_srli_srai(code)),
         op_imm::FUNCT3_SLTI => Slti(rd, rs1, imm),
         op_imm::FUNCT3_SLTIU => Sltiu(rd, rs1, imm),
         funct3 => return Err(DecodeError::UnknownImmOp { funct3 }),
@@ -509,12 +509,12 @@ const fn decode_op_imm(instruction: InstrVal) -> Result<Instruction> {
 }
 
 /// Decode an `op_imm` with funct3 [`op_imm::FUNCT3_SRLI_SRAI`]
-const fn decode_srli_srai(instruction: InstrVal) -> Result<Instruction> {
+const fn decode_srli_srai(code: InstrVal) -> Result<Instruction> {
     use Instruction::{Srai, Srli};
 
-    let rd = get_rd(instruction);
-    let rs1 = get_rs1(instruction);
-    let (amount, shtyp) = get_shift_imms(instruction);
+    let rd = get_rd(code);
+    let rs1 = get_rs1(code);
+    let (amount, shtyp) = get_shift_imms(code);
 
     let instruction = match shtyp.get_zext() as InstrVal {
         srli_srai_shtyp::SHTYP_SRLI => Srli(rd, rs1, amount),
@@ -526,13 +526,13 @@ const fn decode_srli_srai(instruction: InstrVal) -> Result<Instruction> {
 }
 
 /// Decode an instruction with opcode [`opcodes::OP`].
-const fn decode_op(instruction: InstrVal) -> Result<Instruction> {
+const fn decode_op(code: InstrVal) -> Result<Instruction> {
     use Instruction::{Add, And, Or, Sll, Slt, Sltu, Sra, Srl, Sub, Xor};
 
-    let funct3_7 = (get_funct3(instruction), get_funct7(instruction));
-    let rd = get_rd(instruction);
-    let rs1 = get_rs1(instruction);
-    let rs2 = get_rs2(instruction);
+    let funct3_7 = (get_funct3(code), get_funct7(code));
+    let rd = get_rd(code);
+    let rs1 = get_rs1(code);
+    let rs2 = get_rs2(code);
 
     let instruction = match funct3_7 {
         (op::FUNCT3_ADD, op::FUNCT7_ADD) => Add(rd, rs1, rs2),
@@ -552,13 +552,13 @@ const fn decode_op(instruction: InstrVal) -> Result<Instruction> {
 }
 
 /// Decode an instruction with opcode [`opcodes::LOAD`].
-const fn decode_load(instruction: InstrVal) -> Result<Instruction> {
+const fn decode_load(code: InstrVal) -> Result<Instruction> {
     use Instruction::{Lb, Lbu, Lh, Lhu, Lw};
 
-    let funct3 = get_funct3(instruction);
-    let rd = get_rd(instruction);
-    let rs1 = get_rs1(instruction);
-    let imm = get_i_imm(instruction);
+    let funct3 = get_funct3(code);
+    let rd = get_rd(code);
+    let rs1 = get_rs1(code);
+    let imm = get_i_imm(code);
 
     let instruction = match funct3 {
         load::FUNCT3_LB => Lb(rd, rs1, imm),
