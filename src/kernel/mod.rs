@@ -33,16 +33,15 @@ impl Kernel {
     }
 
     #[must_use]
-    pub fn from_program(program: Program, entry_point: RegVal, program_off: RegVal) -> Self {
+    pub fn from_program(program: &Program, entry_point: RegVal, program_off: RegVal) -> Self {
         let mut memory = Memory::new();
-        let program_bytes = program.into_bytes().into_iter().collect();
         memory
             .add_segment(MemorySegment {
                 is_read: false,
                 is_write: false,
                 is_execute: true,
                 off: program_off,
-                mem: program_bytes,
+                mem: program.as_bytes().into(),
             })
             .expect("added a segment to an empty memory");
 
@@ -97,12 +96,12 @@ impl Kernel {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Program {
-    instructions: Vec<InstrVal>,
+    instructions: Vec<[u8; 4]>,
 }
 
 impl Program {
     pub fn from_instructions(instructions: Vec<Instruction>) -> Self {
-        Self { instructions: instructions.into_iter().map(encode_instruction).collect() }
+        Self { instructions: instructions.into_iter().map(encode_instruction).map(InstrVal::to_le_bytes).collect() }
     }
 
     /// Constructs a [`Program`] from a collection of raw instruction
@@ -115,8 +114,9 @@ impl Program {
     pub fn from_raw_instructions(
         instructions: impl IntoIterator<Item = InstrVal>,
     ) -> Result<Self, InstructionDecodeError> {
-        let instructions = instructions.into_iter().collect::<Vec<_>>();
-        for (idx, instruction_code) in instructions.iter().copied().enumerate() {
+        let instructions = instructions.into_iter().map(InstrVal::to_le_bytes).collect::<Vec<_>>();
+        for (idx, instruction_bytes) in instructions.iter().copied().enumerate() {
+            let instruction_code = InstrVal::from_le_bytes(instruction_bytes);
             decode_instruction(instruction_code).map_err(|error| InstructionDecodeError {
                 instruction_idx: idx,
                 instruction_code,
@@ -127,8 +127,8 @@ impl Program {
         Ok(Self { instructions })
     }
 
-    pub fn into_bytes(self) -> impl IntoIterator<Item = u8> {
-        self.instructions.into_iter().flat_map(u32::to_le_bytes)
+    pub fn as_bytes(&self) -> &[u8] {
+        self.instructions.as_flattened()
     }
 }
 
@@ -326,6 +326,6 @@ mod tests {
 
     fn new_kernel(program: Vec<Instruction>, entry_point: RegVal, program_off: RegVal) -> Kernel {
         let program = Program::from_instructions(program);
-        Kernel::from_program(program, entry_point, program_off)
+        Kernel::from_program(&program, entry_point, program_off)
     }
 }

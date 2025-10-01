@@ -83,18 +83,17 @@ impl ProgramInfo {
     /// leads to a memory error. For more information, see
     /// [`Memory::add_segment`].
     pub fn load_into_memory(
-        self,
+        &self,
         memory: &mut Memory,
         is_read: bool,
         is_write: bool,
     ) -> std::result::Result<(), MemoryError> {
-        let program_bytes = self.program.into_bytes().into_iter().collect();
         memory.add_segment(MemorySegment {
             is_read,
             is_write,
             is_execute: true,
             off: self.load_address,
-            mem: program_bytes,
+            mem: self.program.as_bytes().into(),
         })
     }
 }

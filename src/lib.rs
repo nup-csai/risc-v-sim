@@ -171,12 +171,9 @@ impl MemorySegmentDef {
 
 fn load_program_into_memory(memory: &mut Memory, path: &PathBuf) -> Result<RegVal, ShellError> {
     let info = load_program_from_file(path)?;
-    let entry_point = info.entry;
-
     info.load_into_memory(memory, false, false)
         .map_err(ShellError::LoadingProramIntoMemory)?;
-
-    Ok(entry_point)
+    Ok(info.entry)
 }
 
 fn load_segments_into_memory(
