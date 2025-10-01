@@ -94,6 +94,7 @@ impl Kernel {
     }
 }
 
+/// Verified collection of instructions.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Program {
     instructions: Vec<[u8; 4]>,
@@ -102,6 +103,7 @@ pub struct Program {
 }
 
 impl Program {
+    /// Construct a [`Program`] from already parsed instructions.
     pub fn from_instructions(
         instructions: impl IntoIterator<Item = Instruction>,
         load_offset: RegVal,
@@ -143,10 +145,15 @@ impl Program {
         Ok(Self { instructions, load_offset, entry_point })
     }
 
+    /// Returns program bytes as a flat slice.
     pub fn as_bytes(&self) -> &[u8] {
         self.instructions.as_flattened()
     }
 
+    /// Returns program length.
+    ///
+    /// Note that it is length in **instructions**.
+    /// For the byte-length use `program.as_bytes().len()`.
     pub fn len(&self) -> usize {
         self.instructions.len()
     }
@@ -163,10 +170,14 @@ pub struct InstructionDecodeError {
     pub error: DecodeError,
 }
 
+/// Result of a successful [`Kernel`] instruction step.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, serde::Serialize)]
 pub struct KernelStep {
+    /// Registers before the step.
     pub old_registers: Registers,
+    /// Registers after the step.
     pub new_registers: Registers,
+    /// The instruction that was executed.
     pub instruction: Instruction,
 }
 
