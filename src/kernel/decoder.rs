@@ -139,6 +139,33 @@
 //!     Bit::new(123).unwrap(),
 //! ));
 //! ```
+//!
+//! ## B-Type
+//!
+//! B-Type instructions have the following bit representation.
+//!
+//! ```pic
+//! beq t0, t1, -2048
+//! 1000000 00110 00101 000 00001 1100011
+//! |       |     |     |   |     | opcode
+//! |       |     |     |   | imm [4:1 | 11]
+//! |       |     |     | funct3
+//! |       |     | rs1
+//! |       | rs2
+//! | imm [12 | 10:5]
+//! ```
+//!
+//! Here is an example of the decoder decoding this instruction
+//!
+//! ```
+//! # use risc_v_sim::kernel::{decode_instruction,Bit,RegId,Instruction};
+//! let decoded = decode_instruction(0b1000000_00110_00101_000_00001_1100011).unwrap();
+//! assert_eq!(decoded, Instruction::Beq(
+//!     RegId::T0,
+//!     RegId::T1,
+//!     Bit::new(0xC00).unwrap(),
+//! ));
+//! ```
 
 use thiserror::Error;
 
