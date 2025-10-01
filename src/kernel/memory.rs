@@ -22,7 +22,7 @@ pub enum MemoryError {
 
 type Result<T> = std::result::Result<T, MemoryError>;
 
-//// The memory system.
+/// The memory system.
 ///
 /// A memory system consists of
 /// N **noverlapping** segments. The no-overlap part is important
