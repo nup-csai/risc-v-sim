@@ -10,11 +10,21 @@ env:
 jobs:
   build-samples:
     runs-on: ubuntu-latest
-    container: krinkin/rv64-toolchain:latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        id: cache-artifacts
+        continue-on-error: false
+        with:
+          path: |
+            riscv-samples/bin/
+            riscv-samples/gdb_cmds/
+            riscv-samples/traces/
+          key: ci-integration-cap-${{ hashFiles('riscv-samples/src/*', 'riscv-samples/cfg/*') }}
+          restore-keys: ci-integration-cap-
       - name: build and capture
-        run: cd riscv-samples && make -j8 init-capture && make capture
+        if: steps.cache-artifacts.outputs.cache-hit != 'true'
+        run: docker run --rm --mount type=bind,src=./riscv-samples,dst=/ws krinkin/rv64-toolchain:latest make capture
       - name: Upload traces
         uses: actions/upload-artifact@v4
         with:
