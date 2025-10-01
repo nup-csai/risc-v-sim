@@ -1,7 +1,7 @@
 //! Decoder of `RiscV` instructions.
 //!
 //! Compressed instructions are not supported. For a list
-//! of the supported instructions, please consult the [Instruction]
+//! of the supported instructions, please consult the [`Instruction`]
 //! type.
 //!
 //! # `RiscV` instructions
@@ -139,6 +139,33 @@
 //!     Bit::new(123).unwrap(),
 //! ));
 //! ```
+//!
+//! ## B-Type
+//!
+//! B-Type instructions have the following bit representation.
+//!
+//! ```pic
+//! beq t0, t1, -2048
+//! 1000000 00110 00101 000 00001 1100011
+//! |       |     |     |   |     | opcode
+//! |       |     |     |   | imm [4:1 | 11]
+//! |       |     |     | funct3
+//! |       |     | rs1
+//! |       | rs2
+//! | imm [12 | 10:5]
+//! ```
+//!
+//! Here is an example of the decoder decoding this instruction
+//!
+//! ```
+//! # use risc_v_sim::kernel::{decode_instruction,Bit,RegId,Instruction};
+//! let decoded = decode_instruction(0b1000000_00110_00101_000_00001_1100011).unwrap();
+//! assert_eq!(decoded, Instruction::Beq(
+//!     RegId::T0,
+//!     RegId::T1,
+//!     Bit::new(0xC00).unwrap(),
+//! ));
+//! ```
 
 use thiserror::Error;
 
@@ -149,18 +176,20 @@ use super::{Bit, InstrVal, Instruction, RegId, RegVal};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Error)]
 pub enum DecodeError {
-    #[error("Unkown instruction opcode: {0:#x}")]
+    #[error("Unknown instruction opcode: {0:#x}")]
     UnknownOpcode(InstrVal),
-    #[error("Unkown r ALU op funct values: {funct3:#x} and {funct7:#x}")]
-    UnknownRAluOp { funct3: InstrVal, funct7: InstrVal },
-    #[error("Unkown i ALU op funct3 value: {funct3:#x}")]
-    UnknownIAluOp { funct3: InstrVal },
-    #[error("Unkown load op funct3 value: {funct3:#x}")]
+    #[error("Unknown op funct3 and funct7 values: {funct3:#x} and {funct7:#x}")]
+    UnknownOp { funct3: InstrVal, funct7: InstrVal },
+    #[error("Unknown imm-op funct3 value: {funct3:#x}")]
+    UnknownImmOp { funct3: InstrVal },
+    #[error("Unknown load op funct3 value: {funct3:#x}")]
     UnknownLoadOp { funct3: InstrVal },
-    #[error("Unkown store op funct3 value: {funct3:#x}")]
+    #[error("Unknown env-op funct3 and imm values: {funct3:#x} and {imm:#x}")]
+    UnknownEnvOp { funct3: InstrVal, imm: InstrVal },
+    #[error("Unknown store op funct3 value: {funct3:#x}")]
     UnknownStoreOp { funct3: InstrVal },
     #[error("Unknown bitwise shift type: {shtyp:#x}")]
-    UnknownShtyp { shtyp: InstrVal },
+    UnknownImmOpShtyp { shtyp: InstrVal },
     #[error("Unknown branch funct3 value: {funct3:#x}")]
     UnknownBranch { funct3: InstrVal },
 }
@@ -228,6 +257,10 @@ pub mod opcodes {
     /// To figure out what instruction it is,
     /// you need to look at funct3.
     pub const LOAD: InstrVal = 0b000_0011;
+    /// Opcode of [`Instruction::Ebreak`].
+    /// Ecall uses the same opcode, however risc_v_sim
+    /// does not support it.
+    pub const OP_ENV: InstrVal = 0b111_0011;
 
     /* S-type instructions */
     /// Opcode of the following instructions
@@ -376,6 +409,16 @@ pub mod load {
     pub const ALL_FUNCT3: [InstrVal; 5] = [FUNCT3_LB, FUNCT3_LH, FUNCT3_LW, FUNCT3_LBU, FUNCT3_LHU];
 }
 
+/// [op_env] contains `funct3` and imm values
+/// for instructions with opcode [`opcodes::OP_ENV`].
+/// For more information, see the comment above that constant.
+pub mod op_env {
+    use super::InstrVal;
+
+    pub const FUNCT3_EBREAK: InstrVal = 0b000;
+    pub const IMM_EBREAK: InstrVal = 0b0000_0000_0001;
+}
+
 /// [store] contains `funct3` values
 /// for instructions with opcode [`opcodes::STORE`].
 /// For more information, see the comment above that constant.
@@ -449,6 +492,7 @@ pub const fn decode_instruction(code: InstrVal) -> Result<Instruction> {
         opcodes::OP_IMM => c_try!(decode_op_imm(code)),
         opcodes::JALR => Jalr(get_rd(code), get_rs1(code), get_i_imm(code)),
         opcodes::LOAD => c_try!(decode_load(code)),
+        opcodes::OP_ENV => c_try!(decode_op_env(code)),
         opcodes::STORE => c_try!(decode_store(code)),
         opcodes::BRANCH => c_try!(decode_branch(code)),
         opcode => return Err(DecodeError::UnknownOpcode(opcode)),
@@ -458,13 +502,13 @@ pub const fn decode_instruction(code: InstrVal) -> Result<Instruction> {
 }
 
 /// Decode an instruction with opcode [`opcodes::OP_IMM`].
-const fn decode_op_imm(instruction: InstrVal) -> Result<Instruction> {
+const fn decode_op_imm(code: InstrVal) -> Result<Instruction> {
     use Instruction::{Addi, Andi, Ori, Slli, Slti, Sltiu, Xori};
 
-    let funct3 = get_funct3(instruction);
-    let rd = get_rd(instruction);
-    let rs1 = get_rs1(instruction);
-    let imm = get_i_imm(instruction);
+    let funct3 = get_funct3(code);
+    let rd = get_rd(code);
+    let rs1 = get_rs1(code);
+    let imm = get_i_imm(code);
 
     let instruction = match funct3 {
         op_imm::FUNCT3_ADDI => Addi(rd, rs1, imm),
@@ -472,40 +516,40 @@ const fn decode_op_imm(instruction: InstrVal) -> Result<Instruction> {
         op_imm::FUNCT3_ANDI => Andi(rd, rs1, imm),
         op_imm::FUNCT3_ORI => Ori(rd, rs1, imm),
         op_imm::FUNCT3_SLLI => Slli(rd, rs1, imm),
-        op_imm::FUNCT3_SRLI_SRAI => c_try!(decode_srli_srai(instruction)),
+        op_imm::FUNCT3_SRLI_SRAI => c_try!(decode_srli_srai(code)),
         op_imm::FUNCT3_SLTI => Slti(rd, rs1, imm),
         op_imm::FUNCT3_SLTIU => Sltiu(rd, rs1, imm),
-        funct3 => return Err(DecodeError::UnknownIAluOp { funct3 }),
+        funct3 => return Err(DecodeError::UnknownImmOp { funct3 }),
     };
 
     Ok(instruction)
 }
 
 /// Decode an `op_imm` with funct3 [`op_imm::FUNCT3_SRLI_SRAI`]
-const fn decode_srli_srai(instruction: InstrVal) -> Result<Instruction> {
+const fn decode_srli_srai(code: InstrVal) -> Result<Instruction> {
     use Instruction::{Srai, Srli};
 
-    let rd = get_rd(instruction);
-    let rs1 = get_rs1(instruction);
-    let (amount, shtyp) = get_shift_imms(instruction);
+    let rd = get_rd(code);
+    let rs1 = get_rs1(code);
+    let (amount, shtyp) = get_shift_imms(code);
 
     let instruction = match shtyp.get_zext() as InstrVal {
         srli_srai_shtyp::SHTYP_SRLI => Srli(rd, rs1, amount),
         srli_srai_shtyp::SHTYP_SRAI => Srai(rd, rs1, amount),
-        shtyp => return Err(DecodeError::UnknownShtyp { shtyp }),
+        shtyp => return Err(DecodeError::UnknownImmOpShtyp { shtyp }),
     };
 
     Ok(instruction)
 }
 
 /// Decode an instruction with opcode [`opcodes::OP`].
-const fn decode_op(instruction: InstrVal) -> Result<Instruction> {
+const fn decode_op(code: InstrVal) -> Result<Instruction> {
     use Instruction::{Add, And, Or, Sll, Slt, Sltu, Sra, Srl, Sub, Xor};
 
-    let funct3_7 = (get_funct3(instruction), get_funct7(instruction));
-    let rd = get_rd(instruction);
-    let rs1 = get_rs1(instruction);
-    let rs2 = get_rs2(instruction);
+    let funct3_7 = (get_funct3(code), get_funct7(code));
+    let rd = get_rd(code);
+    let rs1 = get_rs1(code);
+    let rs2 = get_rs2(code);
 
     let instruction = match funct3_7 {
         (op::FUNCT3_ADD, op::FUNCT7_ADD) => Add(rd, rs1, rs2),
@@ -518,20 +562,20 @@ const fn decode_op(instruction: InstrVal) -> Result<Instruction> {
         (op::FUNCT3_SRA, op::FUNCT7_SRA) => Sra(rd, rs1, rs2),
         (op::FUNCT3_SLT, op::FUNCT7_SLT) => Slt(rd, rs1, rs2),
         (op::FUNCT3_SLTU, op::FUNCT7_SLTU) => Sltu(rd, rs1, rs2),
-        (funct3, funct7) => return Err(DecodeError::UnknownRAluOp { funct3, funct7 }),
+        (funct3, funct7) => return Err(DecodeError::UnknownOp { funct3, funct7 }),
     };
 
     Ok(instruction)
 }
 
 /// Decode an instruction with opcode [`opcodes::LOAD`].
-const fn decode_load(instruction: InstrVal) -> Result<Instruction> {
+const fn decode_load(code: InstrVal) -> Result<Instruction> {
     use Instruction::{Lb, Lbu, Lh, Lhu, Lw};
 
-    let funct3 = get_funct3(instruction);
-    let rd = get_rd(instruction);
-    let rs1 = get_rs1(instruction);
-    let imm = get_i_imm(instruction);
+    let funct3 = get_funct3(code);
+    let rd = get_rd(code);
+    let rs1 = get_rs1(code);
+    let imm = get_i_imm(code);
 
     let instruction = match funct3 {
         load::FUNCT3_LB => Lb(rd, rs1, imm),
@@ -540,6 +584,23 @@ const fn decode_load(instruction: InstrVal) -> Result<Instruction> {
         load::FUNCT3_LBU => Lbu(rd, rs1, imm),
         load::FUNCT3_LHU => Lhu(rd, rs1, imm),
         funct3 => return Err(DecodeError::UnknownLoadOp { funct3 }),
+    };
+
+    Ok(instruction)
+}
+
+/// Decode an instruction with opcode [`opcodes::OP_ENV`].
+const fn decode_op_env(code: InstrVal) -> Result<Instruction> {
+    use Instruction::Ebreak;
+
+    // TODO: technically, ebreak isn't banned form having rs1 and rd specified.
+    // what do we do here?
+    let funct3 = get_funct3(code);
+    let imm = get_i_imm(code);
+
+    let instruction = match (funct3, imm.get_zext() as InstrVal) {
+        (op_env::FUNCT3_EBREAK, op_env::IMM_EBREAK) => Ebreak,
+        (funct3, imm) => return Err(DecodeError::UnknownEnvOp { funct3, imm }),
     };
 
     Ok(instruction)
@@ -691,9 +752,9 @@ const fn get_b_imm(code: InstrVal) -> Bit<12> {
 pub const fn encode_instruction(instruction: Instruction) -> InstrVal {
     use crate::util::bit;
     use Instruction::{
-        Add, Addi, And, Andi, Auipc, Beq, Bge, Bgeu, Blt, Bltu, Bne, Jal, Jalr, Lb, Lbu, Lh, Lhu,
-        Lui, Lw, Or, Ori, Sb, Sh, Sll, Slli, Slt, Slti, Sltiu, Sltu, Sra, Srai, Srl, Srli, Sub, Sw,
-        Xor, Xori,
+        Add, Addi, And, Andi, Auipc, Beq, Bge, Bgeu, Blt, Bltu, Bne, Ebreak, Jal, Jalr, Lb, Lbu,
+        Lh, Lhu, Lui, Lw, Or, Ori, Sb, Sh, Sll, Slli, Slt, Slti, Sltiu, Sltu, Sra, Srai, Srl, Srli,
+        Sub, Sw, Xor, Xori,
     };
 
     match instruction {
@@ -725,6 +786,12 @@ pub const fn encode_instruction(instruction: Instruction) -> InstrVal {
         Lw(rd, rs1, imm) => encode_load(rd, load::FUNCT3_LW, rs1, imm),
         Lbu(rd, rs1, imm) => encode_load(rd, load::FUNCT3_LBU, rs1, imm),
         Lhu(rd, rs1, imm) => encode_load(rd, load::FUNCT3_LHU, rs1, imm),
+        Ebreak => encode_op_env(
+            RegId::ZERO,
+            op_env::FUNCT3_EBREAK,
+            RegId::ZERO,
+            bit(op_env::IMM_EBREAK as RegVal),
+        ),
         Sb(rs1, rs2, imm) => encode_store(store::FUNCT3_SB, rs1, rs2, imm),
         Sh(rs1, rs2, imm) => encode_store(store::FUNCT3_SH, rs1, rs2, imm),
         Sw(rs1, rs2, imm) => encode_store(store::FUNCT3_SW, rs1, rs2, imm),
@@ -809,6 +876,16 @@ const fn encode_jalr(rd: RegId, rs1: RegId, imm: Bit<12>) -> InstrVal {
 const fn encode_load(rd: RegId, funct3: InstrVal, rs1: RegId, imm: Bit<12>) -> InstrVal {
     let mut out = 0;
     out |= opcodes::LOAD;
+    out |= rd.get() << offsets::RD;
+    out |= funct3 << offsets::FUNCT3;
+    out |= rs1.get() << offsets::RS1;
+    out |= (imm.get_zext() as InstrVal) << offsets::I_TYPE_IMM;
+    out
+}
+
+const fn encode_op_env(rd: RegId, funct3: InstrVal, rs1: RegId, imm: Bit<12>) -> InstrVal {
+    let mut out = 0;
+    out |= opcodes::OP_ENV;
     out |= rd.get() << offsets::RD;
     out |= funct3 << offsets::FUNCT3;
     out |= rs1.get() << offsets::RS1;
@@ -931,6 +1008,7 @@ mod tests {
             0b000000000100_01111_101_01111_0000011,
             Instruction::Lhu(reg_x(15), reg_x(15), bit(4)),
         );
+        assert_good_parse(0b000000000001_00000_000_00000_1110011, Instruction::Ebreak);
         /* S-Type instructions */
         assert_good_parse(
             0b000001100101_00111_000_11011_0100011,

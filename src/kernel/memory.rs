@@ -8,21 +8,21 @@ use crate::kernel::{InstrVal, RegVal};
 pub enum MemoryError {
     #[error("Address {address:#x} is not mapped")]
     AddressOutOfRange { address: RegVal },
-    #[error("Address {address:#x} does not have read permissions")]
+    #[error("Address {address:#x}: segment doesn't allow reads")]
     AddressNotReadable { address: RegVal },
-    #[error("Address {address:#x} does not have write permissions")]
+    #[error("Address {address:#x}: segment doesn't allow writes")]
     AddressNotWritable { address: RegVal },
-    #[error("Address {address:#x} does not have execute permissions")]
+    #[error("Address {address:#x}: segment doesn't allow execution")]
     AddressNotExecutable { address: RegVal },
-    #[error("Expected {address:#x} to {expected_alignment}-aligned")]
+    #[error("Address {address:#x} is not {expected_alignment}-aligned")]
     MisalignedAccess { address: RegVal, expected_alignment: usize },
-    #[error("Segment {off:#x}:{len:#x}) overlaps existing: {found_off:#x}:{found_len:#x}")]
+    #[error("Segment {off:#x}:{len:#x} overlaps existing: {found_off:#x}:{found_len:#x}")]
     SegmentOverlap { found_off: RegVal, found_len: RegVal, off: RegVal, len: RegVal },
 }
 
 type Result<T> = std::result::Result<T, MemoryError>;
 
-//// The memory system.
+/// The memory system.
 ///
 /// A memory system consists of
 /// N **noverlapping** segments. The no-overlap part is important
