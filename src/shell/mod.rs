@@ -12,7 +12,8 @@ use serde::Serialize;
 use thiserror::Error;
 
 use crate::kernel::{
-    InstrVal, InstructionDecodeError, Kernel, KernelError, KernelStep, MemoryError, Program,
+    InstrVal, Instruction, InstructionDecodeError, Kernel, KernelError, KernelStep, MemoryError,
+    Program,
 };
 
 #[derive(Debug, Error)]
@@ -130,12 +131,17 @@ pub fn run_kernel(kernel: &mut Kernel, step_count: usize, out: &mut dyn Write) -
     let mut err = None;
     let mut steps = Vec::new();
     for _ in 0..step_count {
-        match kernel.step() {
-            Ok(x) => steps.push(x),
+        let step = match kernel.step() {
+            Ok(x) => x,
             Err(e) => {
                 err = Some(e);
                 break;
             }
+        };
+
+        steps.push(step);
+        if matches!(step.instruction, Instruction::Ebreak) {
+            break;
         }
     }
 
