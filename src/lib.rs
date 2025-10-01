@@ -129,12 +129,13 @@ pub struct Args {
 ///
 /// If something goes wrong, [`ShellError`] is returned.
 pub fn run_cli(args: &Args) -> Result<(), ShellError> {
-    let mut memory = Memory::new();
-    let entry_point = load_program_into_memory(&mut memory, &args.path)?;
-    load_segments_into_memory(&mut memory, &args.input, &args.output)?;
+    let mut kernel = Kernel::from_program(&load_program_from_file(&args.path)?);
+    load_segments_into_memory(&mut kernel.memory, &args.input, &args.output)?;
 
-    let mut kernel = Kernel::new(memory, entry_point);
-    run_kernel(&mut kernel, args.ticks, &mut stdout().lock())?;
+    let run_result = run_kernel(&mut kernel, args.ticks);
+    if let Err(e) = serde_json::to_writer(&mut stdout().lock(), &run_result) {
+        eprintln!("Failed to write result to stdout: {e}");
+    }
 
     for (def, file) in &args.output {
         let segment = find_segment_for_def(&kernel.memory, def);
@@ -167,16 +168,6 @@ impl MemorySegmentDef {
             mem,
         }
     }
-}
-
-fn load_program_into_memory(memory: &mut Memory, path: &PathBuf) -> Result<RegVal, ShellError> {
-    let info = load_program_from_file(path)?;
-    let entry_point = info.entry;
-
-    info.load_into_memory(memory, false, false)
-        .map_err(ShellError::LoadingProramIntoMemory)?;
-
-    Ok(entry_point)
 }
 
 fn load_segments_into_memory(

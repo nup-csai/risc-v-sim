@@ -68,6 +68,7 @@ pub enum Instruction {
     Lw(RegId, RegId, Bit<12>),
     Lbu(RegId, RegId, Bit<12>),
     Lhu(RegId, RegId, Bit<12>),
+    Ebreak,
     /* S-Type instructions */
     Sb(RegId, RegId, Bit<12>),
     Sh(RegId, RegId, Bit<12>),
@@ -224,6 +225,7 @@ impl Instruction {
                 let val = self.load(mem, addr, 2)?;
                 regs.set(rd, val);
             }
+            Instruction::Ebreak => { /* ebreak does nothing for kernel */ }
             Instruction::Sb(rs1, rs2, imm) => {
                 let rs1 = regs.get(rs1);
                 let rs2 = regs.get(rs2);
@@ -307,9 +309,9 @@ impl Instruction {
 impl fmt::Display for Instruction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use Instruction::{
-            Add, Addi, And, Andi, Auipc, Beq, Bge, Bgeu, Blt, Bltu, Bne, Jal, Jalr, Lb, Lbu, Lh,
-            Lhu, Lui, Lw, Or, Ori, Sb, Sh, Sll, Slli, Slt, Slti, Sltiu, Sltu, Sra, Srai, Srl, Srli,
-            Sub, Sw, Xor, Xori,
+            Add, Addi, And, Andi, Auipc, Beq, Bge, Bgeu, Blt, Bltu, Bne, Ebreak, Jal, Jalr, Lb,
+            Lbu, Lh, Lhu, Lui, Lw, Or, Ori, Sb, Sh, Sll, Slli, Slt, Slti, Sltiu, Sltu, Sra, Srai,
+            Srl, Srli, Sub, Sw, Xor, Xori,
         };
 
         match *self {
@@ -341,6 +343,7 @@ impl fmt::Display for Instruction {
             Lw(rd, rs1, imm) => write!(f, "lw {rd} {rs1} {}", imm.get_signed()),
             Lbu(rd, rs1, imm) => write!(f, "lbu {rd} {rs1} {}", imm.get_signed()),
             Lhu(rd, rs1, imm) => write!(f, "lhu {rd} {rs1} {}", imm.get_signed()),
+            Ebreak => write!(f, "ebreak"),
             Sb(rs1, rs2, imm) => write!(f, "sb {rs2} {}({rs1})", imm.get_signed()),
             Sh(rs1, rs2, imm) => write!(f, "sh {rs2} {}({rs1})", imm.get_signed()),
             Sw(rs1, rs2, imm) => write!(f, "sw {rs2} {}({rs1})", imm.get_signed()),

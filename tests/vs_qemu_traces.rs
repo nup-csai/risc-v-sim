@@ -8,8 +8,12 @@ use std::{
     path::PathBuf,
 };
 
-use risc_v_sim::kernel::{
-    GENERAL_REGISTER_COUNT, InstrVal, KernelStep, Memory, MemorySegment, RegId, RegVal, Registers,
+use risc_v_sim::{
+    kernel::{
+        GENERAL_REGISTER_COUNT, InstrVal, Kernel, KernelStep, MemorySegment, RegId, RegVal,
+        Registers,
+    },
+    shell::load_program_from_file,
 };
 
 const SIMULATION_PROGRAM_OFFSET: RegVal = 0x80000000;
@@ -78,26 +82,22 @@ fn read_qemu_trace(path: PathBuf) -> Vec<Registers> {
 }
 
 fn assert_elf_trace(elf_path: PathBuf, qemu_trace: &[Registers]) {
-    let info = risc_v_sim::shell::load_program_from_file(&elf_path).unwrap();
-    let entry_point = info.entry;
-    assert_eq!(info.load_address, SIMULATION_PROGRAM_OFFSET);
-
-    let mut mem = Memory::new();
+    let mut kernel = Kernel::from_program(&load_program_from_file(&elf_path).unwrap());
     // QEMU lets you use the whole 0x80000000:0x8000000 segment as RAM.
     // Let's assume the program will always fit into first 4Kb, so the next
     // 4Kb will be reserved by the memory for program to write to.
-    info.load_into_memory(&mut mem, true, false).unwrap();
-    mem.add_segment(MemorySegment::new_zeroed(
-        true,
-        true,
-        false,
-        SIMULATION_PROGRAM_OFFSET + SIMULATION_RW_MEM_OFFSET,
-        SIUMLATION_RW_MEM_SIZE,
-    ))
-    .unwrap();
+    kernel
+        .memory
+        .add_segment(MemorySegment::new_zeroed(
+            true,
+            true,
+            false,
+            SIMULATION_PROGRAM_OFFSET + SIMULATION_RW_MEM_OFFSET,
+            SIUMLATION_RW_MEM_SIZE,
+        ))
+        .unwrap();
 
     let mut kernel_trace = Vec::new();
-    let mut kernel = risc_v_sim::kernel::Kernel::new(mem, entry_point);
     for (idx, qemu_step) in qemu_trace.iter().enumerate() {
         let step = match kernel.step() {
             Ok(x) => x,
@@ -158,7 +158,7 @@ fn parse_reg_from_line(regs: &mut Registers, line: &str) {
 fn find_mismatches_in_regs(found: &Registers, expected: &Registers) {
     if found.pc != expected.pc {
         println!(
-            "mismatch: pc. Expected {:#x}, found {:#}",
+            "mismatch: pc. Expected {:#x}, found {:#x}",
             expected.pc, found.pc
         );
     }
