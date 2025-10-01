@@ -149,18 +149,18 @@ use super::{Bit, InstrVal, Instruction, RegId, RegVal};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Error)]
 pub enum DecodeError {
-    #[error("Unkown instruction opcode: {0:#x}")]
+    #[error("Unknown instruction opcode: {0:#x}")]
     UnknownOpcode(InstrVal),
-    #[error("Unkown r ALU op funct values: {funct3:#x} and {funct7:#x}")]
-    UnknownRAluOp { funct3: InstrVal, funct7: InstrVal },
-    #[error("Unkown i ALU op funct3 value: {funct3:#x}")]
-    UnknownIAluOp { funct3: InstrVal },
-    #[error("Unkown load op funct3 value: {funct3:#x}")]
+    #[error("Unknown op funct3 and funct7 values: {funct3:#x} and {funct7:#x}")]
+    UnknownOp { funct3: InstrVal, funct7: InstrVal },
+    #[error("Unknown imm-op funct3 value: {funct3:#x}")]
+    UnknownImmOp { funct3: InstrVal },
+    #[error("Unknown load op funct3 value: {funct3:#x}")]
     UnknownLoadOp { funct3: InstrVal },
-    #[error("Unkown store op funct3 value: {funct3:#x}")]
+    #[error("Unknown store op funct3 value: {funct3:#x}")]
     UnknownStoreOp { funct3: InstrVal },
     #[error("Unknown bitwise shift type: {shtyp:#x}")]
-    UnknownShtyp { shtyp: InstrVal },
+    UnknownImmOpShtyp { shtyp: InstrVal },
     #[error("Unknown branch funct3 value: {funct3:#x}")]
     UnknownBranch { funct3: InstrVal },
 }
@@ -475,7 +475,7 @@ const fn decode_op_imm(instruction: InstrVal) -> Result<Instruction> {
         op_imm::FUNCT3_SRLI_SRAI => c_try!(decode_srli_srai(instruction)),
         op_imm::FUNCT3_SLTI => Slti(rd, rs1, imm),
         op_imm::FUNCT3_SLTIU => Sltiu(rd, rs1, imm),
-        funct3 => return Err(DecodeError::UnknownIAluOp { funct3 }),
+        funct3 => return Err(DecodeError::UnknownImmOp { funct3 }),
     };
 
     Ok(instruction)
@@ -492,7 +492,7 @@ const fn decode_srli_srai(instruction: InstrVal) -> Result<Instruction> {
     let instruction = match shtyp.get_zext() as InstrVal {
         srli_srai_shtyp::SHTYP_SRLI => Srli(rd, rs1, amount),
         srli_srai_shtyp::SHTYP_SRAI => Srai(rd, rs1, amount),
-        shtyp => return Err(DecodeError::UnknownShtyp { shtyp }),
+        shtyp => return Err(DecodeError::UnknownImmOpShtyp { shtyp }),
     };
 
     Ok(instruction)
@@ -518,7 +518,7 @@ const fn decode_op(instruction: InstrVal) -> Result<Instruction> {
         (op::FUNCT3_SRA, op::FUNCT7_SRA) => Sra(rd, rs1, rs2),
         (op::FUNCT3_SLT, op::FUNCT7_SLT) => Slt(rd, rs1, rs2),
         (op::FUNCT3_SLTU, op::FUNCT7_SLTU) => Sltu(rd, rs1, rs2),
-        (funct3, funct7) => return Err(DecodeError::UnknownRAluOp { funct3, funct7 }),
+        (funct3, funct7) => return Err(DecodeError::UnknownOp { funct3, funct7 }),
     };
 
     Ok(instruction)
