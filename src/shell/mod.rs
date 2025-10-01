@@ -12,8 +12,7 @@ use serde::Serialize;
 use thiserror::Error;
 
 use crate::kernel::{
-    InstrVal, InstructionDecodeError, Kernel, KernelError, KernelStep, Memory, MemoryError,
-    MemorySegment, Program, RegVal,
+    InstrVal, InstructionDecodeError, Kernel, KernelError, KernelStep, MemoryError, Program,
 };
 
 #[derive(Debug, Error)]
@@ -66,50 +65,8 @@ pub enum ShellError {
 
 type Result<T> = std::result::Result<T, ShellError>;
 
-#[derive(Debug, Clone)]
-pub struct ProgramInfo {
-    pub program: Program,
-    pub entry: RegVal,
-    pub load_address: RegVal,
-}
-
-impl ProgramInfo {
-    /// Adds the program to the memory with specified extra
-    /// permissions.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if adding the program segment to memory
-    /// leads to a memory error. For more information, see
-    /// [`Memory::add_segment`].
-    pub fn load_into_memory(
-        &self,
-        memory: &mut Memory,
-        is_read: bool,
-        is_write: bool,
-    ) -> std::result::Result<(), MemoryError> {
-        memory.add_segment(MemorySegment {
-            is_read,
-            is_write,
-            is_execute: true,
-            off: self.load_address,
-            mem: self.program.as_bytes().into(),
-        })
-    }
-}
-
-/// Reads progra info from an `.elf` file.
+/// Reads a program from an `.elf` file.
 ///
-/// # Errors
-///
-/// Returns [`ShellError::Load`] if an IO error happens during program load.
-/// Returns same errors as [`load_program_from_elf`].
-pub fn load_program_from_file(path: impl AsRef<Path>) -> Result<ProgramInfo> {
-    let file_data = std::fs::read(path).map_err(ShellError::Load)?;
-    load_program_from_elf(&file_data)
-}
-
-/// Reads progra info from bytes, that represent an `.elf` file.
 /// The elf file must satisfy the following constraints:
 /// * The elf file must be for a little-endian architecture
 /// * The elf file must have .text section
@@ -119,10 +76,12 @@ pub fn load_program_from_file(path: impl AsRef<Path>) -> Result<ProgramInfo> {
 ///
 /// # Errors
 ///
-/// Returns an error if `data` doesn't contain valid elf file bytes
-/// or the elf file doesn't satisfy the constraints
-pub fn load_program_from_elf(data: &[u8]) -> Result<ProgramInfo> {
-    let file = ElfBytes::<AnyEndian>::minimal_parse(data).map_err(ShellError::ElfHead)?;
+/// 1. Returns [`ShellError::Load`] if an IO error happens during program load.
+/// 2. Returns an error if `data` doesn't contain valid elf file bytes
+///    or the elf file doesn't satisfy the constraints
+pub fn load_program_from_file(path: impl AsRef<Path>) -> Result<Program> {
+    let elf_bytes = std::fs::read(path).map_err(ShellError::Load)?;
+    let file = ElfBytes::<AnyEndian>::minimal_parse(&elf_bytes).map_err(ShellError::ElfHead)?;
 
     if file.ehdr.endianness != AnyEndian::Little {
         return Err(ShellError::ElfNotLittleEndian);
@@ -145,10 +104,9 @@ pub fn load_program_from_elf(data: &[u8]) -> Result<ProgramInfo> {
     }
 
     let raw_stream = chunks.iter().copied().map(InstrVal::from_le_bytes);
-    let program =
-        Program::from_raw_instructions(raw_stream).map_err(ShellError::InstructionDecoderError)?;
 
-    Ok(ProgramInfo { program, load_address: text_header.sh_addr, entry: file.ehdr.e_entry })
+    Program::from_raw_instructions(raw_stream, text_header.sh_addr, file.ehdr.e_entry)
+        .map_err(ShellError::InstructionDecoderError)
 }
 
 /// Status of a kernel run. Contains a trace with an error

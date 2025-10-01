@@ -25,27 +25,27 @@ pub struct Kernel {
 
 impl Kernel {
     #[must_use]
-    pub const fn new(memory: Memory, entry_point: RegVal) -> Self {
+    pub const fn new(memory: Memory, start_pc: RegVal) -> Self {
         let mut registers = Registers::new();
-        registers.pc = entry_point;
+        registers.pc = start_pc;
 
         Kernel { registers, memory }
     }
 
     #[must_use]
-    pub fn from_program(program: &Program, entry_point: RegVal, program_off: RegVal) -> Self {
+    pub fn from_program(program: &Program) -> Self {
         let mut memory = Memory::new();
         memory
             .add_segment(MemorySegment {
                 is_read: false,
                 is_write: false,
                 is_execute: true,
-                off: program_off,
+                off: program.load_offset,
                 mem: program.as_bytes().into(),
             })
             .expect("added a segment to an empty memory");
 
-        Self::new(memory, entry_point)
+        Self::new(memory, program.entry_point)
     }
 
     /// Does a single instruction step simulation.
@@ -97,11 +97,22 @@ impl Kernel {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Program {
     instructions: Vec<[u8; 4]>,
+    pub load_offset: RegVal,
+    pub entry_point: RegVal,
 }
 
 impl Program {
-    pub fn from_instructions(instructions: Vec<Instruction>) -> Self {
-        Self { instructions: instructions.into_iter().map(encode_instruction).map(InstrVal::to_le_bytes).collect() }
+    pub fn from_instructions(
+        instructions: impl IntoIterator<Item = Instruction>,
+        load_offset: RegVal,
+        entry_point: RegVal,
+    ) -> Self {
+        let instructions = instructions
+            .into_iter()
+            .map(encode_instruction)
+            .map(InstrVal::to_le_bytes)
+            .collect();
+        Self { instructions, load_offset, entry_point }
     }
 
     /// Constructs a [`Program`] from a collection of raw instruction
@@ -113,8 +124,13 @@ impl Program {
     /// instruction code. For more information, see [`decode_instruction()`].
     pub fn from_raw_instructions(
         instructions: impl IntoIterator<Item = InstrVal>,
+        load_offset: RegVal,
+        entry_point: RegVal,
     ) -> Result<Self, InstructionDecodeError> {
-        let instructions = instructions.into_iter().map(InstrVal::to_le_bytes).collect::<Vec<_>>();
+        let instructions = instructions
+            .into_iter()
+            .map(InstrVal::to_le_bytes)
+            .collect::<Vec<_>>();
         for (idx, instruction_bytes) in instructions.iter().copied().enumerate() {
             let instruction_code = InstrVal::from_le_bytes(instruction_bytes);
             decode_instruction(instruction_code).map_err(|error| InstructionDecodeError {
@@ -124,11 +140,15 @@ impl Program {
             })?;
         }
 
-        Ok(Self { instructions })
+        Ok(Self { instructions, load_offset, entry_point })
     }
 
     pub fn as_bytes(&self) -> &[u8] {
         self.instructions.as_flattened()
+    }
+
+    pub fn len(&self) -> usize {
+        self.instructions.len()
     }
 }
 
@@ -185,7 +205,7 @@ mod tests {
     const MEM_OFFSET: RegVal = 0x100;
     const MEM_LEN: RegVal = 0x1000;
 
-    const THE_BASIC_PROG: [Instruction; 4] = [
+    const BASIC_INSTRUCTIONS: [Instruction; 4] = [
         Instruction::Xor(RegId::RA, RegId::SP, RegId::T0),
         Instruction::Add(RegId::RA, RegId::SP, RegId::T0),
         Instruction::Sub(RegId::RA, RegId::SP, RegId::T0),
@@ -194,27 +214,24 @@ mod tests {
 
     #[test]
     fn basic() {
-        let program = THE_BASIC_PROG;
-        assert_trace(0, 0, program.into(), vec![0, 1, 2]);
+        assert_trace(&BASIC_INSTRUCTIONS, 0, 0, vec![0, 1, 2]);
     }
 
     #[test]
     fn basic_with_offset() {
-        let program = THE_BASIC_PROG;
-        assert_trace(32, 32, program.into(), vec![0, 1, 2]);
+        assert_trace(&BASIC_INSTRUCTIONS, 32, 32, vec![0, 1, 2]);
     }
 
     #[test]
     fn basic_tricky_offset() {
-        let program = THE_BASIC_PROG;
-        assert_trace(36, 32, program.into(), vec![1, 2, 3]);
+        assert_trace(&BASIC_INSTRUCTIONS, 32, 36, vec![1, 2, 3]);
     }
 
     #[test]
     fn basic_loop() {
         use Instruction::*;
 
-        let program = vec![
+        let instructions = [
             Xor(RegId::RA, RegId::SP, RegId::T0),
             Add(RegId::RA, RegId::SP, RegId::T0),
             Sub(RegId::RA, RegId::SP, RegId::T0),
@@ -226,23 +243,18 @@ mod tests {
             0, 1, 2, 3,
             0, 1, 2, 3,
         ];
-        assert_trace(0, 0, program, expected_trace);
+        assert_trace(&instructions, 0, 0, expected_trace);
     }
 
     /// Test storing a message byte-by-byte.
     #[test]
     fn byte_storing() {
         let msg = b"hello";
-        let program = msg
-            .into_iter()
-            .enumerate()
-            .flat_map(byte_store)
-            .collect::<Vec<_>>();
-        let step_count = program.len();
-
-        let mut kernel = new_kernel(program, 0, 0);
+        let instructions = msg.into_iter().enumerate().flat_map(byte_store);
+        let program = Program::from_instructions(instructions, 0, 0);
+        let mut kernel = Kernel::from_program(&program);
         kernel.memory.add_segment(new_mem()).unwrap();
-        for _ in 0..step_count {
+        for _ in 0..program.len() {
             kernel.step().unwrap();
         }
 
@@ -253,18 +265,13 @@ mod tests {
     /// Test storing a message in 4-byte words.
     #[test]
     fn word_storing() {
-        let pieces = [b"Hell", b"o, w", b"orld"];
         let msg = b"Hello, world";
-        let program = pieces
-            .into_iter()
-            .enumerate()
-            .flat_map(word_store)
-            .collect::<Vec<_>>();
-        let step_count = program.len();
-
-        let mut kernel = new_kernel(program, 0, 0);
+        let (pieces, _) = msg.as_chunks();
+        let instructions = pieces.into_iter().enumerate().flat_map(word_store);
+        let program = Program::from_instructions(instructions, 0, 0);
+        let mut kernel = Kernel::from_program(&program);
         kernel.memory.add_segment(new_mem()).unwrap();
-        for _ in 0..step_count {
+        for _ in 0..program.len() {
             kernel.step().unwrap();
         }
 
@@ -308,24 +315,21 @@ mod tests {
     }
 
     fn assert_trace(
+        instructions: &[Instruction],
+        load_offset: RegVal,
         entry_point: RegVal,
-        program_off: RegVal,
-        program: Vec<Instruction>,
         expected_trace: Vec<usize>,
     ) {
-        let mut kernel = new_kernel(program, entry_point, program_off);
+        let instructions = instructions.iter().copied();
+        let program = Program::from_instructions(instructions, load_offset, entry_point);
+        let mut kernel = Kernel::from_program(&program);
         let mut actual_trace = Vec::new();
         for _ in 0..expected_trace.len() {
             let step = kernel.step().unwrap();
-            let local_exec_addr = (step.old_registers.pc - program_off) as usize;
+            let local_exec_addr = (step.old_registers.pc - load_offset) as usize;
             actual_trace.push(local_exec_addr / std::mem::size_of::<InstrVal>());
         }
 
         assert_eq!(expected_trace, actual_trace);
-    }
-
-    fn new_kernel(program: Vec<Instruction>, entry_point: RegVal, program_off: RegVal) -> Kernel {
-        let program = Program::from_instructions(program);
-        Kernel::from_program(&program, entry_point, program_off)
     }
 }
