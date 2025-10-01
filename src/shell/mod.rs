@@ -127,7 +127,7 @@ pub struct RunResult {
 /// Returns an error if an IO error happens or if an error during kernel stepping happens.
 /// If the execution is unfortunate enough to have both kernel and IO error, the two
 /// errors are bundled with [`ShellError::ResultReportError`].
-pub fn run_kernel(kernel: &mut Kernel, step_count: usize, out: &mut dyn Write) -> Result<()> {
+pub fn run_kernel(kernel: &mut Kernel, step_count: usize, out: &mut dyn Write) -> Result<RunResult> {
     let mut err = None;
     let mut steps = Vec::new();
     for _ in 0..step_count {
@@ -149,9 +149,10 @@ pub fn run_kernel(kernel: &mut Kernel, step_count: usize, out: &mut dyn Write) -
         Some(e) => Err(ShellError::KernelError(e)),
         None => Ok(()),
     };
+    let run_result = RunResult { steps, err: err.as_ref().map(KernelError::to_string) };
     let write_result = serde_json::to_writer(
         out,
-        &RunResult { steps, err: err.as_ref().map(KernelError::to_string) },
+        &run_result,
     );
 
     if let Err(cause) = write_result {
@@ -161,5 +162,5 @@ pub fn run_kernel(kernel: &mut Kernel, step_count: usize, out: &mut dyn Write) -
         });
     }
 
-    result
+    Ok(run_result)
 }

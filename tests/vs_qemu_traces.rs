@@ -158,7 +158,7 @@ fn parse_reg_from_line(regs: &mut Registers, line: &str) {
 fn find_mismatches_in_regs(found: &Registers, expected: &Registers) {
     if found.pc != expected.pc {
         println!(
-            "mismatch: pc. Expected {:#x}, found {:#}",
+            "mismatch: pc. Expected {:#x}, found {:#x}",
             expected.pc, found.pc
         );
     }
