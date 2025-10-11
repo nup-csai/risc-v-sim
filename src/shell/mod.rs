@@ -110,7 +110,13 @@ pub fn load_program_from_file(path: impl AsRef<Path>) -> Result<Program> {
 pub struct RunResult {
     pub steps: Vec<KernelStep>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub err: Option<String>,
+    pub err: Option<RunError>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct RunError {
+    pub msg: String,
+    pub detail: KernelError,
 }
 
 /// Specification for constructing a memory segment.
@@ -234,13 +240,13 @@ fn find_segment_for_def<'a>(memory: &'a Memory, def: &MemorySegmentDef) -> &'a M
 /// The result is a special struct, which serializes into a machine-friendly
 /// shaped JSON.
 pub fn run_kernel(kernel: &mut Kernel, step_count: usize) -> RunResult {
-    let mut err = None;
+    let mut kern_err = None;
     let mut steps = Vec::new();
     for _ in 0..step_count {
         let step = match kernel.step() {
             Ok(x) => x,
             Err(e) => {
-                err = Some(e);
+                kern_err = Some(e);
                 break;
             }
         };
@@ -250,6 +256,10 @@ pub fn run_kernel(kernel: &mut Kernel, step_count: usize) -> RunResult {
             break;
         }
     }
+    let err = kern_err.map(kernel_error_to_run_error);
+    RunResult { steps, err }
+}
 
-    RunResult { steps, err: err.as_ref().map(KernelError::to_string) }
+fn kernel_error_to_run_error(kern_err: KernelError) -> RunError {
+    RunError { msg: kern_err.to_string(), detail: kern_err }
 }

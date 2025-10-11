@@ -6,6 +6,7 @@ use std::{
     ops::{Shl, Shr},
 };
 
+use serde::Serialize;
 use thiserror::Error;
 
 use crate::kernel::{REGVAL_SIZE_MASK, RegValSigned};
@@ -13,7 +14,7 @@ use crate::kernel::{REGVAL_SIZE_MASK, RegValSigned};
 use super::{Memory, MemoryError, RegId, RegVal, Registers};
 
 /// Error returned by [`Instruction::execute`].
-#[derive(Clone, Copy, PartialEq, Eq, Error, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Error, Debug, Serialize)]
 pub enum InstructionError {
     #[error("instruction `{instruction}`: {cause}")]
     MemoryError {

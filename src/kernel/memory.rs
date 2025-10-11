@@ -1,10 +1,11 @@
 //! Memory subsystem of the kernel.
 
+use serde::Serialize;
 use thiserror::Error;
 
 use crate::kernel::{InstrVal, RegVal};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Error, Serialize)]
 pub enum MemoryError {
     #[error("Address {address:#x} is not mapped")]
     AddressOutOfRange { address: RegVal },

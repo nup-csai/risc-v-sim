@@ -15,6 +15,7 @@ pub use instruction::*;
 pub use memory::*;
 pub use registers::*;
 
+use serde::Serialize;
 use thiserror::Error;
 
 #[derive(Debug)]
@@ -181,7 +182,7 @@ pub struct KernelStep {
     pub instruction: Instruction,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Error)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Error, Serialize)]
 pub enum KernelError {
     #[error("Failed to execute instruction at {instruction_address:#x}: {instruction_error}")]
     InstructionError {
