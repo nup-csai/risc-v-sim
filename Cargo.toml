@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+anyhow = "1.0.100"
 thiserror = "1.0.65"
 elf = "0.8.0"
 clap_derive = "4.5.41"

@@ -4,7 +4,7 @@ use std::process::ExitCode;
 
 fn main() -> ExitCode {
     let args = Args::parse();
-    if let Err(e) = run_cli(&args) {
+    if let Err(e) = run_cli(args) {
         eprintln!("{e}");
         return ExitCode::FAILURE;
     }

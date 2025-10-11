@@ -34,7 +34,7 @@
 //!    and configure the input/output segments
 //!
 //! The kernel itself is a simple implementation of a CPU exeuction
-//! step ([`Kernel::step()`]):
+//! step ([`kernel::Kernel::step()`]):
 //! 1. Fetch ([`kernel::memory`])
 //! 2. Decode ([`kernel::decoder`])
 //! 3. Execute ([`kernel::instruction`])
@@ -59,16 +59,14 @@ pub mod shell;
 mod util;
 
 use std::error::Error;
-use std::io::{Read, stdout};
+use std::io::stdout;
 use std::path::PathBuf;
 use std::str::FromStr;
 
 use clap::Parser;
-use kernel::Kernel;
-use shell::{ShellError, load_program_from_file};
 
-use crate::kernel::{Memory, MemorySegment, RegVal};
-use crate::shell::run_kernel;
+use crate::kernel::RegVal;
+use crate::shell::{KernelDef, MemorySegmentDef, run_from_spec};
 
 pub type ErrBox = Box<dyn Error + Send + Sync>;
 
@@ -107,7 +105,7 @@ pub struct Args {
     /// be reflected in the source file. You can use this option to give the
     /// program temporary working memory by mounting `/dev/null`.
     #[arg(short, long, value_name = "OFFSET:LENGTH[:FLAGS]=FILE", value_parser=parse_input_memory_segment)]
-    input: Vec<(MemorySegmentDef, PathBuf)>,
+    input: Vec<MemorySegmentDef>,
     /// Mounts `FILE` into program's memory as output. The program will get a
     /// specified segment filled with zeros. At the end of program execution
     /// the contents of the segment will be written into `FILE`.
@@ -120,126 +118,40 @@ pub struct Args {
     ///
     /// The default permissions for inputs is just `w`.
     #[arg(short, long, value_name = "OFFSET:LENGTH[:FLAGS]=FILE", value_parser=parse_output_memory_segment)]
-    output: Vec<(MemorySegmentDef, PathBuf)>,
+    output: Vec<MemorySegmentDef>,
 }
 
 /// Run the CLI according to specified `args`.
-///
-/// # Errors
-///
-/// If something goes wrong, [`ShellError`] is returned.
-pub fn run_cli(args: &Args) -> Result<(), ShellError> {
-    let mut kernel = Kernel::from_program(&load_program_from_file(&args.path)?);
-    load_segments_into_memory(&mut kernel.memory, &args.input, &args.output)?;
-
-    let run_result = run_kernel(&mut kernel, args.ticks);
-    if let Err(e) = serde_json::to_writer(&mut stdout().lock(), &run_result) {
-        eprintln!("Failed to write result to stdout: {e}");
-    }
-
-    for (def, file) in &args.output {
-        let segment = find_segment_for_def(&kernel.memory, def);
-        std::fs::write(file.clone(), segment.as_bytes())
-            .map_err(|error| ShellError::WritingOutputSegment { file: file.clone(), error })?;
-    }
+pub fn run_cli(args: Args) -> anyhow::Result<()> {
+    let spec = KernelDef { elfpath: args.path, inputs: args.input, outputs: args.output };
+    let run_result = run_from_spec(spec, args.ticks)?;
+    serde_json::to_writer(&mut stdout().lock(), &run_result)?;
 
     Ok(())
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct MemorySegmentDef {
-    pub off: RegVal,
-    pub len: RegVal,
-    pub is_read: bool,
-    pub is_write: bool,
-    pub is_execute: bool,
-}
-
-impl MemorySegmentDef {
-    fn to_segment(self, mem: impl Into<Box<[u8]>>) -> MemorySegment {
-        let mem = mem.into();
-        assert_eq!(mem.len(), self.len as usize);
-
-        MemorySegment {
-            is_read: self.is_read,
-            is_write: self.is_write,
-            is_execute: self.is_execute,
-            off: self.off,
-            mem,
-        }
-    }
-}
-
-fn load_segments_into_memory(
-    memory: &mut Memory,
-    inputs: &[(MemorySegmentDef, PathBuf)],
-    outputs: &[(MemorySegmentDef, PathBuf)],
-) -> Result<(), ShellError> {
-    for (def, path) in inputs {
-        let bytes = read_file(path, def.len)?;
-        memory
-            .add_segment(def.to_segment(bytes))
-            .map_err(ShellError::AddingSegmentToMemory)?;
-    }
-
-    for (def, _) in outputs {
-        let bytes = vec![0u8; def.len as usize].into_boxed_slice();
-        memory
-            .add_segment(def.to_segment(bytes))
-            .map_err(ShellError::AddingSegmentToMemory)?;
-    }
-
-    Ok(())
-}
-
-fn read_file(path: &PathBuf, amount: u64) -> Result<Vec<u8>, ShellError> {
-    let make_err =
-        |error: std::io::Error| ShellError::LoadingInputSegment { path: path.clone(), error };
-
-    let mut bytes = Vec::with_capacity(amount as usize);
-    let file = std::fs::File::open(path).map_err(make_err)?;
-    file.take(amount)
-        .read_to_end(&mut bytes)
-        .map_err(make_err)?;
-    Ok(bytes)
-}
-
-fn find_segment_for_def<'a>(memory: &'a Memory, def: &MemorySegmentDef) -> &'a MemorySegment {
-    memory
-        .segments()
-        .iter()
-        .find(|s| s.contains_address(def.off))
-        .expect("memory segment disappeared")
-}
-
-fn parse_input_memory_segment(s: &str) -> Result<(MemorySegmentDef, PathBuf), ErrBox> {
+fn parse_input_memory_segment(s: &str) -> Result<MemorySegmentDef, ErrBox> {
     parse_memory_segment(s, true)
 }
 
-fn parse_output_memory_segment(s: &str) -> Result<(MemorySegmentDef, PathBuf), ErrBox> {
+fn parse_output_memory_segment(s: &str) -> Result<MemorySegmentDef, ErrBox> {
     parse_memory_segment(s, false)
 }
 
-fn parse_memory_segment(s: &str, is_input: bool) -> Result<(MemorySegmentDef, PathBuf), ErrBox> {
+fn parse_memory_segment(s: &str, is_input: bool) -> Result<MemorySegmentDef, ErrBox> {
     use clap::{Error, error::*};
 
     let eq_pos = s.find('=').ok_or_else(|| Error::new(ErrorKind::NoEquals))?;
     let segment_def_string = &s[..eq_pos];
     let file_path_str = &s[eq_pos + 1..];
 
-    let segment_def = parse_segment_def(segment_def_string, is_input)?;
-    Ok((segment_def, PathBuf::from_str(file_path_str).unwrap()))
-}
-
-fn parse_segment_def(s: &str, is_input: bool) -> Result<MemorySegmentDef, ErrBox> {
-    let pieces = s.split(':').collect::<Vec<&str>>();
+    let pieces = segment_def_string.split(':').collect::<Vec<&str>>();
     if pieces.len() < 2 {
-        return Err(format!("not enough `:` in `{s}`").into());
+        return Err(format!("not enough `:` in `{segment_def_string}`").into());
     }
     if pieces.len() > 3 {
-        return Err(format!("too many `:` in `{s}`").into());
+        return Err(format!("too many `:` in `{segment_def_string}`").into());
     }
-
     let (is_read, is_write, is_execute) = match pieces.get(2) {
         Some(s) => parse_segment_flags(s)?,
         None if is_input => (true, false, false),
@@ -252,6 +164,7 @@ fn parse_segment_def(s: &str, is_input: bool) -> Result<MemorySegmentDef, ErrBox
         is_read,
         is_write,
         is_execute,
+        path: PathBuf::from_str(file_path_str).unwrap(),
     })
 }
 

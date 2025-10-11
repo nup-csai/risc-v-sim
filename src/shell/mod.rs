@@ -1,7 +1,10 @@
 //! The shell is a collection of wrapper code on top of
 //! the kernel to provide risc-v-sim's interface.
 
-use std::path::{Path, PathBuf};
+use std::{
+    io::Read,
+    path::{Path, PathBuf},
+};
 
 use elf::ElfBytes;
 use elf::endian::AnyEndian;
@@ -9,8 +12,8 @@ use serde::Serialize;
 use thiserror::Error;
 
 use crate::kernel::{
-    InstrVal, Instruction, InstructionDecodeError, Kernel, KernelError, KernelStep, MemoryError,
-    Program,
+    InstrVal, Instruction, InstructionDecodeError, Kernel, KernelError, KernelStep, Memory,
+    MemoryError, MemorySegment, Program, RegVal,
 };
 
 #[derive(Debug, Error)]
@@ -45,9 +48,9 @@ pub enum ShellError {
     },
     #[error("Failed to add a segment to memory: {0}")]
     AddingSegmentToMemory(#[source] MemoryError),
-    #[error("Failed to write segment bytes to {file:?}: {error}")]
+    #[error("Failed to write segment bytes to {path:?}: {error}")]
     WritingOutputSegment {
-        file: PathBuf,
+        path: PathBuf,
         #[source]
         error: std::io::Error,
     },
@@ -108,6 +111,119 @@ pub struct RunResult {
     pub steps: Vec<KernelStep>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub err: Option<String>,
+}
+
+/// Specification for constructing a memory segment.
+#[derive(Debug, Clone)]
+pub struct MemorySegmentDef {
+    pub off: RegVal,
+    pub len: RegVal,
+    pub is_read: bool,
+    pub is_write: bool,
+    pub is_execute: bool,
+    pub path: PathBuf,
+}
+
+impl MemorySegmentDef {
+    /// Construct a segment according to def.
+    pub fn to_segment(&self, mem: impl Into<Box<[u8]>>) -> MemorySegment {
+        let mem = mem.into();
+        assert_eq!(mem.len(), self.len as usize);
+
+        MemorySegment {
+            is_read: self.is_read,
+            is_write: self.is_write,
+            is_execute: self.is_execute,
+            off: self.off,
+            mem,
+        }
+    }
+}
+
+/// Specification for constructing and running a kernel.
+///
+/// The specification should be passed to [`run_from_spec()`],
+/// however you may also use it to build a kernel.
+#[derive(Debug)]
+pub struct KernelDef {
+    /// The .elf file path to use
+    pub elfpath: PathBuf,
+    /// The input segments.
+    pub inputs: Vec<MemorySegmentDef>,
+    /// The output segments.
+    pub outputs: Vec<MemorySegmentDef>,
+}
+
+impl KernelDef {
+    /// Construct a kernel according to the def.
+    ///
+    /// * Segments declared in `inputs` will be construced from bytes
+    ///   specified stored files specified by their `path` field. Extra
+    ///   space will be zero-padded.
+    /// * Segments declared in `outputs` will be constructed from zeroes
+    pub fn build_kernel(&self) -> Result<Kernel> {
+        let program = load_program_from_file(&self.elfpath)?;
+        let mut kernel = Kernel::from_program(&program);
+
+        for def in &self.inputs {
+            let bytes = Self::read_file(&def.path, def.len)?;
+            kernel
+                .memory
+                .add_segment(def.to_segment(bytes))
+                .map_err(ShellError::AddingSegmentToMemory)?;
+        }
+
+        for def in &self.outputs {
+            let bytes = vec![0u8; def.len as usize].into_boxed_slice();
+            kernel
+                .memory
+                .add_segment(def.to_segment(bytes))
+                .map_err(ShellError::AddingSegmentToMemory)?;
+        }
+
+        Ok(kernel)
+    }
+
+    fn read_file(path: &PathBuf, amount: u64) -> Result<Vec<u8>> {
+        let make_err =
+            |error: std::io::Error| ShellError::LoadingInputSegment { path: path.clone(), error };
+
+        let mut bytes = Vec::with_capacity(amount as usize);
+        let file = std::fs::File::open(path).map_err(make_err)?;
+        file.take(amount)
+            .read_to_end(&mut bytes)
+            .map_err(make_err)?;
+        Ok(bytes)
+    }
+}
+
+/// Runs a kernel for `step_count` steps, returning the result.
+///
+/// The kernel is constructed from [`KernelDef`]. The kernel
+/// is run with [`run_kernel()`]. See that function for more information.
+///
+/// Segments specified in spec's `outputs` field, wil have their bytes
+/// written to files specified by their paths.
+pub fn run_from_spec(spec: KernelDef, step_count: usize) -> Result<RunResult> {
+    let mut kernel = spec.build_kernel()?;
+    let run_result = run_kernel(&mut kernel, step_count);
+
+    for def in &spec.outputs {
+        let path = def.path.clone();
+        let segment = find_segment_for_def(&kernel.memory, def);
+        std::fs::write(&path, segment.as_bytes())
+            .map_err(|error| ShellError::WritingOutputSegment { path, error })?;
+    }
+
+    Ok(run_result)
+}
+
+fn find_segment_for_def<'a>(memory: &'a Memory, def: &MemorySegmentDef) -> &'a MemorySegment {
+    memory
+        .segments()
+        .iter()
+        .find(|s| s.contains_address(def.off))
+        .expect("memory segment disappeared")
 }
 
 /// Runs the kernel for `step_count` steps, returning the result.
