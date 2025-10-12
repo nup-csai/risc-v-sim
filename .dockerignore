@@ -1,0 +1,4 @@
+target/
+riscv-samples/bin
+riscv-samples/gdb_cmds
+riscv-samples/traces
