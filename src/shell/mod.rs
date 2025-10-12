@@ -8,6 +8,7 @@ use std::{
 
 use elf::ElfBytes;
 use elf::endian::AnyEndian;
+use log::{debug, info, trace};
 use serde::Serialize;
 use thiserror::Error;
 
@@ -75,6 +76,8 @@ type Result<T> = std::result::Result<T, ShellError>;
 /// 2. Returns an error if `data` doesn't contain valid elf file bytes
 ///    or the elf file doesn't satisfy the constraints
 pub fn load_program_from_file(path: impl AsRef<Path>) -> Result<Program> {
+    debug!(target: "shell", "Loading a program from {:?}", path.as_ref());
+
     let elf_bytes = std::fs::read(path).map_err(ShellError::Load)?;
     let file = ElfBytes::<AnyEndian>::minimal_parse(&elf_bytes).map_err(ShellError::ElfHead)?;
 
@@ -99,8 +102,11 @@ pub fn load_program_from_file(path: impl AsRef<Path>) -> Result<Program> {
     }
 
     let raw_stream = chunks.iter().copied().map(InstrVal::from_le_bytes);
+    let load_offset = text_header.sh_addr;
+    let entry_point = file.ehdr.e_entry;
 
-    Program::from_raw_instructions(raw_stream, text_header.sh_addr, file.ehdr.e_entry)
+    info!(target: "shell", "load_offset={load_offset:#x}, entry_point={entry_point:#x}", );
+    Program::from_raw_instructions(raw_stream, load_offset, entry_point)
         .map_err(ShellError::InstructionDecoderError)
 }
 
@@ -172,6 +178,7 @@ impl KernelDef {
         let mut kernel = Kernel::from_program(&program);
 
         for def in &self.inputs {
+            debug!(target: "rvsim::shell", "Input segment from {:?}", def.path);
             let bytes = Self::read_file(&def.path, def.len)?;
             kernel
                 .memory
@@ -180,6 +187,7 @@ impl KernelDef {
         }
 
         for def in &self.outputs {
+            debug!(target: "rvsim::shell", "Output segment from {:?}", def.path);
             let bytes = vec![0u8; def.len as usize].into_boxed_slice();
             kernel
                 .memory
@@ -191,6 +199,8 @@ impl KernelDef {
     }
 
     fn read_file(path: &PathBuf, amount: u64) -> Result<Vec<u8>> {
+        trace!(target: "rvsim::shell", "Reading at most {amount:#x} bytes from {path:?}");
+
         let make_err =
             |error: std::io::Error| ShellError::LoadingInputSegment { path: path.clone(), error };
 
@@ -211,10 +221,14 @@ impl KernelDef {
 /// Segments specified in spec's `outputs` field, wil have their bytes
 /// written to files specified by their paths.
 pub fn run_from_spec(spec: KernelDef, step_count: usize) -> Result<RunResult> {
+    debug!(target: "rvsim::shell", "Run kernel from spec {spec:?}");
+
     let mut kernel = spec.build_kernel()?;
     let run_result = run_kernel(&mut kernel, step_count);
 
     for def in &spec.outputs {
+        debug!(target: "rvsim::shell", "writing back output segment for file {:?}", def.path);
+
         let path = def.path.clone();
         let segment = find_segment_for_def(&kernel.memory, def);
         std::fs::write(&path, segment.as_bytes())
@@ -240,6 +254,8 @@ fn find_segment_for_def<'a>(memory: &'a Memory, def: &MemorySegmentDef) -> &'a M
 /// The result is a special struct, which serializes into a machine-friendly
 /// shaped JSON.
 pub fn run_kernel(kernel: &mut Kernel, step_count: usize) -> RunResult {
+    debug!(target: "rvsim::shell", "Run kernel for {step_count} steps");
+
     let mut kern_err = None;
     let mut steps = Vec::new();
     for _ in 0..step_count {
@@ -257,7 +273,10 @@ pub fn run_kernel(kernel: &mut Kernel, step_count: usize) -> RunResult {
         }
     }
     let err = kern_err.map(kernel_error_to_run_error);
-    RunResult { steps, err }
+
+    let res = RunResult { steps, err };
+    trace!(target: "shell", "result: {res:?}");
+    res
 }
 
 fn kernel_error_to_run_error(kern_err: KernelError) -> RunError {

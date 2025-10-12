@@ -1,5 +1,6 @@
 //! Memory subsystem of the kernel.
 
+use log::{debug, info, trace};
 use serde::Serialize;
 use thiserror::Error;
 
@@ -48,6 +49,16 @@ impl Memory {
     /// If the added segment overlaps already added segments,
     /// [`MemoryError::SegmentOverlap`] is returned.
     pub fn add_segment(&mut self, added_segment: MemorySegment) -> Result<()> {
+        info!(
+            target: "rvsim::memory",
+            "Adding a segment at {:#x} of length {:#x}: read={}, write={}, execute={}",
+            added_segment.off,
+            added_segment.len(),
+            added_segment.is_read,
+            added_segment.is_write,
+            added_segment.is_execute,
+        );
+
         let conflicting_segment = self
             .segments
             .iter()
@@ -75,6 +86,8 @@ impl Memory {
     /// * The segment containing `address` does not allow reads
     /// * `address` is not aligned to `dst`'s size
     pub fn load(&self, address: RegVal, dst: &mut [u8]) -> Result<()> {
+        debug!(target: "rvsim::memory", "Load at {address:#x}, length:{:#x}", dst.len());
+
         let segment = self.find_segment(address)?;
         if !segment.is_read {
             return Err(MemoryError::AddressNotReadable { address });
@@ -98,6 +111,8 @@ impl Memory {
     /// * The segment containing `address` does not allow execution
     /// * `address` is not aligned to 4 bytes
     pub fn fetch_instruction(&self, address: RegVal) -> Result<InstrVal> {
+        debug!(target: "rvsim::memory", "Fetch instruction at {address:#x}");
+
         let segment = self.find_segment(address)?;
         if !segment.is_execute {
             return Err(MemoryError::AddressNotExecutable { address });
@@ -122,6 +137,8 @@ impl Memory {
     /// * The segment containing `address` does not allow writes
     /// * `address` is not aligned to `src`'s size
     pub fn store(&mut self, address: RegVal, src: &[u8]) -> Result<()> {
+        debug!(target: "rvsim::memory", "Store to {address:#x}, length:{:#x}", src.len());
+
         let segment = self.find_segment_mut(address)?;
         if !segment.is_write {
             return Err(MemoryError::AddressNotWritable { address });
@@ -142,10 +159,23 @@ impl Memory {
     /// Returns [`MemoryError::AddressOutOfRange`] if there is no segment
     /// containing `adress`.
     pub fn find_segment(&self, address: RegVal) -> Result<&MemorySegment> {
-        self.segments
+        let segment = self
+            .segments
             .iter()
             .find(|x| x.contains_address(address))
-            .ok_or(MemoryError::AddressOutOfRange { address })
+            .ok_or(MemoryError::AddressOutOfRange { address })?;
+
+        trace!(
+            target: "rvsim::memory",
+            "Found a segment for address {address:#x} at {:#x} of length {:#x}: read={}, write={}, execute={}",
+            segment.off,
+            segment.len(),
+            segment.is_read,
+            segment.is_write,
+            segment.is_execute,
+        );
+
+        Ok(segment)
     }
 
     /// Finds a segment that contains `address`, but returns a mutable
@@ -156,10 +186,23 @@ impl Memory {
     /// Returns [`MemoryError::AddressOutOfRange`] if there is no segment
     /// containing `adress`.
     fn find_segment_mut(&mut self, address: RegVal) -> Result<&mut MemorySegment> {
-        self.segments
+        let segment = self
+            .segments
             .iter_mut()
             .find(|x| x.contains_address(address))
-            .ok_or(MemoryError::AddressOutOfRange { address })
+            .ok_or(MemoryError::AddressOutOfRange { address })?;
+
+        trace!(
+            target: "rvsim::memory",
+            "Found a segment for address {address:#x} at {:#x} of length {:#x}: read={}, write={}, execute={}",
+            segment.off,
+            segment.len(),
+            segment.is_read,
+            segment.is_write,
+            segment.is_execute,
+        );
+
+        Ok(segment)
     }
 
     /// Returns all memory segments.
