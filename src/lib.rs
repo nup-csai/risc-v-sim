@@ -77,6 +77,11 @@ pub type ErrBox = Box<dyn Error + Send + Sync>;
 ///
 /// All errors and logs will also be reported into standard error
 /// for debugging purposes.
+///
+/// You can configure the logger by properly setting the `RUST_LOG`
+/// environment variable. For more information about the filter
+/// format, see the docs for env_logger at
+/// https://docs.rs/env_logger/latest/env_logger/index.html.
 #[derive(Parser, Debug)]
 #[doc(hidden)]
 pub struct Args {
