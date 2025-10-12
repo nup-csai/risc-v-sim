@@ -1,0 +1,13 @@
+name: Image Health
+
+on: 
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  img-check:
+    runs-on: ubuntu-24.04  
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t rvsim .
+      - run: docker run --rm rvsim /bin/bash -c 'cargo test --test "*"' 
