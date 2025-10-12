@@ -167,6 +167,7 @@
 //! ));
 //! ```
 
+use serde::Serialize;
 use thiserror::Error;
 
 use crate::c_try;
@@ -174,7 +175,7 @@ use crate::util::{bit, reg_x};
 
 use super::{Bit, InstrVal, Instruction, RegId, RegVal};
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Error)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Error, Serialize)]
 pub enum DecodeError {
     #[error("Unknown instruction opcode: {0:#x}")]
     UnknownOpcode(InstrVal),
