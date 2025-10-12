@@ -6,6 +6,7 @@ use std::{
     ops::{Shl, Shr},
 };
 
+use log::debug;
 use serde::Serialize;
 use thiserror::Error;
 
@@ -93,6 +94,8 @@ impl Instruction {
     /// * [`Memory::load()`]
     /// * [`Memory::store()`]
     pub fn execute(self, regs: &mut Registers, mem: &mut Memory, old_pc: RegVal) -> Result<()> {
+        debug!(target: "rvsim::instruction", "Executing `{self}`");
+
         match self {
             Instruction::Jal(rd, imm) => {
                 regs.set(rd, old_pc + 4);

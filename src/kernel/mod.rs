@@ -12,6 +12,7 @@ pub mod registers;
 
 pub use decoder::*;
 pub use instruction::*;
+use log::debug;
 pub use memory::*;
 pub use registers::*;
 
@@ -62,6 +63,8 @@ impl Kernel {
     /// 3. An error happened during isntruction execution. See [`Instruction::execute()`]
     ///    for more info.
     pub fn step(&mut self) -> Result<KernelStep, KernelError> {
+        debug!(target: "rvsim::kernel", "Kernel step start, registers={:x?}", self.registers);
+
         let old_registers = self.registers;
         let old_pc = old_registers.pc;
         let instruction = self.fetch_instruction()?;
@@ -73,6 +76,7 @@ impl Kernel {
                 instruction_address: self.registers.pc,
                 instruction_error,
             })?;
+        debug!(target: "rvsim::kernel", "Kernel step done, registers={:x?}", self.registers);
 
         Ok(KernelStep { old_registers, instruction, new_registers: self.registers })
     }
