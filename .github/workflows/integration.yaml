@@ -62,4 +62,4 @@ jobs:
           name: elfs
           path: ./riscv-samples/bin
       - name: Run tests
-        run: cargo test --test vs_qemu_traces --locked -- --show-output
+        run: cargo test --test "*" --locked -- --show-output
