@@ -8,6 +8,8 @@ use std::{
     path::PathBuf,
 };
 
+use env_logger::Builder;
+use log::info;
 use risc_v_sim::{
     kernel::{
         GENERAL_REGISTER_COUNT, InstrVal, Kernel, KernelStep, MemorySegment, RegId, RegVal,
@@ -22,10 +24,15 @@ const SIUMLATION_RW_MEM_SIZE: RegVal = 0x8000;
 
 #[test]
 fn vs_qemu_traces() {
+    Builder::new()
+        .is_test(true)
+        .filter_level(log::LevelFilter::Debug)
+        .init();
+
     let traces_dir = PathBuf::from_iter(["riscv-samples", "traces"])
         .canonicalize()
         .unwrap();
-    println!("checking trace dir: {traces_dir:?}");
+    info!("checking trace dir: {traces_dir:?}");
 
     let traces_exist = fs::exists(&traces_dir).unwrap();
     assert!(
@@ -39,11 +46,11 @@ fn vs_qemu_traces() {
 
         let entry = entry.unwrap().path().canonicalize().unwrap();
         let Some(extension) = entry.extension() else {
-            println!("Skipping {entry:?} (not a file with extension)");
+            info!("Skipping {entry:?} (not a file with extension)");
             continue;
         };
         if extension != "trace" {
-            println!("Skipping {entry:?} (file doesn't have a .trace extension)");
+            info!("Skipping {entry:?} (file doesn't have a .trace extension)");
             continue;
         }
 
@@ -54,13 +61,13 @@ fn vs_qemu_traces() {
         elf_path.push(filename);
         elf_path.set_extension("elf");
 
-        println!("Reading trace from {entry:?}");
+        info!("Reading trace from {entry:?}");
         let qemu_trace = read_qemu_trace(entry);
 
-        println!("Simulating {elf_path:?}");
+        info!("Simulating {elf_path:?}");
         assert_elf_trace(elf_path, &qemu_trace);
 
-        println!("Pass");
+        info!("Pass");
     }
 
     assert!(ran_tests, "no tests were run");
@@ -119,7 +126,7 @@ fn assert_elf_trace(elf_path: PathBuf, qemu_trace: &[Registers]) {
 
 fn dump_trace(kernel_trace: &[KernelStep]) {
     for step in kernel_trace {
-        println!("{step:?}");
+        info!("{step:x?}");
     }
 }
 
@@ -157,7 +164,7 @@ fn parse_reg_from_line(regs: &mut Registers, line: &str) {
 
 fn find_mismatches_in_regs(found: &Registers, expected: &Registers) {
     if found.pc != expected.pc {
-        println!(
+        info!(
             "mismatch: pc. Expected {:#x}, found {:#x}",
             expected.pc, found.pc
         );
@@ -167,7 +174,7 @@ fn find_mismatches_in_regs(found: &Registers, expected: &Registers) {
         let idx = RegId::new(idx as InstrVal).unwrap();
         let (found_reg, expected_reg) = (found.get(idx), expected.get(idx));
         if found_reg != expected_reg {
-            println!("mismatch: {name}. Expected {expected_reg:#x}, found {found_reg:#x}");
+            info!("mismatch: {name}. Expected {expected_reg:#x}, found {found_reg:#x}");
         }
     }
 }
