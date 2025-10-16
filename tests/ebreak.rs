@@ -5,6 +5,8 @@
 
 use std::path::PathBuf;
 
+use env_logger::Builder;
+use log::info;
 use risc_v_sim::{
     kernel::{
         GENERAL_REGISTER_COUNT, InstrVal, Kernel, KernelStep, MemorySegment, RegId, RegVal,
@@ -19,6 +21,11 @@ const SIUMLATION_RW_MEM_SIZE: RegVal = 0x8000;
 
 #[test]
 fn ebreak() {
+    Builder::new()
+        .is_test(true)
+        .filter_level(log::LevelFilter::Debug)
+        .init();
+
     let elf_path = PathBuf::from_iter(["riscv-samples", "bin", "ebreak.elf"]);
     let mut ebreak_trace = [Registers::new(); 3];
     ebreak_trace[0].pc = 0x80000004;
@@ -26,7 +33,7 @@ fn ebreak() {
     ebreak_trace[2].pc = 0x8000000C;
     assert_elf_trace(elf_path, &ebreak_trace);
 
-    println!("Pass");
+    info!("Pass");
 }
 
 fn assert_elf_trace(elf_path: PathBuf, qemu_trace: &[Registers]) {
@@ -56,7 +63,7 @@ fn assert_elf_trace(elf_path: PathBuf, qemu_trace: &[Registers]) {
 
 fn dump_trace(kernel_trace: &[KernelStep]) {
     for step in kernel_trace {
-        println!("{step:?}");
+        info!("{step:x?}");
     }
 }
 
@@ -68,7 +75,7 @@ static REGID_TO_NAME: [&str; GENERAL_REGISTER_COUNT] = [
 
 fn find_mismatches_in_regs(found: &Registers, expected: &Registers) {
     if found.pc != expected.pc {
-        println!(
+        info!(
             "mismatch: pc. Expected {:#x}, found {:#x}",
             expected.pc, found.pc
         );
@@ -78,7 +85,7 @@ fn find_mismatches_in_regs(found: &Registers, expected: &Registers) {
         let idx = RegId::new(idx as InstrVal).unwrap();
         let (found_reg, expected_reg) = (found.get(idx), expected.get(idx));
         if found_reg != expected_reg {
-            println!("mismatch: {name}. Expected {expected_reg:#x}, found {found_reg:#x}");
+            info!("mismatch: {name}. Expected {expected_reg:#x}, found {found_reg:#x}");
         }
     }
 }
