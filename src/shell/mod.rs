@@ -76,7 +76,7 @@ type Result<T> = std::result::Result<T, ShellError>;
 /// 2. Returns an error if `data` doesn't contain valid elf file bytes
 ///    or the elf file doesn't satisfy the constraints
 pub fn load_program_from_file(path: impl AsRef<Path>) -> Result<Program> {
-    debug!(target: "shell", "Loading a program from {:?}", path.as_ref());
+    debug!(target: "rvsim::shell", "Loading a program from {:?}", path.as_ref());
 
     let elf_bytes = std::fs::read(path).map_err(ShellError::Load)?;
     let file = ElfBytes::<AnyEndian>::minimal_parse(&elf_bytes).map_err(ShellError::ElfHead)?;
@@ -105,7 +105,7 @@ pub fn load_program_from_file(path: impl AsRef<Path>) -> Result<Program> {
     let load_offset = text_header.sh_addr;
     let entry_point = file.ehdr.e_entry;
 
-    info!(target: "shell", "load_offset={load_offset:#x}, entry_point={entry_point:#x}", );
+    info!(target: "rvsim::shell", "load_offset={load_offset:#x}, entry_point={entry_point:#x}", );
     Program::from_raw_instructions(raw_stream, load_offset, entry_point)
         .map_err(ShellError::InstructionDecoderError)
 }
@@ -275,7 +275,7 @@ pub fn run_kernel(kernel: &mut Kernel, step_count: usize) -> RunResult {
     let err = kern_err.map(kernel_error_to_run_error);
 
     let res = RunResult { steps, err };
-    trace!(target: "shell", "result: {res:?}");
+    trace!(target: "rvsim::shell", "result: {res:?}");
     res
 }
 
