@@ -19,6 +19,8 @@ const SIMULATION_PROGRAM_OFFSET: RegVal = 0x80000000;
 const SIMULATION_RW_MEM_OFFSET: RegVal = 0x1000;
 const SIUMLATION_RW_MEM_SIZE: RegVal = 0x8000;
 
+/// Ebreak test makes sure the shell terminates after it
+/// incounters the ebreak instruction.
 #[test]
 fn ebreak() {
     Builder::new()
