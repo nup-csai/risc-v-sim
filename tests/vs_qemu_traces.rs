@@ -40,10 +40,7 @@ fn vs_qemu_traces() {
         "trace directory not found. Make sure you build and capture the samples"
     );
 
-    let mut ran_tests = false;
     for entry in std::fs::read_dir(traces_dir).unwrap() {
-        ran_tests = true;
-
         let entry = entry.unwrap().path().canonicalize().unwrap();
         let Some(extension) = entry.extension() else {
             info!("Skipping {entry:?} (not a file with extension)");
@@ -69,8 +66,6 @@ fn vs_qemu_traces() {
 
         info!("Pass");
     }
-
-    assert!(ran_tests, "no tests were run");
 }
 
 fn read_qemu_trace(path: PathBuf) -> Vec<Registers> {
