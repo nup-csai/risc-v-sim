@@ -2,32 +2,23 @@
 //! Please make sure you have captured the QEMU traces first.
 //! For more information, see the README in `riscv-samples`.
 
-use std::{
-    fs::{self},
-    io::{BufRead, BufReader},
-    path::PathBuf,
-};
+mod common;
+use common::*;
 
-use env_logger::Builder;
+use std::fs::{self};
+use std::io::{BufRead, BufReader};
+use std::path::PathBuf;
+
 use log::info;
-use risc_v_sim::{
-    kernel::{
-        GENERAL_REGISTER_COUNT, InstrVal, Kernel, KernelStep, MemorySegment, RegId, RegVal,
-        Registers,
-    },
-    shell::load_program_from_file,
-};
+use risc_v_sim::kernel::{InstrVal, RegId, RegVal, Registers};
+use risc_v_sim::shell::MemorySegmentDef;
 
-const SIMULATION_PROGRAM_OFFSET: RegVal = 0x80000000;
 const SIMULATION_RW_MEM_OFFSET: RegVal = 0x1000;
 const SIUMLATION_RW_MEM_SIZE: RegVal = 0x8000;
 
 #[test]
 fn vs_qemu_traces() {
-    Builder::new()
-        .is_test(true)
-        .filter_level(log::LevelFilter::Debug)
-        .init();
+    init_test();
 
     let traces_dir = PathBuf::from_iter(["riscv-samples", "traces"])
         .canonicalize()
@@ -40,10 +31,7 @@ fn vs_qemu_traces() {
         "trace directory not found. Make sure you build and capture the samples"
     );
 
-    let mut ran_tests = false;
     for entry in std::fs::read_dir(traces_dir).unwrap() {
-        ran_tests = true;
-
         let entry = entry.unwrap().path().canonicalize().unwrap();
         let Some(extension) = entry.extension() else {
             info!("Skipping {entry:?} (not a file with extension)");
@@ -61,16 +49,28 @@ fn vs_qemu_traces() {
         elf_path.push(filename);
         elf_path.set_extension("elf");
 
+        let mem_path = make_test_mem_path("vsqemu-".to_string() + filename.to_str().unwrap());
+
         info!("Reading trace from {entry:?}");
         let qemu_trace = read_qemu_trace(entry);
 
         info!("Simulating {elf_path:?}");
-        assert_elf_trace(elf_path, &qemu_trace);
+        // QEMU lets you use the whole 0x80000000:0x8000000 segment as RAM.
+        // Let's assume the program will always fit into first 4Kb, so the next
+        // 4Kb will be reserved by the memory for program to write to.
+        KernelRunner::new_with_trace(elf_path, &qemu_trace)
+            .with_output(MemorySegmentDef {
+                off: SIMULATION_PROGRAM_OFFSET + SIMULATION_RW_MEM_OFFSET,
+                len: SIUMLATION_RW_MEM_SIZE,
+                is_read: true,
+                is_write: true,
+                is_execute: false,
+                path: mem_path,
+            })
+            .run();
 
         info!("Pass");
     }
-
-    assert!(ran_tests, "no tests were run");
 }
 
 fn read_qemu_trace(path: PathBuf) -> Vec<Registers> {
@@ -87,54 +87,6 @@ fn read_qemu_trace(path: PathBuf) -> Vec<Registers> {
 
     result
 }
-
-fn assert_elf_trace(elf_path: PathBuf, qemu_trace: &[Registers]) {
-    let mut kernel = Kernel::from_program(&load_program_from_file(&elf_path).unwrap());
-    // QEMU lets you use the whole 0x80000000:0x8000000 segment as RAM.
-    // Let's assume the program will always fit into first 4Kb, so the next
-    // 4Kb will be reserved by the memory for program to write to.
-    kernel
-        .memory
-        .add_segment(MemorySegment::new_zeroed(
-            true,
-            true,
-            false,
-            SIMULATION_PROGRAM_OFFSET + SIMULATION_RW_MEM_OFFSET,
-            SIUMLATION_RW_MEM_SIZE,
-        ))
-        .unwrap();
-
-    let mut kernel_trace = Vec::new();
-    for (idx, qemu_step) in qemu_trace.iter().enumerate() {
-        let step = match kernel.step() {
-            Ok(x) => x,
-            Err(e) => {
-                dump_trace(&kernel_trace);
-                panic!("Simulation fail: {e}");
-            }
-        };
-        kernel_trace.push(step);
-
-        let trace_entry = step.new_registers;
-        if trace_entry != *qemu_step {
-            dump_trace(&kernel_trace);
-            find_mismatches_in_regs(&trace_entry, qemu_step);
-            panic!("simulation mismatched qemu on step {idx}");
-        }
-    }
-}
-
-fn dump_trace(kernel_trace: &[KernelStep]) {
-    for step in kernel_trace {
-        info!("{step:x?}");
-    }
-}
-
-static REGID_TO_NAME: [&str; GENERAL_REGISTER_COUNT] = [
-    "zero", "ra", "sp", "gp", "tp", "t0", "t1", "t2", "fp", "s1", "a0", "a1", "a2", "a3", "a4",
-    "a5", "a6", "a7", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9", "s10", "s11", "t3", "t4",
-    "t5", "t6",
-];
 
 fn parse_reg_from_line(regs: &mut Registers, line: &str) {
     let mut it = line.split_ascii_whitespace();
@@ -159,22 +111,5 @@ fn parse_reg_from_line(regs: &mut Registers, line: &str) {
     match REGID_TO_NAME.iter().position(|x| *x == name) {
         Some(idx) => regs.set(RegId::new(idx as InstrVal).unwrap(), val),
         None => panic!("unknown reg {name:?}"),
-    }
-}
-
-fn find_mismatches_in_regs(found: &Registers, expected: &Registers) {
-    if found.pc != expected.pc {
-        info!(
-            "mismatch: pc. Expected {:#x}, found {:#x}",
-            expected.pc, found.pc
-        );
-    }
-    for idx in 0..GENERAL_REGISTER_COUNT {
-        let name = REGID_TO_NAME[idx];
-        let idx = RegId::new(idx as InstrVal).unwrap();
-        let (found_reg, expected_reg) = (found.get(idx), expected.get(idx));
-        if found_reg != expected_reg {
-            info!("mismatch: {name}. Expected {expected_reg:#x}, found {found_reg:#x}");
-        }
     }
 }

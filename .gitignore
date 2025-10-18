@@ -2,3 +2,4 @@
 riscv-samples/bin
 riscv-samples/traces
 riscv-samples/gdb_cmds
+test-mems/

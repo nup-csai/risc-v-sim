@@ -129,7 +129,7 @@ pub struct Args {
 /// Run the CLI according to specified `args`.
 pub fn run_cli(args: Args) -> anyhow::Result<()> {
     let spec = KernelDef { elfpath: args.path, inputs: args.input, outputs: args.output };
-    let run_result = run_from_spec(spec, args.ticks)?;
+    let (_, run_result) = run_from_spec(spec, args.ticks)?;
     serde_json::to_writer(&mut stdout().lock(), &run_result)?;
 
     Ok(())
