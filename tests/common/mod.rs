@@ -4,7 +4,9 @@ use std::path::PathBuf;
 
 use env_logger::Builder;
 use log::info;
-use risc_v_sim::kernel::{GENERAL_REGISTER_COUNT, InstrVal, Kernel, RegId, RegVal, Registers};
+use risc_v_sim::kernel::{
+    GENERAL_REGISTER_COUNT, InstrVal, Kernel, KernelError, RegId, RegVal, Registers,
+};
 use risc_v_sim::shell::{KernelDef, MemorySegmentDef, RunResult, run_from_spec};
 
 pub const SIMULATION_PROGRAM_OFFSET: RegVal = 0x80000000;
@@ -64,6 +66,24 @@ impl<'a> KernelRunner<'a> {
         self.expected_mems
             .push(ExpectedMem { off, data: data.into() });
         self
+    }
+
+    pub fn run_failing(&self) -> KernelError {
+        let step_count = self
+            .step_count
+            .expect("Can run failing only with a step count");
+        let kern_def = KernelDef {
+            elfpath: self.elf_path.clone(),
+            inputs: self.inputs.clone(),
+            outputs: self.outputs.clone(),
+        };
+        let (kernel, run_res) = run_from_spec(kern_def, step_count).unwrap();
+        info!("Kernel has been run");
+        let err = run_res.err.as_ref().expect("Expected kernel to fail");
+        info!("Kernel has failed with error: {}", err.msg);
+
+        self.check_mem(&kernel);
+        err.detail
     }
 
     pub fn run(&self) {
