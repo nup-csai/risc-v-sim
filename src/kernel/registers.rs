@@ -63,7 +63,7 @@ impl Registers {
 ///
 /// You can construct a new register index with [`RegId::new()`].
 /// You can also use predefined constants for convenience.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize)]
 #[repr(transparent)]
 pub struct RegId(InstrVal);
 
@@ -218,7 +218,13 @@ impl Default for Registers {
 
 #[cfg(test)]
 mod tests {
-    use crate::kernel::{REGVAL_SIZE_MASK, RegVal, RegValSigned};
+    use std::collections::HashSet;
+
+    use rand::random;
+
+    use crate::kernel::{
+        GENERAL_REGISTER_COUNT, REGVAL_SIZE_MASK, RegId, RegVal, RegValSigned, Registers,
+    };
 
     #[test]
     fn signed_unsigned_regval_same_size() {
@@ -229,5 +235,64 @@ mod tests {
     fn size_mask_correct() {
         let regval_bits_log2 = REGVAL_SIZE_MASK.count_ones();
         assert_eq!((2 as RegVal).pow(regval_bits_log2), RegVal::BITS as RegVal);
+    }
+
+    #[test]
+    fn reg_id_sanity() {
+        let keys = [
+            RegId::ZERO,
+            RegId::RA,
+            RegId::SP,
+            RegId::GP,
+            RegId::TP,
+            RegId::FP,
+            RegId::T0,
+            RegId::T1,
+            RegId::T2,
+            RegId::T3,
+            RegId::T4,
+            RegId::T5,
+            RegId::T6,
+            RegId::S1,
+            RegId::S2,
+            RegId::S3,
+            RegId::S4,
+            RegId::S5,
+            RegId::S6,
+            RegId::S7,
+            RegId::S8,
+            RegId::S9,
+            RegId::S10,
+            RegId::S11,
+            RegId::A0,
+            RegId::A1,
+            RegId::A2,
+            RegId::A3,
+            RegId::A4,
+            RegId::A5,
+            RegId::A6,
+            RegId::A7,
+        ];
+        let vals = (0..GENERAL_REGISTER_COUNT)
+            .map(|_| random())
+            .collect::<Vec<RegVal>>();
+
+        // Check 1: all named ids are different
+        let mut set = HashSet::new();
+        set.extend(keys);
+        assert_eq!(set.len(), GENERAL_REGISTER_COUNT);
+
+        // Check 2: the registers struct works
+        let mut regs = Registers::new();
+        for (key, val) in keys.iter().copied().zip(vals.iter().copied()) {
+            regs.set(key, val);
+        }
+        for (key, val) in keys.iter().copied().zip(vals.iter().copied()) {
+            if key == RegId::ZERO {
+                assert_eq!(regs.get(key), 0, "Hardwire zero must always be zero");
+                continue;
+            }
+            assert_eq!(val, regs.get(key));
+        }
     }
 }
