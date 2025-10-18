@@ -220,7 +220,7 @@ impl KernelDef {
 ///
 /// Segments specified in spec's `outputs` field, wil have their bytes
 /// written to files specified by their paths.
-pub fn run_from_spec(spec: KernelDef, step_count: usize) -> Result<RunResult> {
+pub fn run_from_spec(spec: KernelDef, step_count: usize) -> Result<(Kernel, RunResult)> {
     debug!(target: "rvsim::shell", "Run kernel from spec {spec:?}");
 
     let mut kernel = spec.build_kernel()?;
@@ -235,7 +235,7 @@ pub fn run_from_spec(spec: KernelDef, step_count: usize) -> Result<RunResult> {
             .map_err(|error| ShellError::WritingOutputSegment { path, error })?;
     }
 
-    Ok(run_result)
+    Ok((kernel, run_result))
 }
 
 fn find_segment_for_def<'a>(memory: &'a Memory, def: &MemorySegmentDef) -> &'a MemorySegment {
