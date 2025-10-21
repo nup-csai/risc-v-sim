@@ -7,22 +7,18 @@ use std::{
 };
 
 use log::debug;
-use serde::Serialize;
+use serde::{Serialize, Serializer};
 use thiserror::Error;
 
-use crate::kernel::{REGVAL_SIZE_MASK, RegValSigned};
+use crate::kernel::{REGVAL_SIZE_MASK, RegValSigned, instr_code_print::PrettyBincode};
 
 use super::{Memory, MemoryError, RegId, RegVal, Registers};
 
 /// Error returned by [`Instruction::execute`].
 #[derive(Clone, Copy, PartialEq, Eq, Error, Debug, Serialize)]
 pub enum InstructionError {
-    #[error("instruction `{instruction}`: {cause}")]
-    MemoryError {
-        instruction: Instruction,
-        #[source]
-        cause: MemoryError,
-    },
+    #[error("memory error: {0}")]
+    MemoryError(#[source] MemoryError),
 }
 
 type Result<T> = std::result::Result<T, InstructionError>;
@@ -298,14 +294,14 @@ impl Instruction {
     fn load(self, mem: &Memory, addr: RegVal, sz: usize) -> Result<RegVal> {
         let mut dst = [0u8; std::mem::size_of::<RegVal>()];
         mem.load(addr, &mut dst[0..sz])
-            .map_err(|cause| InstructionError::MemoryError { instruction: self, cause })?;
+            .map_err(InstructionError::MemoryError)?;
         Ok(RegVal::from_le_bytes(dst))
     }
 
     fn store(self, mem: &mut Memory, addr: RegVal, val: RegVal, sz: usize) -> Result<()> {
         let src = &val.to_le_bytes()[0..sz];
         mem.store(addr, src)
-            .map_err(|cause| InstructionError::MemoryError { instruction: self, cause })?;
+            .map_err(InstructionError::MemoryError)?;
         Ok(())
     }
 }
@@ -421,6 +417,44 @@ impl<const N: usize> Bit<N> {
     pub const fn get_signed(self) -> RegValSigned {
         self.get_sext() as RegValSigned
     }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize)]
+pub struct InstructionInfo {
+    #[serde(serialize_with = "serialize_bincode")]
+    pub code: PrettyBincode,
+    #[serde(serialize_with = "serialize_instruction_mnemonic")]
+    pub mnemonic: Instruction,
+    pub obj: Instruction,
+}
+
+impl From<Instruction> for InstructionInfo {
+    fn from(value: Instruction) -> Self {
+        Self { code: PrettyBincode(value), mnemonic: value, obj: value }
+    }
+}
+
+impl fmt::Display for InstructionInfo {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.obj)
+    }
+}
+
+fn serialize_bincode<S>(code: &PrettyBincode, s: S) -> std::result::Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    s.serialize_str(&code.to_string())
+}
+
+fn serialize_instruction_mnemonic<S>(
+    code: &Instruction,
+    s: S,
+) -> std::result::Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    s.serialize_str(&code.to_string())
 }
 
 #[cfg(test)]

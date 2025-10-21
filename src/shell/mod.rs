@@ -268,7 +268,7 @@ pub fn run_kernel(kernel: &mut Kernel, step_count: usize) -> RunResult {
         };
 
         steps.push(step);
-        if matches!(step.instruction, Instruction::Ebreak) {
+        if matches!(step.instruction.obj, Instruction::Ebreak) {
             break;
         }
     }
