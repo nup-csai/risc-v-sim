@@ -17,8 +17,10 @@ use log::debug;
 pub use memory::*;
 pub use registers::*;
 
-use serde::Serialize;
+use serde::{Serialize, Serializer};
 use thiserror::Error;
+
+use crate::kernel::instr_code_print::PrettyBincode;
 
 #[derive(Debug)]
 pub struct Kernel {
@@ -69,6 +71,7 @@ impl Kernel {
         let old_registers = self.registers;
         let old_pc = old_registers.pc;
         let instruction = self.fetch_instruction()?;
+        let instruction_code = PrettyBincode(instruction);
 
         self.registers.pc += 4;
         instruction
@@ -79,7 +82,12 @@ impl Kernel {
             })?;
         debug!(target: "rvsim::kernel", "Kernel step done, registers={:x?}", self.registers);
 
-        Ok(KernelStep { old_registers, instruction, new_registers: self.registers })
+        Ok(KernelStep {
+            old_registers,
+            instruction,
+            new_registers: self.registers,
+            instruction_code,
+        })
     }
 
     fn fetch_instruction(&self) -> Result<Instruction, KernelError> {
@@ -185,6 +193,16 @@ pub struct KernelStep {
     pub new_registers: Registers,
     /// The instruction that was executed.
     pub instruction: Instruction,
+    /// The instruction bincode for pretty-printing
+    #[serde(serialize_with = "serialize_bincode")]
+    pub instruction_code: PrettyBincode,
+}
+
+fn serialize_bincode<S>(code: &PrettyBincode, s: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    s.serialize_str(&code.to_string())
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Error, Serialize)]
