@@ -6,6 +6,7 @@
 //! 2. memory ([`memory::Memory`])
 
 pub mod decoder;
+pub mod instr_code_print;
 pub mod instruction;
 pub mod memory;
 pub mod registers;
