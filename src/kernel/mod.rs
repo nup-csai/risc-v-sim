@@ -6,18 +6,19 @@
 //! 2. memory ([`memory::Memory`])
 
 pub mod decoder;
+pub mod error;
+pub mod instr_code_print;
 pub mod instruction;
 pub mod memory;
 pub mod registers;
 
 pub use decoder::*;
+pub use error::*;
 pub use instruction::*;
-use log::debug;
 pub use memory::*;
 pub use registers::*;
 
-use serde::Serialize;
-use thiserror::Error;
+use log::debug;
 
 #[derive(Debug)]
 pub struct Kernel {
@@ -75,10 +76,15 @@ impl Kernel {
             .map_err(|instruction_error| KernelError::InstructionError {
                 instruction_address: self.registers.pc,
                 instruction_error,
+                instruction: instruction.into(),
             })?;
         debug!(target: "rvsim::kernel", "Kernel step done, registers={:x?}", self.registers);
 
-        Ok(KernelStep { old_registers, instruction, new_registers: self.registers })
+        Ok(KernelStep {
+            old_registers,
+            new_registers: self.registers,
+            instruction: instruction.into(),
+        })
     }
 
     fn fetch_instruction(&self) -> Result<Instruction, KernelError> {
@@ -164,17 +170,6 @@ impl Program {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Error)]
-#[error(
-    "Failed to encode instruction {instruction_idx}: {instruction_code:#x} is not a valid instruction"
-)]
-pub struct InstructionDecodeError {
-    pub instruction_idx: usize,
-    pub instruction_code: InstrVal,
-    #[source]
-    pub error: DecodeError,
-}
-
 /// Result of a successful [`Kernel`] instruction step.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, serde::Serialize)]
 pub struct KernelStep {
@@ -183,32 +178,7 @@ pub struct KernelStep {
     /// Registers after the step.
     pub new_registers: Registers,
     /// The instruction that was executed.
-    pub instruction: Instruction,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Error, Serialize)]
-pub enum KernelError {
-    #[error("Failed to execute instruction at {instruction_address:#x}: {instruction_error}")]
-    InstructionError {
-        instruction_address: RegVal,
-        #[source]
-        instruction_error: InstructionError,
-    },
-    #[error("Failed to fetch instruction at {instruction_address:#x}: {memory_error}")]
-    FetchError {
-        instruction_address: RegVal,
-        #[source]
-        memory_error: MemoryError,
-    },
-    #[error(
-        "Failed to decode instruction at {instruction_address:#x} with code {instruction_code:#x}: {decode_error}"
-    )]
-    DecodeError {
-        instruction_address: RegVal,
-        instruction_code: InstrVal,
-        #[source]
-        decode_error: DecodeError,
-    },
+    pub instruction: InstructionInfo,
 }
 
 #[cfg(test)]

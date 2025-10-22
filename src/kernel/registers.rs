@@ -12,6 +12,7 @@ pub type InstrVal = u32;
 pub const REGVAL_SIZE_MASK: RegVal = 0x3F;
 /// Amount of registers available to the kernel.
 pub const GENERAL_REGISTER_COUNT: usize = 32;
+pub const INSTRVAL_BITS: usize = InstrVal::BITS as usize;
 
 /// A register container.
 ///
