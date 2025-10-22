@@ -167,33 +167,10 @@
 //! ));
 //! ```
 
-use serde::Serialize;
-use thiserror::Error;
-
 use crate::c_try;
 use crate::util::{bit, reg_x};
 
-use super::{Bit, InstrVal, Instruction, RegId, RegVal};
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Error, Serialize)]
-pub enum DecodeError {
-    #[error("Unknown instruction opcode: {0:#x}")]
-    UnknownOpcode(InstrVal),
-    #[error("Unknown op funct3 and funct7 values: {funct3:#x} and {funct7:#x}")]
-    UnknownOp { funct3: InstrVal, funct7: InstrVal },
-    #[error("Unknown imm-op funct3 value: {funct3:#x}")]
-    UnknownImmOp { funct3: InstrVal },
-    #[error("Unknown load op funct3 value: {funct3:#x}")]
-    UnknownLoadOp { funct3: InstrVal },
-    #[error("Unknown env-op funct3 and imm values: {funct3:#x} and {imm:#x}")]
-    UnknownEnvOp { funct3: InstrVal, imm: InstrVal },
-    #[error("Unknown store op funct3 value: {funct3:#x}")]
-    UnknownStoreOp { funct3: InstrVal },
-    #[error("Unknown bitwise shift type: {shtyp:#x}")]
-    UnknownImmOpShtyp { shtyp: InstrVal },
-    #[error("Unknown branch funct3 value: {funct3:#x}")]
-    UnknownBranch { funct3: InstrVal },
-}
+use super::{Bit, DecodeError, InstrVal, Instruction, RegId, RegVal};
 
 type Result<T> = std::result::Result<T, DecodeError>;
 
