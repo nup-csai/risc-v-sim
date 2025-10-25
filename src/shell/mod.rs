@@ -26,14 +26,18 @@ pub enum ShellError {
     ElfNotLittleEndian,
     #[error("Failed to parse a section from the .elf file: {0}")]
     ElfSection(#[source] elf::ParseError),
+    #[error(".elf file has no sections")]
+    NoSections,
+    #[error(".elf file has no string table")]
+    NoStrtable,
     #[error("The .elf file does not have a .text section")]
     NoText,
     /// This error may happen if the .text section is compressed
     /// and the compression header is malformed.
-    #[error("Failed to read .text section data")]
-    TextData(#[source] elf::ParseError),
-    #[error("Compressed .text is not supported")]
-    CompressedText,
+    #[error("Failed to read section {0:?} data")]
+    SectionData(&'static str, #[source] elf::ParseError),
+    #[error("Compressed sections is not supported. Section {0:?} is compressed")]
+    CompressedSection(&'static str),
     #[error("The .text section is not a multiple of 4")]
     UnalignedText,
     #[error("Failed to decode the .text section: {0}")]
