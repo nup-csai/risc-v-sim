@@ -14,7 +14,7 @@ use risc_v_sim::kernel::{InstrVal, RegId, RegVal, Registers};
 use risc_v_sim::shell::MemorySegmentDef;
 
 const SIMULATION_RW_MEM_OFFSET: RegVal = 0x1000;
-const SIUMLATION_RW_MEM_SIZE: RegVal = 0x8000;
+const SIUMLATION_RW_MEM_SIZE: RegVal = 0x1000;
 
 #[test]
 fn vs_qemu_traces() {
