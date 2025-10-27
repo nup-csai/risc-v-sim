@@ -7,6 +7,10 @@ LD := riscv64-linux-gnu-ld
 QEMU := qemu-system-riscv64
 GDB := gdb-multiarch
 
+LDFLAGS := -Ttext=0x80000000
+LDFLAGS += -Tdata=0x80002000
+LDFLAGS += -Trodata=0x80003000
+
 # GDB output is quite machine-unfriendly and contains some junk.
 # This command santizes the output to make the trace machine-friendly. 
 TRACE_FILTER := awk '/^[a-z]([a-z]|[0-9])/ {print $$1 " " $$2} /^==/{print}' | grep "\S" 
@@ -31,7 +35,7 @@ bin/obj/%.o: src/%.s
 	$(AS) $< -o $@
 
 bin/%.elf: bin/obj/%.o
-	$(LD) -Ttext=0x80000000 $< -o $@
+	$(LD) $(LDFLAGS) $< -o $@
 
 gdb_cmds/%.gdb: cfg/%
 	bash ./make_gdb_cmds.sh bin/$*.elf $(file < cfg/$*) > $@
